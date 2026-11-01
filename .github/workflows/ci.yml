@@ -3,7 +3,11 @@ name: CI
 on:
   push:
     branches: [main]
+  # Docs-only pull requests skip this workflow; docs-check.yml scans them for secrets. docs/plugins ships in
+  # the bundle and its tests read it, so it counts as code. Root *.md files are neither formatted nor bundled.
+  # Pushes to main always run: dhx-auto-release releases main's head only after its CI run.
   pull_request:
+    paths: ['**', '!docs/**', 'docs/plugins/**', '!*.md']
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}

@@ -16,7 +16,9 @@ on:
   push:
     tags: ['dhx/v*']
     branches: [main]
+  # Docs-only pull requests skip the trial build, as they skip CI (see ci.yml).
   pull_request:
+    paths: ['**', '!docs/**', 'docs/plugins/**', '!*.md']
   workflow_dispatch:
     inputs:
       version:

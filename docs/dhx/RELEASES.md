@@ -9,7 +9,7 @@ Upstream's installer scripts and managed SSH still expect the old name, but neit
 ## Cutting a release
 
 **Automatically:** every push to `main` starts `dhx-release.yml` right away, in parallel with the `CI`
-workflow (lint, types, unit tests and the web suites; the Electron desktop suite runs separately and does not
+workflow (lint, types, unit tests and the web suites; the Electron desktop suite runs only by hand and does not
 hold a release). It works out the next version (the next patch of `package.json`'s version with `-dhx-<nnn>`
 counted up: `0.4.1-dhx-001`, `0.4.1-dhx-002`, …; when upstream moves to 0.4.1, `0.4.2-dhx-001`), then builds,
 runs our checks and attests the bundle. It skips lint, types and unit tests, because CI runs those for the
@@ -115,7 +115,8 @@ merge, and a returning phone-home shows up in the checks.
 |---|---|
 | Release workflow and checks (`.github/workflows/dhx-release.yml`, `dhx-auto-release.yml`, `scripts/dhx/`) | Our own verified builds, released automatically when main is green (#1) |
 | CI on Linux only: no `ci-macos` or `platform-e2e-windows` jobs; upstream's desktop `release.yml` and `nightly.yml` removed | We ship only the Linux server build; the macOS shards set the release time (#7) |
-| The Electron desktop suite runs in its own workflow (`e2e-electron.yml`) on every pull request and push to `main`; releases follow `CI` (lint, types, unit tests, web suites) only | We ship the Web UI, not the desktop app; the Electron shards set the release time (#8) |
+| The Electron desktop suite runs in its own workflow (`e2e-electron.yml`) only when started by hand; releases follow `CI` (lint, types, unit tests, web suites) only | We ship the Web UI, not the desktop app; the Electron shards set the release time (#8) and cost ~40 runner-minutes per run |
+| Docs-only pull requests (`docs/**` except `docs/plugins/**`, root `*.md`) skip `CI` and the release trial build; `docs-check.yml` scans them for secrets. Pushes to `main` always run both | Docs changes cannot break the build; `dhx-auto-release` releases `main`'s head only after its CI run |
 | Files dropped or pasted onto a terminal in the Web UI go to the worker (`/files/drop`), and their path is pasted | The Web UI had no way to pass a file to an agent (#2) |
 | No auto-update, no GitHub plugin catalog unless `OPENCOVE_PLUGIN_CATALOG=1`, no default upstream downloads for managed SSH, no Gemini schema fetch, spellcheck off, issue reports to this fork; plugin views in an opaque origin, website nodes refuse the UI's own origin | Nothing contacts third parties on its own; plugin and website content cannot act as the UI (#3) |
 | Token and password from env or file (not argv, not printed), no `?token=` unless enabled, Origin check for bearer requests, JSON and size limit on `/invoke`, `/debug/shell` off, security headers, Secure cookie behind TLS, no open bind without a password, database files 0600 | The worker's credentials stay out of process lists and logs; a token-injecting proxy is safe (#4) |

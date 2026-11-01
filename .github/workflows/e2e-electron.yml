@@ -1,13 +1,12 @@
 # The Electron desktop suite on Linux (moved out of ci.yml in this fork, docs/dhx/RELEASES.md). We ship the
-# server build with the Web UI, not the desktop app, so our releases do not wait for this suite: it runs on
-# every pull request and every push to main and reports there, while dhx-auto-release follows the CI
-# workflow only. The Web UI is gated by the web suites in ci.yml.
+# server build with the Web UI, not the desktop app, so our releases do not wait for this suite. It runs only
+# when started by hand (Actions -> Run workflow, or `gh workflow run e2e-electron.yml --ref <branch>`) and
+# costs about 40 runner-minutes a run. The same specs run against the Web UI in ci.yml (e2e-web), which
+# gates releases.
 name: E2E (Electron)
 
 on:
-  push:
-    branches: [main]
-  pull_request:
+  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}

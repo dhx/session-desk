@@ -1,0 +1,41 @@
+# Docs-only pull requests skip CI and the release trial build (ci.yml, dhx-release.yml). This scans what they
+# change for secrets, the one check that still matters for them: root *.md files are in .prettierignore, and
+# docs outside docs/plugins are neither built nor tested.
+name: Docs check
+
+on:
+  pull_request:
+    paths: ['docs/**', '*.md']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  secrets:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 9.6.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      - name: Secret scan
+        run: pnpm exec secretlint "docs/**/*" "*.md"
