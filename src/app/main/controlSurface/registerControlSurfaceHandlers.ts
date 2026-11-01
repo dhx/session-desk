@@ -13,6 +13,7 @@ import type { SyncEventPayload } from '../../../shared/contracts/dto'
 import { registerSystemHandlers } from './handlers/systemHandlers'
 import { registerProjectHandlers } from './handlers/projectHandlers'
 import { registerSpaceHandlers } from './handlers/spaceHandlers'
+import { registerSpaceMutationHandlers } from './handlers/spaceMutationHandlers'
 import { registerFilesystemHandlers } from './handlers/filesystemHandlers'
 import { registerFilesystemMountHandlers } from './handlers/filesystemMountHandlers'
 import { registerGitWorktreeHandlers } from './handlers/gitWorktreeHandlers'
@@ -88,6 +89,11 @@ export function registerControlSurfaceHandlers(
   })
   registerProjectHandlers(controlSurface, deps.getPersistenceStore)
   registerSpaceHandlers(controlSurface, deps.getPersistenceStore)
+  registerSpaceMutationHandlers(controlSurface, {
+    getPersistenceStore: deps.getPersistenceStore,
+    topology: deps.topology,
+    publishSyncEvent: deps.publishSyncEvent,
+  })
   registerWorkspaceHandlers(controlSurface, {
     approvedWorkspaces: deps.approvedWorkspaces,
     userDataPath: deps.userDataPath,

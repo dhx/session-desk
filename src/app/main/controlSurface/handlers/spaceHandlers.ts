@@ -243,6 +243,7 @@ function toSpaceDto(space: NormalizedPersistedSpace, nodeById: Map<string, NodeS
     parentSpaceId: space.parentSpaceId,
     boundary: space.boundary,
     sortOrder: space.sortOrder,
+    labelColor: space.labelColor,
     nodeIds: space.nodeIds,
     nodes: space.nodeIds.map(nodeId => {
       const node = nodeById.get(nodeId)

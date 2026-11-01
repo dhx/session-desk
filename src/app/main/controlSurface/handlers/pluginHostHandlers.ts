@@ -1,5 +1,6 @@
 import { publicFileSystemError } from '../../../../shared/errors/filesystemError'
 import { createPluginCanvasHost } from './pluginCanvasHost'
+import { createPluginSpaceHost } from './pluginSpaceHost'
 import { createPluginFilesystemHandlers } from './pluginFilesystemHandlers'
 import { randomUUID } from 'node:crypto'
 import type { PluginInstallationManager } from '../../../../contexts/plugins/application/PluginInstallationManager'
@@ -110,6 +111,7 @@ export function registerPluginHostHandlers(
     randomUUID,
   )
   const canvas = createPluginCanvasHost(control, deps)
+  const spaces = createPluginSpaceHost(control, deps)
   const request = async (
     authority: PluginHostAuthority,
     operation: string,
@@ -119,6 +121,9 @@ export function registerPluginHostHandlers(
     payload = pluginJsonValue(payload, 2 * 1024 * 1024, 'host request')
     if (canvas.handles(operation)) {
       return canvas.request(authority, operation, payload)
+    }
+    if (spaces.handles(operation)) {
+      return spaces.request(authority, operation, payload)
     }
     if (operation === 'preferences.get') {
       fields(payload, [])

@@ -10,6 +10,7 @@ installed Worker: direct Node APIs do not follow a selected remote project.
 | `target` | `list`, `resolve` | [Explicit projects, Spaces and execution location](./TARGETS.md) |
 | `filesystem` | `readDirectory`, `readText`, `stat`, `writeText`, `mkdir`, `rename`, `delete`, `watch`, `readWatch`, `unwatch` | [Routed files and sampled directory changes](./FILESYSTEM.md) |
 | `operations` | `start`, `get`, `cancel` | [Bounded, cancellable process jobs](./TARGETS.md) |
+| `spaces` | `list`, `create`, `update` | [Spaces: list, create, rename, recolour](./CANVAS_API.md#spaces) |
 | `nodes` | `list`, `get`, `create`, `update`, `focus`, `close` | [Persistent canvas objects](./CANVAS_API.md) |
 | `terminals` | `create`, `get`, `read`, `write`, `interrupt`, `stop` | [Terminal windows and exact sessions](./CANVAS_API.md) |
 | `agents` | `launch`, `get`, `read`, `write`, `interrupt`, `stop` | [Agent windows and exact sessions](./CANVAS_API.md) |

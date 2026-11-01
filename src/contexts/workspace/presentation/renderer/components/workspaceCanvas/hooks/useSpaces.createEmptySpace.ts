@@ -6,7 +6,7 @@ import { sanitizeSpaces } from '../helpers'
 import { resolveDefaultAgentWindowSize } from '../constants'
 import { resolveNodesPlacement } from './useNodesStore.resolvePlacement'
 import { resolveSpaceMountLaunchContext } from './spaceMountLaunchContext'
-import { SPACE_NODE_PADDING, SPACE_MIN_SIZE } from '../../../utils/spaceLayout'
+import { resolveEmptySpaceSize } from '@contexts/space/application/createTopLevelSpace'
 
 type Options = Pick<
   Parameters<typeof useWorkspaceCanvasCreateSpace>[0],
@@ -79,11 +79,7 @@ export function useCreateEmptySpace({
       const nextSpaceId = crypto.randomUUID()
       const normalizedName = resolveDefaultSpaceName()
 
-      const agentSize = resolveDefaultAgentWindowSize(standardWindowSizeBucket)
-      const size = {
-        width: Math.max(SPACE_MIN_SIZE.width, agentSize.width + SPACE_NODE_PADDING * 2),
-        height: Math.max(SPACE_MIN_SIZE.height, agentSize.height + SPACE_NODE_PADDING * 2),
-      }
+      const size = resolveEmptySpaceSize(resolveDefaultAgentWindowSize(standardWindowSizeBucket))
 
       const desiredAnchor = {
         x: Math.round(point.x - size.width / 2),

@@ -72,6 +72,39 @@ When `truncated`, narrow the project/Space/kind selection. Close persists remova
 first, then cleans up its session, website surface, or plugin view leases. Closing
 one plugin node does not stop the plugin's shared backend or other windows.
 
+## Spaces
+
+```js
+const { space } = await host.spaces.create({
+  projectId: selectedProjectId,
+  name: 'Client portal',
+  labelColor: 'blue',
+});
+await host.spaces.update({ spaceId: space.id, name: 'Client portal (2026)' });
+const { spaces } = await host.spaces.list({ projectId: selectedProjectId });
+```
+
+| Method | Input | Result |
+| --- | --- | --- |
+| `spaces.list` | `{ projectId }` | `{ projectId, spaces: [{ id, name, labelColor, directoryPath, parentSpaceId }] }` |
+| `spaces.create` | `{ projectId, name, labelColor?, directoryPath? }` | `{ revision, projectId, space }` |
+| `spaces.update` | `{ spaceId, name?, labelColor? }` | `{ revision, projectId, space }` |
+
+- `create` adds an empty top-level Space to the right of the canvas content,
+  sized for one Agent window, never overlapping a window or another Space.
+  Without `directoryPath` it uses the project's default mount and directory;
+  with it, the directory must lie inside one of the project's mounts.
+- Names are unique per project, compared without case; a taken or empty name
+  fails and nothing is written. `labelColor` is one of `gray`, `red`, `orange`,
+  `yellow`, `green`, `blue`, `purple`, or `null` for none.
+- `update` changes only the given fields; `labelColor: null` clears the colour.
+  It does not move, resize or re-target a Space.
+- There is no delete: a Space holds the person's windows, and removing it stays
+  their decision in the app.
+- Open windows show a created or changed Space at once. The `space` in the
+  result carries `id`, `name`, `labelColor`, `directoryPath`, `targetMountId`,
+  `parentSpaceId` and `rect`; save the `id`, not the name, to address it later.
+
 ## Terminal and Agent windows
 
 ```js
