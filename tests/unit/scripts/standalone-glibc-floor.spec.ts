@@ -214,6 +214,9 @@ describe('glibc floor artifact scope', () => {
       // Prebuilt, not rebuilt: onnxruntime-node ships its linux-x64 binaries in the npm package.
       '/bundle/app/node_modules/onnxruntime-node/bin/napi-v3/linux/x64/onnxruntime_binding.node',
       '/bundle/app/node_modules/onnxruntime-node/bin/napi-v3/linux/x64/libonnxruntime.so.1',
+      // transformers.js imports sharp; its prebuilt binding and the libvips it links to.
+      '/bundle/app/node_modules/@img/sharp-linux-x64/lib/sharp-linux-x64.node',
+      '/bundle/app/node_modules/@img/sharp-libvips-linux-x64/lib/libvips-cpp.so.8.17.3',
     ])
   })
 

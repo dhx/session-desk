@@ -6,12 +6,16 @@ export const STANDALONE_NATIVE_MODULE_NAMES = ['better-sqlite3', 'node-pty']
 /**
  * Native files that ship prebuilt inside their npm package and are used as is, never rebuilt with
  * node-gyp. They are N-API, so one binary serves both Electron and the bundled Node. Only the
- * linux-x64 CPU files are packed (see `build.linux.files` in package.json); these are what the
+ * linux-x64 files are packed (see `build.linux.files` in package.json); these are what the
  * glibc floor check reads, relative to the bundle's `node_modules`.
  */
 export const STANDALONE_PREBUILT_NATIVE_ARTIFACTS = Object.freeze([
   ['onnxruntime-node', 'bin', 'napi-v3', 'linux', 'x64', 'onnxruntime_binding.node'],
   ['onnxruntime-node', 'bin', 'napi-v3', 'linux', 'x64', 'libonnxruntime.so.1'],
+  // transformers.js imports sharp. libvips' file name carries its version: when a sharp update
+  // changes it, this check fails closed as "missing", and the new name goes here.
+  ['@img', 'sharp-linux-x64', 'lib', 'sharp-linux-x64.node'],
+  ['@img', 'sharp-libvips-linux-x64', 'lib', 'libvips-cpp.so.8.17.3'],
 ])
 
 /**
