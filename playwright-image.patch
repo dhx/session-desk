@@ -1,0 +1,200 @@
+From dc6128fc9ee98f23d64d41ef21e4b6b03a3fd2e7 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Mon, 26 Oct 2026 22:22:13 +0000
+Subject: [PATCH] ci: run browser E2E jobs in the official Playwright image
+
+The three browser jobs (Electron E2E, Web Canvas continuity, Web UI E2E)
+installed their browsers on every run. Two of them did so with
+`playwright install --with-deps`, which goes through apt. That usually
+takes 20 to 50 seconds, but one Electron shard spent 13.5 minutes there on
+2026-10-26, which looks like a slow mirror. Microsoft's Playwright image
+carries the browsers and their system libraries, so all three jobs now run
+in it, and the install steps are gone. The disk cleanup goes too: it needs
+sudo on the host, which a container job does not have.
+
+The browsers in the image are only found by the Playwright version they
+were built for, so the provisioning test now checks that each job's image
+tag matches @playwright/test in pnpm-lock.yaml and is pinned by digest.
+Electron already starts with --no-sandbox on Linux CI, so running as root
+in the container needs no change.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01UVXeQLcpWscYFXVLNXFzqj
+---
+ .github/workflows/ci.yml                      | 25 ++++-----
+ .github/workflows/e2e-electron.yml            | 19 ++-----
+ .../ci-e2e-browser-provisioning.spec.ts       | 54 ++++++++++++++-----
+ 3 files changed, 55 insertions(+), 43 deletions(-)
+
+diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml
+index 6151124..568810a 100644
+--- a/.github/workflows/ci.yml
++++ b/.github/workflows/ci.yml
+@@ -71,15 +71,16 @@ jobs:
+ 
+   web-canvas-continuity-ubuntu:
+     runs-on: ubuntu-latest
++    # Official Playwright image: browsers and their system libraries are baked in, so no apt step can
++    # stall the job. Its tag must match @playwright/test in pnpm-lock.yaml (ci-e2e-browser-provisioning.spec.ts).
++    container:
++      image: mcr.microsoft.com/playwright:v1.58.2-noble@sha256:6446946a1d9fd62d9ae501312a2d76a43ee688542b21622056a372959b65d63d
++      options: --ipc=host
+ 
+     steps:
+       - name: Checkout
+         uses: actions/checkout@v7
+ 
+-      - name: Free disk space
+-        run: |
+-          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc /usr/share/swift || true
+-
+       - name: Install pnpm
+         uses: pnpm/action-setup@v6
+         with:
+@@ -94,11 +95,6 @@ jobs:
+       - name: Install dependencies
+         run: pnpm install --frozen-lockfile
+ 
+-      - name: Install Web Canvas browsers
+-        env:
+-          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: ''
+-        run: pnpm exec playwright install --with-deps chromium webkit
+-
+       - name: Build
+         run: pnpm build
+ 
+@@ -150,6 +146,11 @@ jobs:
+         shard: [1, 2, 3, 4, 5, 6, 7, 8]
+ 
+     runs-on: ubuntu-latest
++    # Official Playwright image: browsers and their system libraries are baked in, so no apt step can
++    # stall the job. Its tag must match @playwright/test in pnpm-lock.yaml (ci-e2e-browser-provisioning.spec.ts).
++    container:
++      image: mcr.microsoft.com/playwright:v1.58.2-noble@sha256:6446946a1d9fd62d9ae501312a2d76a43ee688542b21622056a372959b65d63d
++      options: --ipc=host
+ 
+     steps:
+       - name: Checkout
+@@ -169,12 +170,6 @@ jobs:
+       - name: Install dependencies
+         run: pnpm install --frozen-lockfile
+ 
+-      # The runner image already has Chromium's system libraries; `--with-deps` (apt) can take minutes.
+-      - name: Install Chromium
+-        env:
+-          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: ''
+-        run: pnpm exec playwright install --only-shell chromium
+-
+       - name: Build
+         run: pnpm build
+ 
+diff --git a/.github/workflows/e2e-electron.yml b/.github/workflows/e2e-electron.yml
+index 532d4eb..3727f3a 100644
+--- a/.github/workflows/e2e-electron.yml
++++ b/.github/workflows/e2e-electron.yml
+@@ -24,20 +24,16 @@ jobs:
+         shard: [1, 2, 3]
+ 
+     runs-on: ubuntu-latest
++    # Official Playwright image: browsers and their system libraries are baked in, so no apt step can
++    # stall the job. Its tag must match @playwright/test in pnpm-lock.yaml (ci-e2e-browser-provisioning.spec.ts).
++    container:
++      image: mcr.microsoft.com/playwright:v1.58.2-noble@sha256:6446946a1d9fd62d9ae501312a2d76a43ee688542b21622056a372959b65d63d
++      options: --ipc=host
+ 
+     steps:
+       - name: Checkout
+         uses: actions/checkout@v7
+ 
+-      - name: Free disk space
+-        run: |
+-          df -h
+-          sudo rm -rf /usr/local/lib/android || true
+-          sudo rm -rf /usr/share/dotnet || true
+-          sudo rm -rf /opt/ghc || true
+-          sudo rm -rf /usr/share/swift || true
+-          df -h
+-
+       - name: Install pnpm
+         uses: pnpm/action-setup@v6
+         with:
+@@ -52,11 +48,6 @@ jobs:
+       - name: Install dependencies
+         run: pnpm install --frozen-lockfile
+ 
+-      - name: Install Chromium for Desktop/Web continuity E2E
+-        env:
+-          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: ''
+-        run: pnpm exec playwright install --with-deps chromium
+-
+       - name: Build
+         run: pnpm build
+ 
+diff --git a/tests/unit/scripts/ci-e2e-browser-provisioning.spec.ts b/tests/unit/scripts/ci-e2e-browser-provisioning.spec.ts
+index 91c6447..a503f10 100644
+--- a/tests/unit/scripts/ci-e2e-browser-provisioning.spec.ts
++++ b/tests/unit/scripts/ci-e2e-browser-provisioning.spec.ts
+@@ -4,20 +4,46 @@ import { describe, expect, it } from 'vitest'
+ 
+ const rootDir = resolve(import.meta.dirname, '../../..')
+ 
++// This fork runs CI on Linux only (docs/dhx/RELEASES.md). Every job that drives a browser runs in
++// Microsoft's Playwright image, which carries the browsers and their system libraries, instead of
++// installing them with apt on each run.
++const BROWSER_JOBS = [
++  { workflow: '.github/workflows/e2e-electron.yml', job: 'e2e-ubuntu' },
++  { workflow: '.github/workflows/ci.yml', job: 'web-canvas-continuity-ubuntu' },
++  { workflow: '.github/workflows/ci.yml', job: 'e2e-web' },
++]
++
++const IMAGE = /image: mcr\.microsoft\.com\/playwright:v(\d+\.\d+\.\d+)-noble@sha256:[0-9a-f]{64}\n/
++
++async function readJob(workflowPath: string, jobName: string): Promise<string> {
++  const workflow = await readFile(resolve(rootDir, workflowPath), 'utf8')
++  const start = workflow.indexOf(`\n  ${jobName}:\n`)
++  if (start < 0) {
++    throw new Error(`Missing CI job ${jobName} in ${workflowPath}`)
++  }
++  const next = workflow.slice(start + 1).search(/\n {2}[\w-]+:\n/)
++  return next < 0 ? workflow.slice(start) : workflow.slice(start, start + 1 + next)
++}
++
++async function lockedPlaywrightVersion(): Promise<string> {
++  const lock = await readFile(resolve(rootDir, 'pnpm-lock.yaml'), 'utf8')
++  const match = lock.match(/^ {2}'@playwright\/test@(\d+\.\d+\.\d+)':$/m)
++  if (!match) {
++    throw new Error('Missing @playwright/test in pnpm-lock.yaml')
++  }
++  return match[1]
++}
++
+ describe('CI E2E browser provisioning', () => {
+-  // This fork runs CI on Linux only (docs/dhx/RELEASES.md).
+-  it('installs Chromium before Desktop/Web continuity tests on Linux', async () => {
+-    // This fork runs the Electron suite in its own workflow (e2e-electron.yml).
+-    const workflow = await readFile(resolve(rootDir, '.github/workflows/e2e-electron.yml'), 'utf8')
+-    const jobs = [workflow.slice(workflow.indexOf('  e2e-ubuntu:'))]
++  for (const { workflow, job } of BROWSER_JOBS) {
++    it(`${job} runs in the Playwright image of the locked version, pinned by digest`, async () => {
++      const text = await readJob(workflow, job)
++      const image = text.match(IMAGE)
+ 
+-    for (const job of jobs) {
+-      const installAt = job.indexOf('Install Chromium for Desktop/Web continuity E2E')
+-      const testAt = job.indexOf('E2E tests (shard)')
+-      expect(installAt).toBeGreaterThanOrEqual(0)
+-      expect(job).toContain("PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: ''")
+-      expect(job).toContain('pnpm exec playwright install')
+-      expect(installAt).toBeLessThan(testAt)
+-    }
+-  })
++      expect(image, 'container image pinned by tag and digest').not.toBeNull()
++      // Browsers in the image are only found by the same Playwright version.
++      expect(image?.[1]).toBe(await lockedPlaywrightVersion())
++      expect(text).not.toContain('playwright install')
++    })
++  }
+ })
+-- 
+2.43.0
+
