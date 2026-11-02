@@ -1,6 +1,6 @@
 # Voice Control in the Web UI — Spec
 
-Status: draft for approval (2026-10-26). Change size: **Large** (new context, new worker routes, new native dependency).
+Status: draft for approval (2026-10-26). Text to speech moves from Kokoro to Pocket TTS: see [POCKET_TTS_SPEC.md](POCKET_TTS_SPEC.md). Change size: **Large** (new context, new worker routes, new native dependency).
 
 ## Goal
 
