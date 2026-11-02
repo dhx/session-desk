@@ -42,6 +42,34 @@ LANGUAGES = {
 }
 
 
+# German respellings for English developer words, each in the same carrier sentence. The first
+# variant is the original spelling, so every term can be compared against what the model does today.
+LEXICON = {
+    "build": ["Build", "Bild", "Bilt"],
+    "pull-request": ["Pull Request", "Pull Rickwest", "Pull Riquest"],
+    "merge": ["Merge", "Mörtsch", "Mördsch"],
+    "commit": ["Commit", "Kommitt"],
+    "deploy": ["Deploy", "Diploi"],
+    "branch": ["Branch", "Bräntsch"],
+    "review": ["Review", "Riwju", "Ri-wju"],
+    "push": ["Push", "Pusch"],
+}
+CARRIER = "Der {} ist jetzt fertig."
+
+
+def lexicon_samples(model: TTSModel, state, out_dir: Path) -> None:
+    for term, variants in LEXICON.items():
+        for index, word in enumerate(variants):
+            audio = model.generate_audio(state, CARRIER.format(word)).squeeze().numpy()
+            pcm = np.clip(audio, -1, 1)
+            scipy.io.wavfile.write(
+                out_dir / f"lexicon-{term}-{index}-{word.replace(' ', '_')}.wav",
+                model.sample_rate,
+                (pcm * 32767).astype(np.int16),
+            )
+    notice("lexicon", f"{sum(len(v) for v in LEXICON.values())} samples")
+
+
 def notice(title: str, message: str) -> None:
     print(f"::notice title={title}::{message}", flush=True)
 
@@ -119,6 +147,8 @@ def main() -> None:
                 sys.exit(1)
             state = model.get_state_for_audio_prompt(state_file)
         report[language] = measure(model, state, sentences, out_dir, f"{phase}-{language}")
+        if phase == "portable" and language == "german":
+            lexicon_samples(model, state, out_dir)
         del model
 
     report["peak_rss_mb"] = round(peak_rss_mb())
