@@ -4,6 +4,7 @@ import type { PresentationSnapshotTerminalResult } from './terminal'
 import type { WorkerEndpointKindDto } from './topology'
 import type { GitWorktreeInfo, RemoveGitWorktreeResult } from './worktree'
 import type { SpaceBoundary } from '../../types/spaceBoundary'
+import type { LabelColor } from '../../types/labelColor'
 import type { NodeWorkerBinding } from '../../types/nodeWorkerBinding'
 import type { RuntimeBuildIdentity } from '../runtimeBuild'
 
@@ -126,6 +127,7 @@ export interface ListSpacesResult {
     parentSpaceId: string | null
     boundary: SpaceBoundary
     sortOrder: number
+    labelColor: LabelColor | null
     nodeIds: string[]
     nodes: CanvasNodeSummary[]
   }>
@@ -146,6 +148,7 @@ export interface GetSpaceResult {
     parentSpaceId: string | null
     boundary: SpaceBoundary
     sortOrder: number
+    labelColor: LabelColor | null
     nodeIds: string[]
     nodes: CanvasNodeSummary[]
   }
@@ -171,11 +174,49 @@ export interface CreateChildSpaceResult {
     parentSpaceId: string | null
     boundary: SpaceBoundary
     sortOrder: number
+    labelColor: LabelColor | null
     nodeIds: string[]
     nodes: CanvasNodeSummary[]
     rect: { x: number; y: number; width: number; height: number } | null
   }
   movedNodeIds: string[]
+}
+
+/** A top-level Space for a caller without a canvas view; placed beside existing content. */
+export interface CreateSpaceInput {
+  projectId: string
+  name: string
+  labelColor?: LabelColor | null
+  directoryPath?: string | null
+}
+
+export interface SpaceAttributesDto {
+  id: string
+  name: string
+  labelColor: LabelColor | null
+  directoryPath: string
+  targetMountId: string | null
+  parentSpaceId: string | null
+  rect: { x: number; y: number; width: number; height: number } | null
+}
+
+export interface CreateSpaceResult {
+  revision: number
+  projectId: string
+  space: SpaceAttributesDto
+}
+
+/** Renames or recolours a Space. `labelColor: null` clears the colour; omitted fields stay. */
+export interface UpdateSpaceInput {
+  spaceId: string
+  name?: string
+  labelColor?: LabelColor | null
+}
+
+export interface UpdateSpaceResult {
+  revision: number
+  projectId: string
+  space: SpaceAttributesDto
 }
 
 export interface ListWorktreesInput {

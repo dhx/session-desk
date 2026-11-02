@@ -15,6 +15,7 @@ export const PLUGIN_HOST_METHODS = {
   ],
   operations: ['start', 'get', 'cancel'],
   preferences: ['get', 'set'],
+  spaces: ['list', 'create', 'update'],
   nodes: ['list', 'get', 'create', 'update', 'focus', 'close'],
   terminals: ['create', 'get', 'read', 'write', 'interrupt', 'stop'],
   agents: ['launch', 'get', 'read', 'write', 'interrupt', 'stop'],

@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### ✨ Added
+
+- Plugins: `host.spaces.list`, `create` and `update` list Spaces, create an empty top-level Space beside the canvas content and rename or recolour one; open windows show the change at once. (#30)
+
 ### 💅 Changed
 
 - Appearance: replace the Standard theme with Cove, whose colors are generated with checked contrast, and use Cove Dark for new installs. Ember is retired and existing Ember choices move to Cove; Pixel is unchanged. (#439)
