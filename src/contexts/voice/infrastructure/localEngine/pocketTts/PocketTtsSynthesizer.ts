@@ -66,6 +66,21 @@ async function verifiedBytes(dir: string, file: string, sha256: string): Promise
   return bytes
 }
 
+/** Waits for every session; if one fails, releases the others before throwing its error. */
+async function createSessions(
+  attempts: Promise<Ort.InferenceSession>[],
+): Promise<Ort.InferenceSession[]> {
+  const settled = await Promise.allSettled(attempts)
+  const failed = settled.find(result => result.status === 'rejected')
+  if (!failed) {
+    return settled.map(result => (result as PromiseFulfilledResult<Ort.InferenceSession>).value)
+  }
+  await Promise.allSettled(
+    settled.map(result => (result.status === 'fulfilled' ? result.value.release() : undefined)),
+  )
+  throw failed.reason
+}
+
 export async function loadPocketTts(
   dir: string,
   ort: OrtModule,
@@ -84,7 +99,7 @@ export async function loadPocketTts(
     interOpNumThreads: 1,
     graphOptimizationLevel: 'all',
   }
-  const [textConditioner, flowMain, flowNet, mimi] = await Promise.all(
+  const [textConditioner, flowMain, flowNet, mimi] = await createSessions(
     POCKET_TTS_GRAPHS.map(async file =>
       ort.InferenceSession.create(
         await verifiedBytes(dir, file, bundle.files[file]),
@@ -222,11 +237,19 @@ export async function loadPocketTts(
       if (pending.length >= decodeAt) {
         decodeAt = LATER_DECODE_FRAMES
         // eslint-disable-next-line no-await-in-loop -- Audio streams out as it is decoded.
-        yield await decode()
+        const audio = await decode()
+        // Inference takes a while; no audio may come out once the caller has aborted.
+        if (options.signal?.aborted) {
+          return
+        }
+        yield audio
       }
     }
-    if (pending.length > 0) {
-      yield await decode()
+    if (pending.length > 0 && !options.signal?.aborted) {
+      const audio = await decode()
+      if (!options.signal?.aborted) {
+        yield audio
+      }
     }
   }
 
