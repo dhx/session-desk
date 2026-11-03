@@ -43,7 +43,12 @@ describe('voice installation on disk', () => {
     expect(findVoiceInstallation(modelsDir, voiceDir)).toEqual({
       missing: [],
       languages: [
-        { language: 'de', bundleDir: join(modelsDir, 'pocket-tts', 'german'), voicePath: null },
+        {
+          language: 'de',
+          bundleDir: join(modelsDir, 'pocket-tts', 'german'),
+          voicePath: null,
+          lexiconPath: join(voiceDir, 'lexicon.german.json'),
+        },
       ],
     })
   })
@@ -69,7 +74,8 @@ describe('voice installation on disk', () => {
     await addFile(voiceDir, 'english.safetensors')
 
     for (const dir of ['', 'english.safetensors', '.']) {
-      expect(findVoiceInstallation(modelsDir, dir).languages[0].voicePath).toBeNull()
+      const [english] = findVoiceInstallation(modelsDir, dir).languages
+      expect([english.voicePath, english.lexiconPath]).toEqual([null, null])
     }
   })
 
