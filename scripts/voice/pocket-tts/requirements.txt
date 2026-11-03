@@ -1,0 +1,10 @@
+# Export and reference tooling for the Pocket TTS bundle; not needed at runtime.
+--extra-index-url https://download.pytorch.org/whl/cpu
+pocket-tts==4.0.1
+torch==2.15.0
+onnx
+onnxscript
+onnxruntime==1.21.0
+numpy
+safetensors
+soundfile
