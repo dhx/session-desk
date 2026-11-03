@@ -236,8 +236,9 @@ export function createTerminalHydrationRouter({
         return
       }
 
+      const isInputModeChunk = isInputSemanticTerminalControlChunk(displayData)
       const shouldWriteThroughGeometryGate =
-        isAutomaticTerminalQuery(displayData) || isInputSemanticTerminalControlChunk(displayData)
+        isAutomaticTerminalQuery(displayData) || isInputModeChunk
       const writeThroughGeometryGateOptions = shouldWriteThroughGeometryGate
         ? { allowDuringPendingGeometry: true }
         : undefined
@@ -256,6 +257,18 @@ export function createTerminalHydrationRouter({
       }
 
       if (shouldWriteThroughGeometryGate) {
+        // A later placeholder reset must replay mode changes in stream order, even though
+        // they take effect immediately. Queries must stay single-delivery.
+        if (isInputModeChunk) {
+          if (
+            shouldReplaceAgentPlaceholderOnNextVisibleChunk ||
+            shouldReplaceAgentPlaceholderOnNextDestructiveChunk
+          ) {
+            deferredPlaceholderBuffer.dataChunks.push(displayData)
+          } else if (deferredHydratedRedrawBuffer.dataChunks.length > 0) {
+            deferredHydratedRedrawBuffer.dataChunks.push(displayData)
+          }
+        }
         outputScheduler.handleChunk(displayData, writeThroughGeometryGateOptions)
         return
       }
@@ -364,7 +377,8 @@ export function createTerminalHydrationRouter({
       const baselineAppliedSeq = normalizeTerminalDataSeq(options?.baselineAppliedSeq)
       const bufferedHydrationChunks = hydrationBuffer.dataChunks.flatMap(chunk => {
         if (chunk.deliveredDuringHydration) {
-          return []
+          // Input modes survive only if replayed after a synthetic full reset.
+          return isInputSemanticTerminalControlChunk(chunk.data) ? [chunk.data] : []
         }
 
         if (baselineAppliedSeq === null) {
@@ -456,6 +470,9 @@ export function createTerminalHydrationRouter({
       if (shouldReplacePlaceholder && !didReplaceBaseline) {
         if (bufferedOutputAlreadyMatchesPlaceholder) {
           shouldReplaceAgentPlaceholderOnNextDestructiveChunk = true
+          deferredPlaceholderBuffer.dataChunks.push(
+            ...bufferedHydrationChunks.filter(isInputSemanticTerminalControlChunk),
+          )
         } else {
           deferredPlaceholderBuffer.dataChunks.push(...bufferedHydrationChunks)
           deferredPlaceholderBuffer.exitCode = hydrationBuffer.exitCode
