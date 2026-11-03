@@ -18,7 +18,7 @@ Status: draft for approval (2026-11-02). Change size: **Large** (engine swap, ne
 | Where the voice lives | Per installation, outside the image: `OPENCOVE_VOICE_DIR` with `german.safetensors`, `english.safetensors` | The voice stays private; the image stays public |
 | Speech recognition | Whisper `base` (multilingual) q8 instead of `base.en` | `base.en` cannot hear German |
 | Reply language | The language Whisper detected in the request | Ask in German, hear German back |
-| Pronunciation | A respelling list per language before synthesis (see below), plus an optional `OPENCOVE_VOICE_DIR/lexicon.<lang>.json` | The German model reads English developer words by German rules |
+| Pronunciation | A respelling list per language before synthesis (see below), plus an optional `OPENCOVE_VOICE_DIR/lexicon.<german|english>.json` | The German model reads English developer words by German rules |
 | Not taken | Supertonic 3 (OpenRAIL-M: use restrictions that must be passed on, a duty to use the latest model), Qwen3-TTS (likely too slow on CPU), Piper/KittenTTS (eSpeak NG), the browser's `speechSynthesis` (kept as a later fallback) | |
 
 ### Built-in German respellings
@@ -34,7 +34,19 @@ Chosen by ear in the spike, carrier sentence "Der … ist jetzt fertig.":
 | Push | Pusch |
 | Pull Request, Branch, Review | unchanged; the German model says them well |
 
-Whole words, case-insensitive, applied only to what is synthesized; the text on screen is unchanged.
+Whole words, case-insensitive, applied only to what is synthesized; the text on screen is unchanged. The spoken form takes the case of the first letter ("merge" → "mördsch"). Inflected forms ("Builds", "gemergt") are not matched; an installation adds them to its lexicon if it needs them.
+
+### An installation's lexicon (step 4, 2026-11-03)
+
+`$OPENCOVE_VOICE_DIR/lexicon.german.json` and `lexicon.english.json`, optional, next to the voices:
+
+```json
+{ "Kubernetes": "Kuberneetis", "Pull Request": "Pull Rikwest" }
+```
+
+- Written → spoken, matched like the built-in list, which it extends; for the same word the lexicon wins. Keys may be phrases: they match across any whitespace, and longer phrases are tried first.
+- At most 1000 entries, each text up to 100 characters, the file up to 256 KB. A missing file is no lexicon; a broken one is reported on the voice host's stderr (the worker's issue log) and ignored, so a typo never stops replies.
+- Read when the language loads; an edited lexicon applies after the host's next idle unload (10 minutes) or a restart.
 
 ## Spike results (2026-11-02)
 
@@ -148,7 +160,7 @@ Invariants, in addition to WEB_SPEC's:
 1. ~~**ONNX spike**~~: passed (above).
 2. Export tooling and the TypeScript engine (`localEngine/pocketTts/`) with reference tests; wired into the host in step 3.
 3. ~~Swap Kokoro out~~: dependencies, settings, `/voice/speak` body, multilingual Whisper, reply language (above, "In the host").
-4. Respelling list and the per-installation lexicon.
+4. ~~Respelling list and the per-installation lexicon~~ (above).
 5. Voice runbook (`docs/voice/INSTALL_VOICE.md`).
 6. Image stage in opencove-image: open weights, ONNX export, `NOTICE`.
 

@@ -7,14 +7,19 @@ import {
   type VoiceLanguageAvailability,
 } from '../../../../shared/contracts/dto'
 import { VoiceMissingError, VoiceModelsMissingError } from '../../application/VoiceEngine'
+import { createVoiceRespeller, type VoiceRespeller } from '../../domain/voiceRespelling'
 import { createDownloadProgressTracker } from './downloadProgress'
 import { loadPocketTts, type PocketTts } from './pocketTts/PocketTtsSynthesizer'
 import type { PocketTtsVoice } from './pocketTts/pocketTtsBundle'
 import type { VoiceModelLoader, VoiceModels } from './voiceHostHandler'
+import { readVoiceLexicon } from './voiceLexiconFile'
 import { WHISPER_DTYPE, WHISPER_MODEL_ID } from './voiceHostProtocol'
 import { readWhisperLanguage, readWhisperPromptTokens, steerWhisperPrompt } from './whisperLanguage'
 
-/** Pocket TTS bundles live in `<models>/pocket-tts/<name>/`, voices in `<voices>/<name>.safetensors`. */
+/**
+ * Pocket TTS bundles live in `<models>/pocket-tts/<name>/`, voices in `<voices>/<name>.safetensors`
+ * and an installation's own respellings in `<voices>/lexicon.<name>.json`.
+ */
 export const POCKET_TTS_MODELS_SUBDIR = 'pocket-tts'
 export const VOICE_LANGUAGE_NAMES: Record<VoiceLanguage, string> = { de: 'german', en: 'english' }
 
@@ -41,7 +46,13 @@ export function configureOfflineTransformers(env: TransformersModelEnv, modelsDi
 export interface VoiceInstallation {
   /** What is missing for voice to work at all; empty when Whisper and one language are there. */
   missing: string[]
-  languages: { language: VoiceLanguage; bundleDir: string; voicePath: string | null }[]
+  languages: {
+    language: VoiceLanguage
+    bundleDir: string
+    voicePath: string | null
+    /** Where the lexicon would be; it may not exist. Null without a voice directory. */
+    lexiconPath: string | null
+  }[]
 }
 
 /**
@@ -51,11 +62,13 @@ export interface VoiceInstallation {
 export function findVoiceInstallation(modelsDir: string, voiceDir: string): VoiceInstallation {
   const languages = VOICE_LANGUAGES.map(language => {
     const name = VOICE_LANGUAGE_NAMES[language]
-    const voicePath = isAbsolute(voiceDir) ? join(voiceDir, `${name}.safetensors`) : null
+    const voices = isAbsolute(voiceDir) ? voiceDir : null
+    const voicePath = voices ? join(voices, `${name}.safetensors`) : null
     return {
       language,
       bundleDir: join(modelsDir, POCKET_TTS_MODELS_SUBDIR, name),
       voicePath: voicePath && existsSync(voicePath) ? voicePath : null,
+      lexiconPath: voices ? join(voices, `lexicon.${name}.json`) : null,
     }
   }).filter(entry => existsSync(join(entry.bundleDir, 'bundle.json')))
   const missing = [
@@ -68,6 +81,7 @@ export function findVoiceInstallation(modelsDir: string, voiceDir: string): Voic
 interface LoadedLanguage {
   tts: PocketTts
   voice: PocketTtsVoice
+  respell: VoiceRespeller
 }
 
 /**
@@ -124,9 +138,17 @@ export const loadVoiceModels: VoiceModelLoader = async ({ modelsDir, voiceDir },
     let pending = loaded.get(language)
     if (!pending) {
       pending = (async () => {
+        // Read with the model, so an edited lexicon applies after the host's next idle unload.
+        const lexicon = await readVoiceLexicon(entry.lexiconPath, message =>
+          process.stderr.write(`${message}\n`),
+        )
         const tts = await loadPocketTts(entry.bundleDir, ort)
         try {
-          return { tts, voice: await tts.loadVoice(voicePath) }
+          return {
+            tts,
+            voice: await tts.loadVoice(voicePath),
+            respell: createVoiceRespeller(language, lexicon),
+          }
         } catch (error) {
           await tts.release()
           throw error
@@ -161,8 +183,8 @@ export const loadVoiceModels: VoiceModelLoader = async ({ modelsDir, voiceDir },
       }
     },
     synthesize: async function* (text, language, signal) {
-      const { tts, voice } = await loadLanguage(language)
-      for await (const samples of tts.synthesize(text, voice, { signal })) {
+      const { tts, voice, respell } = await loadLanguage(language)
+      for await (const samples of tts.synthesize(respell(text), voice, { signal })) {
         yield { samples, sampleRate: tts.sampleRate }
       }
     },
