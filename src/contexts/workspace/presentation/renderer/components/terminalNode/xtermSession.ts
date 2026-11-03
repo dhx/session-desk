@@ -8,6 +8,7 @@ import type { AgentProvider } from '@contexts/settings/domain/agentSettings'
 import type { TerminalDiagnosticsLogInput, TerminalWindowsPty } from '@shared/contracts/dto'
 import { withTerminalBackgroundTransparency } from './terminalBackgroundTransparency'
 import { DEFAULT_TERMINAL_FONT_FAMILY } from './constants'
+import { installTerminalOsc52Clipboard } from './terminalOsc52Clipboard'
 import { installTerminalLinks } from './links/installTerminalLinks'
 import { registerTerminalSelectionTestHandle } from './testHarness'
 import { patchXtermMouseServiceWithRetry } from './patchXtermMouseService'
@@ -132,6 +133,9 @@ export function createMountedXtermSession({
       transparentBackground,
     ),
     allowProposedApi: true,
+    // Mouse-capturing TUIs (Claude Code, Codex) take plain drags; Option+drag on macOS still makes a
+    // terminal selection, as Shift+drag does elsewhere.
+    macOptionClickForcesSelection: true,
     convertEol: true,
     scrollback: 5000,
     overviewRuler: { width: XTERM_SCROLLBAR_GUTTER_WIDTH },
@@ -183,6 +187,7 @@ export function createMountedXtermSession({
   let disposeTerminalDisplayMeasurementHandle: () => void = () => undefined
   let disposeTerminalPointerFocus: () => void = () => undefined
   let disposeTerminalLinks: () => void = () => undefined
+  let disposeTerminalOsc52Clipboard: () => void = () => undefined
   let effectiveDprController = installTerminalEffectiveDevicePixelRatioController({
     terminal,
     initialViewportZoom,
@@ -244,6 +249,7 @@ export function createMountedXtermSession({
       disposeTerminalLinks = installTerminalLinks(terminal)
     }
     cancelMouseServicePatch = patchXtermMouseServiceWithRetry(terminal)
+    disposeTerminalOsc52Clipboard = installTerminalOsc52Clipboard({ terminal, container })
     disposeTerminalHitTargetCursorScope = registerTerminalHitTargetCursorScope({
       container,
       ownerId,
@@ -303,6 +309,7 @@ export function createMountedXtermSession({
     setViewportInteractionActive: effectiveDprController.setViewportInteractionActive,
     dispose: () => {
       disposeTerminalLinks()
+      disposeTerminalOsc52Clipboard()
       cancelMouseServicePatch()
       disposeTerminalHitTargetCursorScope()
       disposeWebglCanvasTransformCleanupObserver()
