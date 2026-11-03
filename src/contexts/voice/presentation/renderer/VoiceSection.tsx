@@ -9,10 +9,11 @@ import {
 import { formatKeyChord, resolveCommandKeybinding } from '@contexts/settings/domain/keybindings'
 import type { AgentSettings } from '@contexts/settings/domain/agentSettings'
 import type { WorkspaceState } from '@contexts/workspace/presentation/renderer/types'
+import type { VoiceEngineStatus } from '@shared/contracts/dto'
 import {
-  KOKORO_VOICE_IDS,
-  type KokoroVoiceId,
+  VOICE_LANGUAGE_SETTINGS,
   type VoiceEngineId,
+  type VoiceLanguageSetting,
   type VoiceSettings,
 } from '../../domain/voiceSettings'
 import { listVoiceBossAgents } from './bossChannel'
@@ -20,18 +21,18 @@ import { getPlatform, getVoiceBridge } from './voiceApi'
 
 const NO_BOSS = ''
 
-/** True once this server said it has no speech models, so voice cannot work here at all. */
-function useVoiceNotInstalled(): boolean {
-  const [notInstalled, setNotInstalled] = useState(false)
+/** The engine's status as this server reports it; null until it answered. */
+function useVoiceEngineStatus(): VoiceEngineStatus | null {
+  const [status, setStatus] = useState<VoiceEngineStatus | null>(null)
   useEffect(() => {
     const bridge = getVoiceBridge()
     if (!bridge) {
       return
     }
     let disposed = false
-    const apply = (status: { state: string; reason?: string }): void => {
+    const apply = (next: VoiceEngineStatus): void => {
       if (!disposed) {
-        setNotInstalled(status.state === 'error' && status.reason === 'models_missing')
+        setStatus(next)
       }
     }
     const stop = bridge.onStatus(apply)
@@ -41,7 +42,7 @@ function useVoiceNotInstalled(): boolean {
       stop()
     }
   }, [])
-  return notInstalled
+  return status
 }
 
 function SettingsRow({
@@ -76,7 +77,23 @@ export function VoiceSection({
   onChange: (voice: VoiceSettings) => void
 }): React.JSX.Element {
   const { t } = useTranslation()
-  const notInstalled = useVoiceNotInstalled()
+  const status = useVoiceEngineStatus()
+  // True once this server said it has no speech models, so voice cannot work here at all.
+  const notInstalled = status?.state === 'error' && status.reason === 'models_missing'
+  const languageName = (language: string): string => t(`voice.settings.languages.${language}`)
+  // Which languages have a voice is known once the models are loaded.
+  const languageHelp = (() => {
+    if (status?.state !== 'ready') {
+      return t('voice.settings.languageHelp')
+    }
+    const missing = status.languages.filter(entry => !entry.voiceInstalled)
+    if (missing.length === 0) {
+      return t('voice.settings.languageHelp')
+    }
+    return t('voice.settings.voiceMissing', {
+      languages: missing.map(entry => languageName(entry.language)).join(', '),
+    })
+  })()
   const update = (patch: Partial<VoiceSettings>): void => onChange({ ...voice, ...patch })
 
   const platform = getPlatform()
@@ -150,14 +167,17 @@ export function VoiceSection({
           />
         </SettingsRow>
 
-        <SettingsRow label={t('voice.settings.voiceLabel')} help={t('voice.settings.voiceHelp')}>
+        <SettingsRow label={t('voice.settings.languageLabel')} help={languageHelp}>
           <CoveSelect
-            id="settings-voice-voice"
-            testId="settings-voice-voice"
-            ariaLabel={t('voice.settings.voiceLabel')}
-            value={voice.voice}
-            options={KOKORO_VOICE_IDS.map(id => ({ value: id, label: id }))}
-            onChange={id => update({ voice: id as KokoroVoiceId })}
+            id="settings-voice-language"
+            testId="settings-voice-language"
+            ariaLabel={t('voice.settings.languageLabel')}
+            value={voice.language}
+            options={VOICE_LANGUAGE_SETTINGS.map(language => ({
+              value: language,
+              label: languageName(language),
+            }))}
+            onChange={language => update({ language: language as VoiceLanguageSetting })}
           />
         </SettingsRow>
 

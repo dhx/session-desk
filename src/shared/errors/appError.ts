@@ -89,6 +89,7 @@ function createMessageMap(): Record<AppErrorCode, string> {
     'update.install_failed': 'Unable to install the update.',
     'release_notes.get_current_failed': 'Unable to load release notes.',
     'voice.models_missing': 'Voice is not installed on this server.',
+    'voice.voice_missing': 'No voice is installed on this server for that language.',
     'voice.prepare_failed': 'Unable to load the voice models.',
     'voice.busy': 'Voice is in use by another client on this server.',
     'voice.transcribe_failed': 'Unable to transcribe the recording.',

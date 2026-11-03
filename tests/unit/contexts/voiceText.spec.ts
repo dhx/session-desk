@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest'
 import {
   VOICE_REPLY_INSTRUCTION,
   buildVoicePrompt,
-  chunkForSpeech,
   pickSpokenText,
   splitIntoSentences,
 } from '../../../src/contexts/voice/domain/voiceText'
@@ -47,33 +46,6 @@ describe('splitIntoSentences', () => {
 
   it('returns nothing for blank text', () => {
     expect(splitIntoSentences('  \n ')).toEqual([])
-  })
-})
-
-describe('chunkForSpeech', () => {
-  it('keeps short sentences whole', () => {
-    expect(chunkForSpeech('Good evening. Shall I deploy?', 40)).toEqual([
-      'Good evening.',
-      'Shall I deploy?',
-    ])
-  })
-
-  it('cuts an overlong sentence at clause punctuation before words', () => {
-    expect(chunkForSpeech('First part here, second part here, third part here.', 34)).toEqual([
-      'First part here, second part here,',
-      'third part here.',
-    ])
-  })
-
-  it('falls back to word boundaries and never exceeds the limit', () => {
-    const text = 'one two three four five six seven eight nine ten, x'
-    const chunks = chunkForSpeech(text, 12)
-    expect(chunks.every(chunk => chunk.length <= 12)).toBe(true)
-    expect(chunks.join(' ')).toBe(text)
-  })
-
-  it('hard-cuts a single word longer than the limit', () => {
-    expect(chunkForSpeech('abcdefghij', 4)).toEqual(['abcd', 'efgh', 'ij'])
   })
 })
 

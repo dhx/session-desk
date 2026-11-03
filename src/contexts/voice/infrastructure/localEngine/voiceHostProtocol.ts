@@ -1,29 +1,55 @@
 /** Messages between the worker and the voice host child process. */
 
-export const KOKORO_MODEL_ID = 'onnx-community/Kokoro-82M-v1.0-ONNX'
-/**
- * q4 (40 MB) synthesizes 4x faster than real time on the target CPU, as fast as fp32 (326 MB).
- * q8 is 1.3x slower than real time. fp16 must not be used: it returns all-NaN audio for some
- * sentences on CPU.
- */
-export const KOKORO_DTYPE = 'q4'
-export const WHISPER_MODEL_ID = 'onnx-community/whisper-base.en'
+import {
+  VOICE_LANGUAGES,
+  type VoiceLanguage,
+  type VoiceLanguageAvailability,
+} from '../../../../shared/contracts/dto'
+
+/** Multilingual, so it hears German too; it also tells which language it heard. */
+export const WHISPER_MODEL_ID = 'onnx-community/whisper-base'
 export const WHISPER_DTYPE = 'q8'
 
 export type VoiceHostRequest =
-  | { type: 'prepare'; id: string; modelsDir: string }
+  /** `voiceDir`: the installation's voices (`<language name>.safetensors`); may be empty. */
+  | { type: 'prepare'; id: string; modelsDir: string; voiceDir: string }
   | { type: 'transcribe'; id: string; pcm16k: Float32Array }
-  | { type: 'speak'; id: string; text: string; voice: string }
+  | { type: 'speak'; id: string; text: string; language: VoiceLanguage }
   | { type: 'cancel'; id: string }
 
 export type VoiceHostReply =
   | { type: 'progress'; id: string; progress: number }
   | { type: 'chunk'; id: string; index: number; sampleRate: number; samples: Float32Array }
-  | { type: 'done'; id: string; text?: string }
+  /** `prepare` answers with `languages`; `transcribe` with `text` and `language`. */
+  | {
+      type: 'done'
+      id: string
+      text?: string
+      language?: VoiceLanguage
+      languages?: VoiceLanguageAvailability[]
+    }
   /** `code` marks failures a caller treats differently from a plain error. */
   | { type: 'error'; id: string; message: string; code?: VoiceHostErrorCode }
 
-export type VoiceHostErrorCode = 'models_missing'
+export type VoiceHostErrorCode = 'models_missing' | 'voice_missing'
+
+const ERROR_CODES: readonly string[] = ['models_missing', 'voice_missing']
+
+export function isVoiceLanguage(value: unknown): value is VoiceLanguage {
+  return VOICE_LANGUAGES.includes(value as VoiceLanguage)
+}
+
+function isLanguageList(value: unknown): value is VoiceLanguageAvailability[] {
+  return (
+    Array.isArray(value) &&
+    value.every(
+      entry =>
+        isRecord(entry) &&
+        isVoiceLanguage(entry.language) &&
+        typeof entry.voiceInstalled === 'boolean',
+    )
+  )
+}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === 'object'
@@ -35,11 +61,11 @@ export function isVoiceHostRequest(value: unknown): value is VoiceHostRequest {
   }
   switch (value.type) {
     case 'prepare':
-      return typeof value.modelsDir === 'string'
+      return typeof value.modelsDir === 'string' && typeof value.voiceDir === 'string'
     case 'transcribe':
       return value.pcm16k instanceof Float32Array
     case 'speak':
-      return typeof value.text === 'string' && typeof value.voice === 'string'
+      return typeof value.text === 'string' && isVoiceLanguage(value.language)
     case 'cancel':
       return true
     default:
@@ -57,11 +83,15 @@ export function isVoiceHostReply(value: unknown): value is VoiceHostReply {
     case 'chunk':
       return value.samples instanceof Float32Array && typeof value.sampleRate === 'number'
     case 'done':
-      return value.text === undefined || typeof value.text === 'string'
+      return (
+        (value.text === undefined || typeof value.text === 'string') &&
+        (value.language === undefined || isVoiceLanguage(value.language)) &&
+        (value.languages === undefined || isLanguageList(value.languages))
+      )
     case 'error':
       return (
         typeof value.message === 'string' &&
-        (value.code === undefined || value.code === 'models_missing')
+        (value.code === undefined || ERROR_CODES.includes(value.code as string))
       )
     default:
       return false

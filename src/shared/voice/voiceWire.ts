@@ -3,12 +3,12 @@
  * reads them. Everything is little-endian.
  *
  * - `/voice/transcribe` body: mono Int16 PCM at 16 kHz.
- * - `/voice/speak` response: one frame per sentence, a 12-byte header (u32 sample rate, u32
- *   sample count, u32 sequence) and then the f32 samples.
+ * - `/voice/speak` response: the reply's audio in frames, in order, each a 12-byte header (u32
+ *   sample rate, u32 sample count, u32 sequence) and then the f32 samples.
  */
 
 export const SPEECH_FRAME_HEADER_BYTES = 12
-/** A minute of 48 kHz audio; a Kokoro sentence is a few seconds at 24 kHz. */
+/** A minute of 48 kHz audio; a frame of speech is well under that. */
 const MAX_FRAME_SAMPLES = 48000 * 60
 
 export interface SpeechFrame {

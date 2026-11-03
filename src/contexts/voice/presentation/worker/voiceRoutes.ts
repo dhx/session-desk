@@ -5,13 +5,16 @@ import {
   readJsonBody,
   sendJson,
 } from '../../../../app/main/controlSurface/http/httpJson'
-import type { AppErrorCode } from '../../../../shared/contracts/dto'
+import {
+  VOICE_LANGUAGES,
+  type AppErrorCode,
+  type VoiceLanguage,
+} from '../../../../shared/contracts/dto'
 import { createAppErrorDescriptor } from '../../../../shared/errors/appError'
 import { encodeSpeechFrame } from '../../../../shared/voice/voiceWire'
-import { VoiceModelsMissingError } from '../../application/VoiceEngine'
+import { VoiceMissingError, VoiceModelsMissingError } from '../../application/VoiceEngine'
 import type { VoiceRequestGate } from '../../application/VoiceRequestGate'
 import type { VoiceService } from '../../application/VoiceService'
-import { KOKORO_VOICE_IDS, type KokoroVoiceId } from '../../domain/voiceSettings'
 
 /**
  * Speech in and out for the Web UI. Audio is too large for /invoke's JSON envelope, so it has
@@ -77,23 +80,23 @@ export async function handleVoiceRoute(options: {
       if (!result.ran) {
         throw busy()
       }
-      sendJson(res, 200, { ok: true, text: result.value })
+      sendJson(res, 200, { ok: true, ...result.value })
       return
     }
 
-    const { text, voice } = parseSpeakPayload(
+    const { text, language } = parseSpeakPayload(
       await readJsonBody(req, { maxBytes: MAX_SPEAK_BODY_BYTES }),
     )
     const controller = new AbortController()
     // The browser aborts the fetch when a new press interrupts the reply. Synthesis then stops
-    // after the sentence it is on.
+    // within a few frames.
     res.once('close', () => {
       if (!res.writableFinished) {
         controller.abort()
       }
     })
     const result = await options.gate.run(clientId, () =>
-      streamSpeech(res, options.service, text, voice, controller.signal),
+      streamSpeech(res, options.service, text, language, controller.signal),
     )
     if (!result.ran) {
       throw busy()
@@ -123,6 +126,10 @@ export async function handleVoiceRoute(options: {
     }
     if (error instanceof VoiceModelsMissingError) {
       sendVoiceError(res, 503, 'voice.models_missing', error.message)
+      return
+    }
+    if (error instanceof VoiceMissingError) {
+      sendVoiceError(res, 503, 'voice.voice_missing', error.message)
       return
     }
     const code: AppErrorCode =
@@ -182,21 +189,25 @@ function tooMuchAudio(): VoiceRouteError {
   )
 }
 
-function parseSpeakPayload(payload: unknown): { text: string; voice: KokoroVoiceId } {
+function parseSpeakPayload(payload: unknown): { text: string; language: VoiceLanguage } {
   if (!payload || typeof payload !== 'object') {
-    throw new VoiceRouteError(400, 'common.invalid_input', 'Expected { text, voice }.')
+    throw new VoiceRouteError(400, 'common.invalid_input', 'Expected { text, language }.')
   }
-  const { text, voice } = payload as { text?: unknown; voice?: unknown }
+  const { text, language } = payload as { text?: unknown; language?: unknown }
   if (typeof text !== 'string' || text.trim().length === 0) {
     throw new VoiceRouteError(400, 'common.invalid_input', 'text must be a non-empty string.')
   }
   if (Buffer.byteLength(text, 'utf8') > MAX_SPEAK_TEXT_BYTES) {
     throw new VoiceRouteError(413, 'common.invalid_input', 'text is limited to 4 KB.')
   }
-  if (typeof voice !== 'string' || !(KOKORO_VOICE_IDS as readonly string[]).includes(voice)) {
-    throw new VoiceRouteError(400, 'common.invalid_input', 'voice is not a known voice.')
+  if (!VOICE_LANGUAGES.includes(language as VoiceLanguage)) {
+    throw new VoiceRouteError(
+      400,
+      'common.invalid_input',
+      `language must be one of ${VOICE_LANGUAGES.join(', ')}.`,
+    )
   }
-  return { text, voice: voice as KokoroVoiceId }
+  return { text, language: language as VoiceLanguage }
 }
 
 function startSpeechStream(res: ServerResponse): void {
@@ -210,7 +221,7 @@ async function streamSpeech(
   res: ServerResponse,
   service: VoiceService,
   text: string,
-  voice: KokoroVoiceId,
+  language: VoiceLanguage,
   signal: AbortSignal,
 ): Promise<void> {
   // The client may have gone while this request waited behind its own earlier one.
@@ -218,14 +229,14 @@ async function streamSpeech(
     return
   }
   let sequence = 0
-  await service.speak(text, voice, signal, chunk => {
+  await service.speak(text, language, signal, chunk => {
     if (!res.headersSent) {
       startSpeechStream(res)
     }
     const frame = encodeSpeechFrame(chunk, sequence)
     sequence += 1
-    // The next sentence is synthesized only once the socket took this one, so a slow phone does
-    // not pile up audio in the worker's memory.
+    // The next audio is generated only once the socket took this, so a slow phone does not pile
+    // up audio in the worker's memory.
     return writeWithBackpressure(res, frame)
   })
 }

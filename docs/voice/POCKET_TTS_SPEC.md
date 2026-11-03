@@ -70,6 +70,14 @@ Machine with Hugging Face access, 4 vCPU (AMD EPYC), 2 threads, voice states clo
 
 PyTorch on the same machine: real-time factor 0.57 (German) and 0.42 (English), first audio 0.3–1.6 s. Each flow step passes the KV cache into the graph and back; keeping it in place (I/O binding) is the known next optimisation, not needed for real time.
 
+## In the host (step 3, 2026-11-03)
+
+- **Layout.** `$OPENCOVE_VOICE_MODELS_DIR/onnx-community/whisper-base/` (q8) and `$OPENCOVE_VOICE_MODELS_DIR/pocket-tts/<german|english>/` (the output of `export.py`); voices in `$OPENCOVE_VOICE_DIR/<german|english>.safetensors`. A language is offered when its bundle is there, and can be spoken when its voice is there too. `voice.prepare` and `voice.status` answer `{ state: 'ready', languages: [{ language, voiceInstalled }] }`; speaking a language without a voice answers `voice.voice_missing` (503) before loading anything.
+- **Language detection.** transformers.js 3.8 does not detect the language: without one, multilingual Whisper is told English. The host decodes from `<|startoftranscript|>` alone, and a logits processor lets the model choose the next token only between `<|de|>` and `<|en|>` by its own scores, then forces `<|transcribe|>` and `<|notimestamps|>`. One pass, no extra cost; a separate detection pass would cost about 0.85 s more per turn on the target CPU.
+- **Reply language.** `/voice/transcribe` answers `{ text, language }`; the browser keeps it for the turn and sends `{ text, language }` to `/voice/speak`, the heard language when the setting is `auto`, else the setting.
+- **Streaming.** The host passes Pocket TTS's pieces on as they are decoded (2 frames, then 8), but holds the first 0.5 s back: the first pieces are shorter than the time to generate the next, and the player would run dry. Cancel aborts generation between frames, not after a sentence.
+- **Measured** (CPU above, alba voice, through the host's model code): Whisper base q8 with the steered prompt transcribes a 3 s German or English clip in 1.3–1.4 s, as the transformers pipeline with a fixed language did (1.3–1.45 s). A first reply in a language starts after 0.7 s, loading its model included; generating 3 s of speech takes 2.1–2.2 s.
+
 ## What changes
 
 ### 1. Engine in the voice host
@@ -124,6 +132,7 @@ Invariants, in addition to WEB_SPEC's:
 - **ONNX parity**: settled by the spike; `reference.py --check-pytorch --strict` repeats it on every export.
 - **Memory**: about 0.8 GB per loaded language with int8 in Node; lazy per-language loading bounds the rest.
 - **Fallback voice without a private one**: the German catalog voice (`juergen`) has no stated source or licence and is not shipped. The fallback is a CC0 or CC-BY catalog voice whose German embedding exists in the open repo; if none does, German without a private voice reports "no German voice installed".
+- **Short German requests heard as English.** Whisper picks the language from the sound; a short German sentence full of English developer words can come out as English, and Whisper then translates it ("Der Bild ist jetzt fertig." → "The build is now finished."). Longer sentences were heard as German in every test. The reply language setting (`de`) fixes it for a German-only user.
 - **Runner variance**: real-time factor varied 0.29–0.46 between CI CPUs; the target server is measured before release.
 
 ## Verification
@@ -138,7 +147,7 @@ Invariants, in addition to WEB_SPEC's:
 
 1. ~~**ONNX spike**~~: passed (above).
 2. Export tooling and the TypeScript engine (`localEngine/pocketTts/`) with reference tests; wired into the host in step 3.
-3. Swap Kokoro out: dependencies, settings, `/voice/speak` body, multilingual Whisper, reply language.
+3. ~~Swap Kokoro out~~: dependencies, settings, `/voice/speak` body, multilingual Whisper, reply language (above, "In the host").
 4. Respelling list and the per-installation lexicon.
 5. Voice runbook (`docs/voice/INSTALL_VOICE.md`).
 6. Image stage in opencove-image: open weights, ONNX export, `NOTICE`.

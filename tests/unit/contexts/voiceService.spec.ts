@@ -1,16 +1,24 @@
 import { describe, expect, it, vi } from 'vitest'
 import {
+  VoiceMissingError,
   VoiceModelsMissingError,
   type VoiceEngine,
 } from '../../../src/contexts/voice/application/VoiceEngine'
 import { VoiceService } from '../../../src/contexts/voice/application/VoiceService'
+
+const LANGUAGES = [
+  { language: 'de', voiceInstalled: true },
+  { language: 'en', voiceInstalled: false },
+] as const
+
+const loads = async () => [...LANGUAGES]
 
 function createEngine(prepare: VoiceEngine['prepare']) {
   let emitUnavailable: (reason: string) => void = () => {}
   const engine: VoiceEngine = {
     id: 'local',
     prepare: vi.fn(prepare),
-    transcribe: vi.fn(async () => ' text '),
+    transcribe: vi.fn(async () => ({ text: ' text ', language: 'de' as const })),
     speak: async function* () {},
     onUnavailable: listener => {
       emitUnavailable = listener
@@ -23,15 +31,18 @@ function createEngine(prepare: VoiceEngine['prepare']) {
 
 describe('VoiceService', () => {
   it('shows a failed load as error, then retries on the next request', async () => {
-    const { engine } = createEngine(async () => {})
+    const { engine } = createEngine(loads)
     vi.mocked(engine.prepare).mockRejectedValueOnce(new Error('no network'))
     const service = new VoiceService(engine)
 
     await expect(service.prepare()).rejects.toThrow('no network')
     expect(service.getStatus()).toEqual({ state: 'error', message: 'no network' })
 
-    await expect(service.transcribe(new Float32Array(1))).resolves.toBe('text')
-    expect(service.getStatus()).toEqual({ state: 'ready' })
+    await expect(service.transcribe(new Float32Array(1))).resolves.toEqual({
+      text: 'text',
+      language: 'de',
+    })
+    expect(service.getStatus()).toEqual({ state: 'ready', languages: LANGUAGES })
     expect(engine.prepare).toHaveBeenCalledTimes(2)
   })
 
@@ -50,7 +61,7 @@ describe('VoiceService', () => {
   })
 
   it('goes back to idle when the engine loses its models, and reloads on demand', async () => {
-    const { engine, emitUnavailable } = createEngine(async () => {})
+    const { engine, emitUnavailable } = createEngine(loads)
     const service = new VoiceService(engine)
     await service.prepare()
 
@@ -66,9 +77,9 @@ describe('VoiceService', () => {
     let staleProgress: (p: { progress: number }) => void = () => {}
     const { engine, emitUnavailable } = createEngine(
       onProgress =>
-        new Promise<void>(resolve => {
+        new Promise(resolve => {
           staleProgress = onProgress
-          finishStale = resolve
+          finishStale = () => resolve([...LANGUAGES])
         }),
     )
     const service = new VoiceService(engine)
@@ -86,7 +97,7 @@ describe('VoiceService', () => {
   })
 
   it('waits for each chunk to be taken before asking the engine for the next', async () => {
-    const { engine } = createEngine(async () => {})
+    const { engine } = createEngine(loads)
     const asked: number[] = []
     engine.speak = async function* () {
       for (const index of [0, 1]) {
@@ -100,7 +111,7 @@ describe('VoiceService', () => {
       releaseFirst = resolve
     })
 
-    const speaking = service.speak('A. B.', 'af_heart', new AbortController().signal, chunk =>
+    const speaking = service.speak('A. B.', 'de', new AbortController().signal, chunk =>
       chunk.index === 0 ? firstTaken : undefined,
     )
     await new Promise(resolve => setTimeout(resolve, 0))
@@ -109,5 +120,17 @@ describe('VoiceService', () => {
     releaseFirst()
     await expect(speaking).resolves.toEqual({ chunkCount: 2, cancelled: false })
     expect(asked).toEqual([0, 1])
+  })
+
+  it('refuses to speak a language without a voice before asking the engine', async () => {
+    const { engine } = createEngine(loads)
+    const speak = vi.fn(engine.speak)
+    engine.speak = speak
+    const service = new VoiceService(engine)
+
+    await expect(
+      service.speak('Hello.', 'en', new AbortController().signal, () => {}),
+    ).rejects.toBeInstanceOf(VoiceMissingError)
+    expect(speak).not.toHaveBeenCalled()
   })
 })

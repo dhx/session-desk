@@ -39,12 +39,23 @@ afterEach(() => {
 })
 
 describe('browser voice bridge', () => {
-  it('posts the recording as 16-bit PCM with the voice headers and answers the text', async () => {
-    const calls = stubFetch(() => new Response(JSON.stringify({ ok: true, text: 'hello' })))
+  it('takes a transcript without a language, from a worker before languages, as English', async () => {
+    stubFetch(() => new Response(JSON.stringify({ ok: true, text: 'hello' })))
+
+    await expect(
+      createBrowserVoiceApi().transcribe({ pcm16k: new Float32Array(1) }),
+    ).resolves.toEqual({ text: 'hello', language: 'en' })
+  })
+
+  it('posts the recording as 16-bit PCM with the voice headers and answers text and language', async () => {
+    const calls = stubFetch(
+      () => new Response(JSON.stringify({ ok: true, text: 'hallo', language: 'de' })),
+    )
     const voice = createBrowserVoiceApi()
 
     await expect(voice.transcribe({ pcm16k: new Float32Array([0, 0.5]) })).resolves.toEqual({
-      text: 'hello',
+      text: 'hallo',
+      language: 'de',
     })
 
     const [call] = calls
@@ -81,21 +92,25 @@ describe('browser voice bridge', () => {
     })
   })
 
-  it('hands each streamed sentence to the chunk listeners, in order', async () => {
+  it('hands each streamed frame to the chunk listeners, in order', async () => {
     const stream = new Uint8Array([
       ...encodeSpeechFrame({ sampleRate: 24000, samples: new Float32Array([0.1, 0.2]) }, 0),
       ...encodeSpeechFrame({ sampleRate: 24000, samples: new Float32Array([0.3]) }, 1),
     ])
-    stubFetch(() => new Response(streamOf([stream.subarray(0, 5), stream.subarray(5)])))
+    const calls = stubFetch(
+      () => new Response(streamOf([stream.subarray(0, 5), stream.subarray(5)])),
+    )
     const voice = createBrowserVoiceApi()
     const events: { requestId: string; index: number; length: number }[] = []
     voice.onSpeakChunk(event =>
       events.push({ requestId: event.requestId, index: event.index, length: event.samples.length }),
     )
 
-    await expect(
-      voice.speak({ requestId: 'r1', text: 'A. B.', voice: 'af_heart' }),
-    ).resolves.toEqual({ chunkCount: 2, cancelled: false })
+    await expect(voice.speak({ requestId: 'r1', text: 'A. B.', language: 'de' })).resolves.toEqual({
+      chunkCount: 2,
+      cancelled: false,
+    })
+    expect(JSON.parse(calls[0].init.body as string)).toEqual({ text: 'A. B.', language: 'de' })
     expect(events).toEqual([
       { requestId: 'r1', index: 0, length: 2 },
       { requestId: 'r1', index: 1, length: 1 },
@@ -119,9 +134,10 @@ describe('browser voice bridge', () => {
       void voice.cancelSpeak({ requestId: 'r1' })
     })
 
-    await expect(
-      voice.speak({ requestId: 'r1', text: 'Long.', voice: 'af_heart' }),
-    ).resolves.toEqual({ chunkCount: 1, cancelled: true })
+    await expect(voice.speak({ requestId: 'r1', text: 'Long.', language: 'de' })).resolves.toEqual({
+      chunkCount: 1,
+      cancelled: true,
+    })
     expect(chunks).toBe(1)
   })
 
@@ -131,7 +147,7 @@ describe('browser voice bridge', () => {
     const voice = createBrowserVoiceApi()
 
     await expect(
-      voice.speak({ requestId: 'r1', text: 'A.', voice: 'af_heart' }),
+      voice.speak({ requestId: 'r1', text: 'A.', language: 'de' }),
     ).rejects.toMatchObject({ code: 'voice.speak_failed' })
   })
 

@@ -92,12 +92,14 @@ async function recordVoicePhases(window: Page): Promise<() => Promise<string[]>>
 }
 
 test.describe('Voice - push to talk (Web UI)', () => {
-  test('sends the transcript to the boss and speaks its SAY line', async () => {
+  test('sends the transcript to the boss and speaks its SAY line in the language heard', async () => {
     const { electronApp, window } = await launchApp({
       windowMode: 'inactive',
       env: {
         OPENCOVE_TEST_VOICE_ENGINE: 'stub',
         OPENCOVE_TEST_VOICE_TRANSCRIPT: TRANSCRIPT,
+        // A German turn: the reply language follows the request (the setting's default, auto).
+        OPENCOVE_TEST_VOICE_LANGUAGE: 'de',
         OPENCOVE_TEST_AGENT_SESSION_SCENARIO: 'claude-hook-voice-reply',
         OPENCOVE_TEST_CLAUDE_HOOK_INSTALL_FAILURE: '0',
       },
@@ -136,7 +138,7 @@ test.describe('Voice - push to talk (Web UI)', () => {
         })
       await expect(agentNode).toContainText('[opencove-test-voice] instruction: true')
       await expect(agentNode).toContainText('[opencove-test-voice] replied')
-      expect((await spoken).postDataJSON()).toMatchObject({ text: VOICE_SAY_LINE })
+      expect((await spoken).postDataJSON()).toEqual({ text: VOICE_SAY_LINE, language: 'de' })
       await expect(indicator).toHaveCount(0, { timeout: 30_000 })
 
       // The spoken reply announces the finish, so the boss raises no standby banner.
@@ -151,7 +153,7 @@ test.describe('Voice - push to talk (Web UI)', () => {
       await expect(holdButton).toHaveAttribute('data-voice-phase', 'listening')
       await window.waitForTimeout(600)
       await window.mouse.up()
-      expect((await spokenAgain).postDataJSON()).toMatchObject({ text: VOICE_SAY_LINE })
+      expect((await spokenAgain).postDataJSON()).toEqual({ text: VOICE_SAY_LINE, language: 'de' })
       await expect(indicator).toHaveCount(0, { timeout: 30_000 })
     } finally {
       await electronApp.close()

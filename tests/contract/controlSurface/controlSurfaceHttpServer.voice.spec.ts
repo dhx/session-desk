@@ -88,7 +88,7 @@ describe('voice routes (Web UI)', () => {
       })
 
       expect(response.status).toBe(200)
-      expect(await response.json()).toEqual({ ok: true, text: 'stub transcript' })
+      expect(await response.json()).toEqual({ ok: true, text: 'stub transcript', language: 'en' })
     })
 
     it('needs auth, and a query token does not count', async () => {
@@ -126,8 +126,8 @@ describe('voice routes (Web UI)', () => {
         ...headers,
       })
 
-    it('streams one framed chunk per sentence, in order', async () => {
-      const response = await speak({ text: 'One. Two.', voice: 'af_heart' })
+    it('streams the speech in frames, in order', async () => {
+      const response = await speak({ text: 'One. Two.', language: 'en' })
 
       expect(response.status).toBe(200)
       expect(response.headers.get('content-type')).toBe('application/octet-stream')
@@ -146,23 +146,24 @@ describe('voice routes (Web UI)', () => {
       expect(frames.every(frame => frame.sampleRate === 24000 && frame.count > 0)).toBe(true)
     })
 
-    it('refuses an unknown voice and an empty text', async () => {
-      expect((await speak({ text: 'Hi.', voice: 'not-a-voice' })).status).toBe(400)
-      expect((await speak({ text: '   ', voice: 'af_heart' })).status).toBe(400)
+    it('refuses an unknown language, a Kokoro voice instead of a language, and an empty text', async () => {
+      expect((await speak({ text: 'Hi.', language: 'fr' })).status).toBe(400)
+      expect((await speak({ text: 'Hi.', voice: 'af_heart' })).status).toBe(400)
+      expect((await speak({ text: '   ', language: 'en' })).status).toBe(400)
       expect((await post('/voice/speak', '{not json')).status).toBe(400)
     })
 
     it('refuses text over 4 KB', async () => {
       const response = await speak({
         text: 'a'.repeat(MAX_SPEAK_TEXT_BYTES + 1),
-        voice: 'af_heart',
+        language: 'en',
       })
 
       expect(response.status).toBe(413)
     })
 
     it('needs the voice header too', async () => {
-      const response = await speak({ text: 'Hi.', voice: 'af_heart' }, { 'x-opencove-voice': '' })
+      const response = await speak({ text: 'Hi.', language: 'en' }, { 'x-opencove-voice': '' })
 
       expect(response.status).toBe(403)
     })

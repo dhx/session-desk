@@ -33,52 +33,6 @@ export function splitIntoSentences(text: string): string[] {
   return sentences
 }
 
-/** Kokoro reads at most 510 phoneme tokens per call; 200 characters stays well below that. */
-export const MAX_SPEECH_CHUNK_CHARS = 200
-
-/**
- * Splits text into the pieces synthesized one at a time: sentences, with an overlong sentence cut
- * at clause punctuation first and at word boundaries last.
- */
-export function chunkForSpeech(text: string, maxChars = MAX_SPEECH_CHUNK_CHARS): string[] {
-  return splitIntoSentences(text).flatMap(sentence => splitLongText(sentence, maxChars))
-}
-
-function splitLongText(text: string, maxChars: number): string[] {
-  if (text.length <= maxChars) {
-    return [text]
-  }
-
-  const clauses = text.split(/(?<=[,;:])\s+/)
-  if (clauses.length > 1) {
-    // A packed chunk holds several clauses or one overlong clause; only the latter recurses.
-    return packPieces(clauses, maxChars).flatMap(chunk => splitLongText(chunk, maxChars))
-  }
-
-  const words = text
-    .split(/\s+/)
-    .flatMap(word => word.match(new RegExp(`.{1,${maxChars}}`, 'g')) ?? [])
-  return packPieces(words, maxChars)
-}
-
-function packPieces(pieces: string[], maxChars: number): string[] {
-  const chunks: string[] = []
-  let current = ''
-  for (const piece of pieces) {
-    const joined = current ? `${current} ${piece}` : piece
-    if (joined.length <= maxChars || !current) {
-      current = joined
-      continue
-    }
-    chunks.push(current)
-    current = piece
-  }
-  if (current) {
-    chunks.push(current)
-  }
-  return chunks
-}
-
 /** The SAY: line when the boss wrote one, otherwise the first sentences of the reply. */
 export function pickSpokenText(reply: string): string | null {
   const sayLine = findLastSayLine(reply)

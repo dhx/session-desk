@@ -7,11 +7,12 @@ import {
 } from '@contexts/settings/domain/keybindings'
 import { useAppStore } from '@app/renderer/shell/store/useAppStore'
 import { getPtyEventHub } from '@app/renderer/shell/utils/ptyEventHub'
-import type { VoiceEngineStatus } from '@shared/contracts/dto'
+import type { VoiceEngineStatus, VoiceLanguage } from '@shared/contracts/dto'
 import {
   createVoiceTurnController,
   type VoiceTurnController,
 } from '../../application/voiceTurnController'
+import { resolveReplyLanguage } from '../../domain/voiceSettings'
 import { IDLE_VOICE_TURN, type VoiceTurnState } from '../../domain/voiceTurn'
 import { askBoss, listVoiceBossAgents, type VoiceBossAgent } from './bossChannel'
 import { createMicRecorder } from './micRecorder'
@@ -120,12 +121,17 @@ export function useVoiceAssistant(
       return
     }
     const recorder = createMicRecorder(getVoiceAudioContext)
+    let heardLanguage: VoiceLanguage | null = null
     const hub = getPtyEventHub()
     const next = createVoiceTurnController({
       startRecording: () => recorder.start(),
       stopRecording: () => recorder.stop(),
       cancelRecording: () => recorder.cancel(),
-      transcribe: async pcm16k => (await bridge.transcribe({ pcm16k })).text,
+      transcribe: async pcm16k => {
+        const heard = await bridge.transcribe({ pcm16k })
+        heardLanguage = heard.language
+        return heard.text
+      },
       askBoss: (prompt, signal, onSent) => {
         const boss = findBoss(voiceRef.current.bossNodeId)
         if (!boss) {
@@ -136,7 +142,14 @@ export function useVoiceAssistant(
           onSessionExit: (sessionId, listener) => hub.onSessionExit(sessionId, () => listener()),
         })
       },
-      speak: (text, signal) => speakReply(bridge, text, voiceRef.current.voice, signal),
+      // Ask in German, hear German back; unless the settings fix the reply language.
+      speak: (text, signal) =>
+        speakReply(
+          bridge,
+          text,
+          resolveReplyLanguage(voiceRef.current.language, heardLanguage),
+          signal,
+        ),
       hasBoss: () => findBoss(voiceRef.current.bossNodeId) !== null,
       shouldSpeakReplies: () => voiceRef.current.speakReplies,
       createTurnId: () => crypto.randomUUID(),
@@ -229,7 +242,7 @@ type VoiceBridge = NonNullable<ReturnType<typeof getVoiceBridge>>
 async function speakReply(
   bridge: VoiceBridge,
   text: string,
-  voice: string,
+  language: VoiceLanguage,
   signal: AbortSignal,
 ): Promise<void> {
   if (signal.aborted) {
@@ -248,7 +261,7 @@ async function speakReply(
   }
   signal.addEventListener('abort', onAbort, { once: true })
   try {
-    await bridge.speak({ requestId, text, voice })
+    await bridge.speak({ requestId, text, language })
     await player.drain()
   } finally {
     signal.removeEventListener('abort', onAbort)
