@@ -3,7 +3,10 @@ import {
   LocalVoiceEngine,
   VOICE_HOST_IDLE_UNLOAD_MS,
 } from '../../../src/contexts/voice/infrastructure/localEngine/LocalVoiceEngine'
-import { VoiceModelsMissingError } from '../../../src/contexts/voice/application/VoiceEngine'
+import {
+  VoiceMissingError,
+  VoiceModelsMissingError,
+} from '../../../src/contexts/voice/application/VoiceEngine'
 import type {
   VoiceHostReply,
   VoiceHostRequest,
@@ -45,6 +48,7 @@ function setup() {
   const reportIssue = vi.fn()
   const engine = new LocalVoiceEngine({
     modelsDir: 'C:/userData/models',
+    voiceDir: '/srv/voices',
     createProcess: () => {
       const fake = createFakeProcess()
       processes.push(fake)
@@ -65,18 +69,20 @@ async function prepare(setupResult: ReturnType<typeof setup>): Promise<void> {
 }
 
 describe('LocalVoiceEngine', () => {
-  it('forks the host lazily and sends the models directory', async () => {
+  it('forks the host lazily, sends both directories and answers the languages', async () => {
     const ctx = setup()
     expect(ctx.processes).toHaveLength(0)
 
     const progress = vi.fn()
     const preparing = ctx.engine.prepare(progress)
     const [host] = ctx.processes
-    expect(host.posted).toEqual([{ type: 'prepare', id: 'r1', modelsDir: 'C:/userData/models' }])
+    expect(host.posted).toEqual([
+      { type: 'prepare', id: 'r1', modelsDir: 'C:/userData/models', voiceDir: '/srv/voices' },
+    ])
 
     host.reply({ type: 'progress', id: 'r1', progress: 0.5 })
-    host.reply({ type: 'done', id: 'r1' })
-    await preparing
+    host.reply({ type: 'done', id: 'r1', languages: [{ language: 'de', voiceInstalled: true }] })
+    await expect(preparing).resolves.toEqual([{ language: 'de', voiceInstalled: true }])
     expect(progress).toHaveBeenCalledWith({ progress: 0.5 })
   })
 
@@ -86,8 +92,8 @@ describe('LocalVoiceEngine', () => {
     const host = ctx.processes[0]
 
     const ok = ctx.engine.transcribe(new Float32Array(2))
-    host.reply({ type: 'done', id: 'r2', text: 'hello' })
-    await expect(ok).resolves.toBe('hello')
+    host.reply({ type: 'done', id: 'r2', text: 'hallo', language: 'de' })
+    await expect(ok).resolves.toEqual({ text: 'hallo', language: 'de' })
 
     const failed = ctx.engine.transcribe(new Float32Array(2))
     host.reply({ type: 'error', id: 'r3', message: 'boom' })
@@ -102,7 +108,7 @@ describe('LocalVoiceEngine', () => {
 
     const received: number[] = []
     const consuming = (async () => {
-      for await (const chunk of ctx.engine.speak('One. Two.', 'bm_george', controller.signal)) {
+      for await (const chunk of ctx.engine.speak('One. Two.', 'en', controller.signal)) {
         received.push(chunk.index)
       }
     })()
@@ -128,7 +134,7 @@ describe('LocalVoiceEngine', () => {
       type: 'speak',
       id: 'r2',
       text: 'One. Two.',
-      voice: 'bm_george',
+      language: 'en',
     })
   })
 
@@ -140,7 +146,7 @@ describe('LocalVoiceEngine', () => {
 
     const consuming = (async () => {
       const received: number[] = []
-      for await (const chunk of ctx.engine.speak('One. Two.', 'bm_george', controller.signal)) {
+      for await (const chunk of ctx.engine.speak('One. Two.', 'en', controller.signal)) {
         received.push(chunk.index)
         controller.abort()
       }
@@ -190,7 +196,7 @@ describe('LocalVoiceEngine', () => {
   it('does not fork a new host just to cancel speech on a host that exited', async () => {
     const ctx = setup()
     const controller = new AbortController()
-    const speech = ctx.engine.speak('Hi.', 'bm_george', controller.signal)
+    const speech = ctx.engine.speak('Hi.', 'en', controller.signal)
     const next = speech[Symbol.asyncIterator]().next()
 
     ctx.processes[0].exit(0)
@@ -250,8 +256,8 @@ describe('LocalVoiceEngine', () => {
       vi.advanceTimersByTime(VOICE_HOST_IDLE_UNLOAD_MS * 2)
       expect(ctx.processes[0].process.kill).not.toHaveBeenCalled()
 
-      ctx.processes[0].reply({ type: 'done', id: 'r2', text: 'hi' })
-      await expect(pending).resolves.toBe('hi')
+      ctx.processes[0].reply({ type: 'done', id: 'r2', text: 'hi', language: 'en' })
+      await expect(pending).resolves.toEqual({ text: 'hi', language: 'en' })
       vi.advanceTimersByTime(VOICE_HOST_IDLE_UNLOAD_MS - 1)
       expect(ctx.processes[0].process.kill).not.toHaveBeenCalled()
       vi.advanceTimersByTime(1)
@@ -272,5 +278,17 @@ describe('LocalVoiceEngine', () => {
     })
 
     await expect(preparing).rejects.toBeInstanceOf(VoiceModelsMissingError)
+  })
+
+  it('fails speech with VoiceMissingError when the host has no voice for the language', async () => {
+    const ctx = setup()
+    await prepare(ctx)
+    const speech = ctx.engine.speak('Hallo.', 'de', new AbortController().signal)
+    const next = speech[Symbol.asyncIterator]().next()
+    const [host] = ctx.processes
+
+    host.reply({ type: 'error', id: 'r2', code: 'voice_missing', message: 'No voice for de.' })
+
+    await expect(next).rejects.toBeInstanceOf(VoiceMissingError)
   })
 })

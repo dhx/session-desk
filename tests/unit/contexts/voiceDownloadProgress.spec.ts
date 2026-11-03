@@ -12,7 +12,7 @@ function track() {
 describe('createDownloadProgressTracker', () => {
   it('reports one overall fraction across parallel files', () => {
     const { reports, progress } = track()
-    progress('kokoro.onnx', 50, 100)
+    progress('flow_lm_main.onnx', 50, 100)
     progress('whisper.onnx', 50, 300)
     progress('whisper.onnx', 300, 300)
     expect(reports).toEqual([0.5, 0.87])

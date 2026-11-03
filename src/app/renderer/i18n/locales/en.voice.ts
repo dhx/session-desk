@@ -21,12 +21,20 @@ export const enVoice = {
       notInstalled:
         'Voice is not installed on this server: it has no speech models. Ask whoever runs it to install them.',
       engineLabel: 'Engine',
-      engineHelp: 'Local runs Whisper and Kokoro on this server.',
-      engineLocal: 'Local (Whisper + Kokoro)',
+      engineHelp: 'Local runs Whisper and Pocket TTS on this server.',
+      engineLocal: 'Local (Whisper + Pocket TTS)',
       engineRealtime: 'OpenAI Realtime',
       comingSoon: 'Coming soon',
-      voiceLabel: 'Voice',
-      voiceHelp: 'The voice that reads replies out loud.',
+      languageLabel: 'Reply language',
+      languageHelp:
+        'Automatic answers in the language you spoke. The voice is the one installed on this server.',
+      voiceMissing:
+        'No voice is installed on this server for {{languages}}, so replies in it cannot be read out loud.',
+      languages: {
+        auto: 'Automatic',
+        de: 'German',
+        en: 'English',
+      },
       bossLabel: 'Boss agent',
       bossHelp: 'The agent that receives your voice commands.',
       bossNone: 'None',

@@ -6,48 +6,83 @@ import { env, pipeline } from '@huggingface/transformers'
 import { VoiceModelsMissingError } from '../../../src/contexts/voice/application/VoiceEngine'
 import {
   configureOfflineTransformers,
-  findMissingVoiceModels,
+  findVoiceInstallation,
   loadVoiceModels,
 } from '../../../src/contexts/voice/infrastructure/localEngine/voiceHostModels'
-import {
-  KOKORO_MODEL_ID,
-  WHISPER_MODEL_ID,
-} from '../../../src/contexts/voice/infrastructure/localEngine/voiceHostProtocol'
-
-// kokoro-js is never imported here: its phonemizer installs a process-wide unhandledRejection
-// handler that rethrows, which would take the test worker down with any stray rejection.
+import { WHISPER_MODEL_ID } from '../../../src/contexts/voice/infrastructure/localEngine/voiceHostProtocol'
 
 let modelsDir: string
+let voiceDir: string
 
 beforeEach(async () => {
   modelsDir = await mkdtemp(join(tmpdir(), 'voice-models-'))
+  voiceDir = await mkdtemp(join(tmpdir(), 'voice-voices-'))
 })
 
 afterEach(async () => {
   vi.restoreAllMocks()
   await rm(modelsDir, { recursive: true, force: true })
+  await rm(voiceDir, { recursive: true, force: true })
 })
 
-async function addModel(id: string): Promise<void> {
-  await mkdir(join(modelsDir, id), { recursive: true })
-  await writeFile(join(modelsDir, id, 'config.json'), '{}')
+async function addFile(dir: string, path: string): Promise<void> {
+  await mkdir(join(dir, path, '..'), { recursive: true })
+  await writeFile(join(dir, path), '{}')
 }
 
-describe('voice models on disk', () => {
-  it('names every model that has no config in the models directory', async () => {
-    await addModel(WHISPER_MODEL_ID)
+describe('voice installation on disk', () => {
+  it('needs Whisper and at least one speech model', async () => {
+    expect(findVoiceInstallation(modelsDir, voiceDir)).toEqual({
+      missing: [WHISPER_MODEL_ID, 'pocket-tts/<language>'],
+      languages: [],
+    })
 
-    expect(findMissingVoiceModels(modelsDir)).toEqual([KOKORO_MODEL_ID])
+    await addFile(modelsDir, `${WHISPER_MODEL_ID}/config.json`)
+    await addFile(modelsDir, 'pocket-tts/german/bundle.json')
+
+    expect(findVoiceInstallation(modelsDir, voiceDir)).toEqual({
+      missing: [],
+      languages: [
+        { language: 'de', bundleDir: join(modelsDir, 'pocket-tts', 'german'), voicePath: null },
+      ],
+    })
+  })
+
+  it('offers a language with a speech model, and finds its voice by the language name', async () => {
+    await addFile(modelsDir, `${WHISPER_MODEL_ID}/config.json`)
+    await addFile(modelsDir, 'pocket-tts/german/bundle.json')
+    await addFile(modelsDir, 'pocket-tts/english/bundle.json')
+    await addFile(voiceDir, 'english.safetensors')
+    // A voice without a speech model is not a language.
+    await addFile(voiceDir, 'french.safetensors')
+
+    const { languages } = findVoiceInstallation(modelsDir, voiceDir)
+
+    expect(languages.map(({ language, voicePath }) => [language, voicePath])).toEqual([
+      ['de', null],
+      ['en', join(voiceDir, 'english.safetensors')],
+    ])
+  })
+
+  it('finds no voices when the voice directory is not set or not absolute', async () => {
+    await addFile(modelsDir, 'pocket-tts/english/bundle.json')
+    await addFile(voiceDir, 'english.safetensors')
+
+    for (const dir of ['', 'english.safetensors', '.']) {
+      expect(findVoiceInstallation(modelsDir, dir).languages[0].voicePath).toBeNull()
+    }
   })
 
   it('refuses to load without models, before touching any model library', async () => {
-    await expect(loadVoiceModels(modelsDir, () => {})).rejects.toBeInstanceOf(
+    await expect(loadVoiceModels({ modelsDir, voiceDir }, () => {})).rejects.toBeInstanceOf(
       VoiceModelsMissingError,
     )
   })
 
   it('refuses to load when no models directory is configured', async () => {
-    await expect(loadVoiceModels('', () => {})).rejects.toBeInstanceOf(VoiceModelsMissingError)
+    await expect(loadVoiceModels({ modelsDir: '', voiceDir }, () => {})).rejects.toBeInstanceOf(
+      VoiceModelsMissingError,
+    )
   })
 })
 

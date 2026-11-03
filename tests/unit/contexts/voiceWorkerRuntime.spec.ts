@@ -68,6 +68,22 @@ describe('worker voice engine', () => {
     ).toBeInstanceOf(StubVoiceEngine)
   })
 
+  it('lets end-to-end tests say which language the stub heard', async () => {
+    const engine = createWorkerVoiceEngine({
+      env: {
+        OPENCOVE_TEST_VOICE_ENGINE: 'stub',
+        OPENCOVE_TEST_VOICE_TRANSCRIPT: 'führe die Tests aus',
+        OPENCOVE_TEST_VOICE_LANGUAGE: 'de',
+      },
+      reportIssue: () => {},
+    })
+
+    await expect(engine.transcribe(new Float32Array(1))).resolves.toEqual({
+      text: 'führe die Tests aus',
+      language: 'de',
+    })
+  })
+
   it('uses the local engine otherwise, without forking until it is needed', () => {
     const engine = createWorkerVoiceEngine({
       env: { OPENCOVE_VOICE_MODELS_DIR: '/opt/opencove-voice/models' },
@@ -81,11 +97,17 @@ describe('worker voice engine', () => {
 describe('stub voice engine', () => {
   it('transcribes to the configured text and speaks one chunk per sentence', async () => {
     const engine = new StubVoiceEngine({ transcript: 'run the tests' })
-    await engine.prepare(() => {})
+    await expect(engine.prepare(() => {})).resolves.toEqual([
+      { language: 'de', voiceInstalled: true },
+      { language: 'en', voiceInstalled: true },
+    ])
 
-    await expect(engine.transcribe(new Float32Array(16000))).resolves.toBe('run the tests')
+    await expect(engine.transcribe(new Float32Array(16000))).resolves.toEqual({
+      text: 'run the tests',
+      language: 'en',
+    })
     const chunks = []
-    for await (const chunk of engine.speak('One. Two.', 'af_heart', new AbortController().signal)) {
+    for await (const chunk of engine.speak('One. Two.', 'en', new AbortController().signal)) {
       chunks.push(chunk)
     }
     expect(chunks.map(chunk => chunk.index)).toEqual([0, 1])
@@ -97,7 +119,7 @@ describe('stub voice engine', () => {
     const engine = new StubVoiceEngine()
     const controller = new AbortController()
     const indexes = []
-    for await (const chunk of engine.speak('One. Two. Three.', 'af_heart', controller.signal)) {
+    for await (const chunk of engine.speak('One. Two. Three.', 'en', controller.signal)) {
       indexes.push(chunk.index)
       controller.abort()
     }

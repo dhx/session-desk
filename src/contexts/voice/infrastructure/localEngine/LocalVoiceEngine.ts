@@ -1,11 +1,13 @@
 import type { PtyHostProcess } from '../../../../platform/process/ptyHost/processTypes'
+import type { VoiceLanguage, VoiceLanguageAvailability } from '../../../../shared/contracts/dto'
 import {
+  VoiceMissingError,
   VoiceModelsMissingError,
   type VoiceAudioChunk,
   type VoiceEngine,
   type VoiceModelProgress,
+  type VoiceTranscription,
 } from '../../application/VoiceEngine'
-import type { KokoroVoiceId } from '../../domain/voiceSettings'
 import { isVoiceHostReply, type VoiceHostReply, type VoiceHostRequest } from './voiceHostProtocol'
 
 interface PendingRequest {
@@ -13,12 +15,17 @@ interface PendingRequest {
   fail: (error: Error) => void
 }
 
-/** About 0.5 GB of models stay in memory while the host runs; an idle host gives it back. */
+/**
+ * Whisper (about 0.3 GB) and each spoken language (about 0.8 GB) stay in memory while the host
+ * runs; an idle host gives it back.
+ */
 export const VOICE_HOST_IDLE_UNLOAD_MS = 10 * 60 * 1000
 
 export interface LocalVoiceEngineOptions {
   /** Where the models are; read only, never downloaded into. */
   modelsDir: string
+  /** Where the installation keeps its voices; read only, may be empty. */
+  voiceDir: string
   /** Forks the voice host process. Called lazily, and again after the process exits. */
   createProcess: () => PtyHostProcess
   reportIssue: (message: string) => void
@@ -27,7 +34,7 @@ export interface LocalVoiceEngineOptions {
 }
 
 /**
- * Worker side of the local engine. Whisper and Kokoro run in a child process so inference never
+ * Worker side of the local engine. Whisper and Pocket TTS run in a child process so inference never
  * blocks the worker's event loop, and so their libraries' process-wide handlers stay out of it.
  *
  * Invariants:
@@ -50,17 +57,24 @@ export class LocalVoiceEngine implements VoiceEngine {
     this.createId = options.createId ?? (() => crypto.randomUUID())
   }
 
-  public prepare(onProgress: (progress: VoiceModelProgress) => void): Promise<void> {
+  public prepare(
+    onProgress: (progress: VoiceModelProgress) => void,
+  ): Promise<VoiceLanguageAvailability[]> {
     return new Promise((resolve, reject) => {
       this.request(
-        { type: 'prepare', id: this.createId(), modelsDir: this.options.modelsDir },
+        {
+          type: 'prepare',
+          id: this.createId(),
+          modelsDir: this.options.modelsDir,
+          voiceDir: this.options.voiceDir,
+        },
         {
           onReply: reply => {
             if (reply.type === 'progress') {
               onProgress({ progress: reply.progress })
             } else if (reply.type === 'done') {
               this.prepared = true
-              resolve()
+              resolve(reply.languages ?? [])
             } else if (reply.type === 'error') {
               reject(
                 reply.code === 'models_missing'
@@ -75,14 +89,14 @@ export class LocalVoiceEngine implements VoiceEngine {
     })
   }
 
-  public transcribe(pcm16k: Float32Array): Promise<string> {
+  public transcribe(pcm16k: Float32Array): Promise<VoiceTranscription> {
     return new Promise((resolve, reject) => {
       this.request(
         { type: 'transcribe', id: this.createId(), pcm16k },
         {
           onReply: reply => {
             if (reply.type === 'done') {
-              resolve(reply.text ?? '')
+              resolve({ text: reply.text ?? '', language: reply.language ?? 'en' })
             } else if (reply.type === 'error') {
               reject(new Error(reply.message))
             }
@@ -95,7 +109,7 @@ export class LocalVoiceEngine implements VoiceEngine {
 
   public async *speak(
     text: string,
-    voice: KokoroVoiceId,
+    language: VoiceLanguage,
     signal: AbortSignal,
   ): AsyncGenerator<VoiceAudioChunk> {
     const id = this.createId()
@@ -109,7 +123,7 @@ export class LocalVoiceEngine implements VoiceEngine {
     }
 
     this.request(
-      { type: 'speak', id, text, voice },
+      { type: 'speak', id, text, language },
       {
         onReply: reply => {
           if (reply.type === 'chunk') {
@@ -121,7 +135,10 @@ export class LocalVoiceEngine implements VoiceEngine {
           } else if (reply.type === 'done') {
             finished = true
           } else if (reply.type === 'error') {
-            failure = new Error(reply.message)
+            failure =
+              reply.code === 'voice_missing'
+                ? new VoiceMissingError(reply.message)
+                : new Error(reply.message)
           }
           notify()
         },

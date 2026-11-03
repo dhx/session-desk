@@ -1,8 +1,10 @@
-import type {
-  AppErrorCode,
-  AppErrorDescriptor,
-  VoiceEngineStatus,
-  VoiceSpeakChunkEvent,
+import {
+  VOICE_LANGUAGES,
+  type AppErrorCode,
+  type AppErrorDescriptor,
+  type VoiceEngineStatus,
+  type VoiceLanguage,
+  type VoiceSpeakChunkEvent,
 } from '@shared/contracts/dto'
 import { createAppError } from '@shared/errors/appError'
 import { SpeechFrameDecoder, encodePcm16 } from '@shared/voice/voiceWire'
@@ -116,14 +118,19 @@ export function createBrowserVoiceApi(): VoiceApi {
       const result = (await response.json().catch(() => null)) as {
         ok?: boolean
         text?: unknown
+        language?: unknown
         error?: AppErrorDescriptor
       } | null
       if (!response.ok || !result?.ok || typeof result.text !== 'string') {
         throw describeFailure(response, result?.error, 'voice.transcribe_failed')
       }
-      return { text: result.text }
+      // A worker from before languages answered without one; it only heard English.
+      const language = VOICE_LANGUAGES.includes(result.language as VoiceLanguage)
+        ? (result.language as VoiceLanguage)
+        : 'en'
+      return { text: result.text, language }
     },
-    speak: async ({ requestId, text, voice }) => {
+    speak: async ({ requestId, text, language }) => {
       if (speaking.has(requestId)) {
         throw createAppError('common.invalid_input', {
           debugMessage: `speak request ${requestId} is already running`,
@@ -137,7 +144,7 @@ export function createBrowserVoiceApi(): VoiceApi {
           method: 'POST',
           credentials: 'same-origin',
           headers: voiceHeaders({ 'content-type': 'application/json' }),
-          body: JSON.stringify({ text, voice }),
+          body: JSON.stringify({ text, language }),
           signal: controller.signal,
         })
         if (!response.ok || !response.body) {
@@ -150,7 +157,7 @@ export function createBrowserVoiceApi(): VoiceApi {
         const reader = response.body.getReader()
         const decoder = new SpeechFrameDecoder()
         while (!controller.signal.aborted) {
-          // eslint-disable-next-line no-await-in-loop -- Sentences arrive and play in order.
+          // eslint-disable-next-line no-await-in-loop -- Audio arrives and plays in order.
           const { value, done } = await reader.read()
           if (done) {
             break

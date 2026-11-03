@@ -147,12 +147,19 @@ export async function runClaudeHookFallbackScenario(
   })
 }
 
-/** The reply a voice turn reads aloud; the SAY line is what the voice E2E expects to hear. */
-export const VOICE_REPLY_SAY_LINE = 'You have two agents.'
+/**
+ * The SAY line a voice turn reads aloud, in the language the voice instruction asks for, as a real
+ * agent would write it; the voice E2E expects to hear the one it asked for.
+ */
+export const VOICE_REPLY_SAY_LINES = {
+  German: 'Du hast zwei Agents.',
+  English: 'You have two agents.',
+}
 
 /** Numbered, so each reply differs from the one before; a repeated reply counts as no reply. */
-function voiceReply(turn) {
-  return `Turn ${turn}: two agents are running.\nSAY: ${VOICE_REPLY_SAY_LINE}`
+function voiceReply(turn, language) {
+  const sayLine = VOICE_REPLY_SAY_LINES[language] ?? VOICE_REPLY_SAY_LINES.English
+  return `Turn ${turn}: two agents are running.\nSAY: ${sayLine}`
 }
 
 /**
@@ -195,10 +202,12 @@ export async function runClaudeHookVoiceReplyScenario(cwd) {
           const [heard, instruction] = prompt.split(' (Voice request:')
           process.stdout.write(`[opencove-test-voice] heard: ${heard}\n`)
           process.stdout.write(`[opencove-test-voice] instruction: ${instruction !== undefined}\n`)
+          const language = /spoken summary in (\w+)/.exec(instruction ?? '')?.[1] ?? 'none'
+          process.stdout.write(`[opencove-test-voice] reply language: ${language}\n`)
           await postHook(raw('UserPromptSubmit'))
           await new Promise(resolveDelay => setTimeout(resolveDelay, 150))
           turn += 1
-          await postHook({ ...raw('Stop'), last_assistant_message: voiceReply(turn) })
+          await postHook({ ...raw('Stop'), last_assistant_message: voiceReply(turn, language) })
           process.stdout.write('[opencove-test-voice] replied\n')
         })
       }

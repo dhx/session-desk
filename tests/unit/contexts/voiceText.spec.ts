@@ -1,17 +1,23 @@
 import { describe, expect, it } from 'vitest'
 import {
-  VOICE_REPLY_INSTRUCTION,
   buildVoicePrompt,
-  chunkForSpeech,
   pickSpokenText,
   splitIntoSentences,
+  voiceReplyInstruction,
 } from '../../../src/contexts/voice/domain/voiceText'
 
 describe('buildVoicePrompt', () => {
   it('appends the SAY instruction on the same line', () => {
-    const prompt = buildVoicePrompt('  list the agents ')
-    expect(prompt).toBe(`list the agents ${VOICE_REPLY_INSTRUCTION}`)
+    const prompt = buildVoicePrompt('  list the agents ', 'en')
+    expect(prompt).toBe(`list the agents ${voiceReplyInstruction('en')}`)
     expect(prompt).not.toContain('\n')
+  })
+
+  it('asks for the spoken line in the language it will be spoken in', () => {
+    expect(buildVoicePrompt('liste die Agents', 'de')).toMatch(
+      /^liste die Agents \(Voice request: .*"SAY:".* in German\.\)$/,
+    )
+    expect(voiceReplyInstruction('en')).toMatch(/ in English\.\)$/)
   })
 })
 
@@ -47,33 +53,6 @@ describe('splitIntoSentences', () => {
 
   it('returns nothing for blank text', () => {
     expect(splitIntoSentences('  \n ')).toEqual([])
-  })
-})
-
-describe('chunkForSpeech', () => {
-  it('keeps short sentences whole', () => {
-    expect(chunkForSpeech('Good evening. Shall I deploy?', 40)).toEqual([
-      'Good evening.',
-      'Shall I deploy?',
-    ])
-  })
-
-  it('cuts an overlong sentence at clause punctuation before words', () => {
-    expect(chunkForSpeech('First part here, second part here, third part here.', 34)).toEqual([
-      'First part here, second part here,',
-      'third part here.',
-    ])
-  })
-
-  it('falls back to word boundaries and never exceeds the limit', () => {
-    const text = 'one two three four five six seven eight nine ten, x'
-    const chunks = chunkForSpeech(text, 12)
-    expect(chunks.every(chunk => chunk.length <= 12)).toBe(true)
-    expect(chunks.join(' ')).toBe(text)
-  })
-
-  it('hard-cuts a single word longer than the limit', () => {
-    expect(chunkForSpeech('abcdefghij', 4)).toEqual(['abcd', 'efgh', 'ij'])
   })
 })
 

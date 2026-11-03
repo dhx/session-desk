@@ -27,7 +27,7 @@ function createSurface(prepare: VoiceEngine['prepare']) {
   const engine: VoiceEngine = {
     id: 'local',
     prepare,
-    transcribe: async () => '',
+    transcribe: async () => ({ text: '', language: 'en' }),
     speak: async function* () {},
     onUnavailable: () => () => {},
     dispose: async () => {},
@@ -42,6 +42,7 @@ describe('voice.status', () => {
     let prepared = 0
     const surface = createSurface(async () => {
       prepared += 1
+      return []
     })
 
     const result = await surface.invoke(ctx, { kind: 'query', id: 'voice.status', payload: null })
@@ -51,7 +52,7 @@ describe('voice.status', () => {
   })
 
   it('rejects a payload', async () => {
-    const surface = createSurface(async () => {})
+    const surface = createSurface(async () => [])
 
     const result = await surface.invoke(ctx, { kind: 'query', id: 'voice.status', payload: {} })
 
@@ -60,8 +61,11 @@ describe('voice.status', () => {
 })
 
 describe('voice.prepare', () => {
-  it('is a command that loads the models and answers with the new status', async () => {
-    const surface = createSurface(async () => {})
+  it('is a command that loads the models and answers with the status and languages', async () => {
+    const surface = createSurface(async () => [
+      { language: 'de', voiceInstalled: true },
+      { language: 'en', voiceInstalled: false },
+    ])
 
     const result = await surface.invoke(ctx, {
       kind: 'command',
@@ -69,7 +73,16 @@ describe('voice.prepare', () => {
       payload: null,
     })
 
-    expect(result).toMatchObject({ ok: true, value: { state: 'ready' } })
+    expect(result).toMatchObject({
+      ok: true,
+      value: {
+        state: 'ready',
+        languages: [
+          { language: 'de', voiceInstalled: true },
+          { language: 'en', voiceInstalled: false },
+        ],
+      },
+    })
   })
 
   it('answers voice.models_missing when this server has no models', async () => {
@@ -101,7 +114,7 @@ describe('voice.prepare', () => {
   })
 
   it('is not a query', async () => {
-    const surface = createSurface(async () => {})
+    const surface = createSurface(async () => [])
 
     const result = await surface.invoke(ctx, { kind: 'query', id: 'voice.prepare', payload: null })
 
