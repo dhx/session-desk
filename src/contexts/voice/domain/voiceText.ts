@@ -1,6 +1,14 @@
-/** Appended to every voice prompt so the boss hands back a short line meant to be heard. */
-export const VOICE_REPLY_INSTRUCTION =
-  '(Voice request: end your reply with a line starting "SAY:" holding a 1-3 sentence spoken summary.)'
+import type { VoiceLanguage } from '../../../shared/contracts/dto'
+
+const LANGUAGE_NAMES: Record<VoiceLanguage, string> = { de: 'German', en: 'English' }
+
+/**
+ * Appended to every voice prompt so the boss hands back a short line meant to be heard, in the
+ * language it will be spoken in: the speech model of one language reads another one badly.
+ */
+export function voiceReplyInstruction(language: VoiceLanguage): string {
+  return `(Voice request: end your reply with a line starting "SAY:" holding a 1-3 sentence spoken summary in ${LANGUAGE_NAMES[language]}.)`
+}
 
 const FALLBACK_SENTENCE_COUNT = 3
 
@@ -11,8 +19,8 @@ const ABBREVIATIONS = new Set(['e.g.', 'i.e.', 'etc.', 'vs.', 'mr.', 'mrs.', 'ms
  * Builds the text typed into the boss terminal. It stays on one line: a newline inside an agent
  * TUI prompt can submit early or open a multi-line editor, depending on the agent.
  */
-export function buildVoicePrompt(transcript: string): string {
-  return `${transcript.trim()} ${VOICE_REPLY_INSTRUCTION}`
+export function buildVoicePrompt(transcript: string, replyLanguage: VoiceLanguage): string {
+  return `${transcript.trim()} ${voiceReplyInstruction(replyLanguage)}`
 }
 
 export function splitIntoSentences(text: string): string[] {

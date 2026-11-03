@@ -121,17 +121,14 @@ export function useVoiceAssistant(
       return
     }
     const recorder = createMicRecorder(getVoiceAudioContext)
-    let heardLanguage: VoiceLanguage | null = null
     const hub = getPtyEventHub()
     const next = createVoiceTurnController({
       startRecording: () => recorder.start(),
       stopRecording: () => recorder.stop(),
       cancelRecording: () => recorder.cancel(),
-      transcribe: async pcm16k => {
-        const heard = await bridge.transcribe({ pcm16k })
-        heardLanguage = heard.language
-        return heard.text
-      },
+      transcribe: pcm16k => bridge.transcribe({ pcm16k }),
+      // Ask in German, hear German back; unless the settings fix the reply language.
+      replyLanguage: heard => resolveReplyLanguage(voiceRef.current.language, heard),
       askBoss: (prompt, signal, onSent) => {
         const boss = findBoss(voiceRef.current.bossNodeId)
         if (!boss) {
@@ -142,14 +139,7 @@ export function useVoiceAssistant(
           onSessionExit: (sessionId, listener) => hub.onSessionExit(sessionId, () => listener()),
         })
       },
-      // Ask in German, hear German back; unless the settings fix the reply language.
-      speak: (text, signal) =>
-        speakReply(
-          bridge,
-          text,
-          resolveReplyLanguage(voiceRef.current.language, heardLanguage),
-          signal,
-        ),
+      speak: (text, language, signal) => speakReply(bridge, text, language, signal),
       hasBoss: () => findBoss(voiceRef.current.bossNodeId) !== null,
       shouldSpeakReplies: () => voiceRef.current.speakReplies,
       createTurnId: () => crypto.randomUUID(),

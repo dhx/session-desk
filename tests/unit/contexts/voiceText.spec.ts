@@ -1,16 +1,23 @@
 import { describe, expect, it } from 'vitest'
 import {
-  VOICE_REPLY_INSTRUCTION,
   buildVoicePrompt,
   pickSpokenText,
   splitIntoSentences,
+  voiceReplyInstruction,
 } from '../../../src/contexts/voice/domain/voiceText'
 
 describe('buildVoicePrompt', () => {
   it('appends the SAY instruction on the same line', () => {
-    const prompt = buildVoicePrompt('  list the agents ')
-    expect(prompt).toBe(`list the agents ${VOICE_REPLY_INSTRUCTION}`)
+    const prompt = buildVoicePrompt('  list the agents ', 'en')
+    expect(prompt).toBe(`list the agents ${voiceReplyInstruction('en')}`)
     expect(prompt).not.toContain('\n')
+  })
+
+  it('asks for the spoken line in the language it will be spoken in', () => {
+    expect(buildVoicePrompt('liste die Agents', 'de')).toMatch(
+      /^liste die Agents \(Voice request: .*"SAY:".* in German\.\)$/,
+    )
+    expect(voiceReplyInstruction('en')).toMatch(/ in English\.\)$/)
   })
 })
 

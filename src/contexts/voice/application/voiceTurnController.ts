@@ -1,3 +1,4 @@
+import type { VoiceLanguage } from '../../../shared/contracts/dto'
 import { buildVoicePrompt, pickSpokenText } from '../domain/voiceText'
 import {
   IDLE_VOICE_TURN,
@@ -13,11 +14,14 @@ export interface VoiceTurnPorts {
   /** Mono PCM at 16 kHz. */
   stopRecording(): Promise<Float32Array>
   cancelRecording(): void
-  transcribe(pcm16k: Float32Array): Promise<string>
+  /** The words and the language they were heard in. */
+  transcribe(pcm16k: Float32Array): Promise<{ text: string; language: VoiceLanguage }>
+  /** The language the reply is asked for and spoken in, given the one the request was heard in. */
+  replyLanguage(heard: VoiceLanguage): VoiceLanguage
   /** Types the prompt into the boss, calls onSent once it is submitted, and resolves with its reply. */
   askBoss(prompt: string, signal: AbortSignal, onSent: () => void): Promise<string | null>
   /** Resolves when playback ends or the signal aborts. */
-  speak(text: string, signal: AbortSignal): Promise<void>
+  speak(text: string, language: VoiceLanguage, signal: AbortSignal): Promise<void>
   hasBoss(): boolean
   shouldSpeakReplies(): boolean
   createTurnId(): string
@@ -77,10 +81,15 @@ export function createVoiceTurnController(ports: VoiceTurnPorts): VoiceTurnContr
     const { signal } = current.abort
 
     let transcript: string
+    let heard: VoiceLanguage = 'en'
     try {
       const pcm = await ports.stopRecording()
       // A mic that delivered nothing heard nothing: an empty transcript becomes `no-speech`.
-      transcript = pcm.length === 0 ? '' : await ports.transcribe(pcm)
+      if (pcm.length === 0) {
+        transcript = ''
+      } else {
+        ;({ text: transcript, language: heard } = await ports.transcribe(pcm))
+      }
     } catch {
       fail(current, 'transcribe-failed')
       return
@@ -93,13 +102,20 @@ export function createVoiceTurnController(ports: VoiceTurnPorts): VoiceTurnContr
       return
     }
 
+    // One language for the whole turn: the boss is asked to write the spoken line in it, and the
+    // speech model of that language reads it.
+    const replyLanguage = ports.replyLanguage(heard)
     let reply: string | null
     try {
-      reply = await ports.askBoss(buildVoicePrompt(sending.transcript), signal, () => {
-        if (isCurrent(current)) {
-          dispatch({ type: 'sent', turnId })
-        }
-      })
+      reply = await ports.askBoss(
+        buildVoicePrompt(sending.transcript, replyLanguage),
+        signal,
+        () => {
+          if (isCurrent(current)) {
+            dispatch({ type: 'sent', turnId })
+          }
+        },
+      )
     } catch {
       fail(current, 'send-failed')
       return
@@ -114,7 +130,7 @@ export function createVoiceTurnController(ports: VoiceTurnPorts): VoiceTurnContr
     }
 
     try {
-      await ports.speak(spoken as string, signal)
+      await ports.speak(spoken as string, replyLanguage, signal)
     } catch {
       fail(current, 'speak-failed')
       return

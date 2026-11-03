@@ -4,7 +4,7 @@ import {
   type VoiceTurnPorts,
 } from '../../../src/contexts/voice/application/voiceTurnController'
 import { MIN_VOICE_HOLD_MS } from '../../../src/contexts/voice/domain/voiceTurn'
-import { VOICE_REPLY_INSTRUCTION } from '../../../src/contexts/voice/domain/voiceText'
+import { voiceReplyInstruction } from '../../../src/contexts/voice/domain/voiceText'
 
 function deferred<T>(): { promise: Promise<T>; resolve: (value: T) => void } {
   let resolve!: (value: T) => void
@@ -24,7 +24,8 @@ function setup(overrides: Partial<VoiceTurnPorts> = {}) {
     startRecording: vi.fn(async () => {}),
     stopRecording: vi.fn(async () => new Float32Array(16)),
     cancelRecording: vi.fn(),
-    transcribe: vi.fn(async () => 'list the agents'),
+    transcribe: vi.fn(async () => ({ text: 'list the agents', language: 'en' as const })),
+    replyLanguage: vi.fn(heard => heard),
     askBoss: vi.fn((_prompt: string, signal: AbortSignal, onSent: () => void) => {
       askSignals.push(signal)
       onSent()
@@ -32,7 +33,7 @@ function setup(overrides: Partial<VoiceTurnPorts> = {}) {
       replies.push(reply)
       return reply.promise
     }),
-    speak: vi.fn(async (_text: string, signal: AbortSignal) => {
+    speak: vi.fn(async (_text: string, _language: string, signal: AbortSignal) => {
       speakSignals.push(signal)
       await new Promise<void>(resolve => signal.addEventListener('abort', () => resolve()))
     }),
@@ -57,19 +58,37 @@ function setup(overrides: Partial<VoiceTurnPorts> = {}) {
 const flush = (): Promise<void> => new Promise(resolve => setTimeout(resolve, 0))
 
 describe('createVoiceTurnController', () => {
+  it('asks the boss for the spoken line in the reply language and speaks it in that language', async () => {
+    // Heard English, but the settings fix German: the boss must write the SAY line in German,
+    // or the German speech model would read English.
+    const replyLanguage = vi.fn(() => 'de' as const)
+    const { ports, replies, hold } = setup({ replyLanguage, speak: vi.fn(async () => {}) })
+    await hold()
+
+    expect(replyLanguage).toHaveBeenCalledWith('en')
+    expect(ports.askBoss).toHaveBeenCalledWith(
+      `list the agents ${voiceReplyInstruction('de')}`,
+      expect.any(AbortSignal),
+      expect.any(Function),
+    )
+    replies[0].resolve('Zwei Agents laufen.\nSAY: Du hast zwei Agents.')
+    await flush()
+    expect(ports.speak).toHaveBeenCalledWith('Du hast zwei Agents.', 'de', expect.any(AbortSignal))
+  })
+
   it('sends the transcript with the voice instruction and speaks the SAY line', async () => {
     const { controller, ports, phases, replies, hold } = setup({
       speak: vi.fn(async () => {}),
     })
     await hold()
     expect(ports.askBoss).toHaveBeenCalledWith(
-      `list the agents ${VOICE_REPLY_INSTRUCTION}`,
+      `list the agents ${voiceReplyInstruction('en')}`,
       expect.any(AbortSignal),
       expect.any(Function),
     )
     replies[0].resolve('Two agents are running.\nSAY: You have two agents.')
     await flush()
-    expect(ports.speak).toHaveBeenCalledWith('You have two agents.', expect.any(AbortSignal))
+    expect(ports.speak).toHaveBeenCalledWith('You have two agents.', 'en', expect.any(AbortSignal))
     expect(phases).toEqual(['listening', 'transcribing', 'sending', 'waiting', 'speaking', 'idle'])
     expect(controller.getState().phase).toBe('idle')
   })
@@ -124,7 +143,7 @@ describe('createVoiceTurnController', () => {
 
   it('ignores a press while a turn is still transcribing', async () => {
     let clock = 0
-    const transcript = deferred<string>()
+    const transcript = deferred<{ text: string; language: 'en' }>()
     const { controller, ports } = setup({
       transcribe: vi.fn(() => transcript.promise),
       now: () => clock,
@@ -167,7 +186,9 @@ describe('createVoiceTurnController', () => {
   })
 
   it('reports no-speech for an empty transcript', async () => {
-    const { controller, ports, hold } = setup({ transcribe: vi.fn(async () => '  ') })
+    const { controller, ports, hold } = setup({
+      transcribe: vi.fn(async () => ({ text: '  ', language: 'en' as const })),
+    })
     await hold()
     expect(controller.getState()).toMatchObject({ phase: 'error', reason: 'no-speech' })
     expect(ports.askBoss).not.toHaveBeenCalled()

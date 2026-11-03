@@ -5,7 +5,8 @@ import { isWebE2ETarget } from './webTarget/webTargetLaunch'
 // Voice runs on the worker and is offered by the Web UI; the desktop app has no voice engine.
 test.skip(!isWebE2ETarget(), 'Voice is a Web UI feature (OPENCOVE_E2E_TARGET=web)')
 
-const VOICE_SAY_LINE = 'You have two agents.'
+// What the stub boss answers when asked for a German spoken line (claudeHook.mjs).
+const VOICE_SAY_LINE_DE = 'Du hast zwei Agents.'
 const TRANSCRIPT = 'list the agents'
 
 async function seedClaudeTask(window: Page): Promise<void> {
@@ -137,8 +138,10 @@ test.describe('Voice - push to talk (Web UI)', () => {
           throw new Error(`Voice phases: ${JSON.stringify(await readPhases())}`, { cause: error })
         })
       await expect(agentNode).toContainText('[opencove-test-voice] instruction: true')
+      // The boss is asked for the spoken line in the reply language, not only the speech model.
+      await expect(agentNode).toContainText('[opencove-test-voice] reply language: German')
       await expect(agentNode).toContainText('[opencove-test-voice] replied')
-      expect((await spoken).postDataJSON()).toEqual({ text: VOICE_SAY_LINE, language: 'de' })
+      expect((await spoken).postDataJSON()).toEqual({ text: VOICE_SAY_LINE_DE, language: 'de' })
       await expect(indicator).toHaveCount(0, { timeout: 30_000 })
 
       // The spoken reply announces the finish, so the boss raises no standby banner.
@@ -153,7 +156,10 @@ test.describe('Voice - push to talk (Web UI)', () => {
       await expect(holdButton).toHaveAttribute('data-voice-phase', 'listening')
       await window.waitForTimeout(600)
       await window.mouse.up()
-      expect((await spokenAgain).postDataJSON()).toEqual({ text: VOICE_SAY_LINE, language: 'de' })
+      expect((await spokenAgain).postDataJSON()).toEqual({
+        text: VOICE_SAY_LINE_DE,
+        language: 'de',
+      })
       await expect(indicator).toHaveCount(0, { timeout: 30_000 })
     } finally {
       await electronApp.close()
