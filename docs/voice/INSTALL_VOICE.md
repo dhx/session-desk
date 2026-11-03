@@ -7,7 +7,7 @@ Without a voice, voice control still hears you, but replies in a language withou
 ## What you need
 
 - **Consent.** Only the person whose voice it is, or someone with their written consent, makes a voice from it. Pocket TTS's terms forbid imitating anyone without it. Keep the consent with the installation's records, apart from the recording.
-- **A recording**: 5 to 10 seconds of clean speech by that person, one speaker, no music or noise, as WAV (mono is fine). One recording serves both languages; longer ones are cut to 30 seconds.
+- **A recording**: 5 to 10 seconds of clean speech by that person, one speaker, no music or noise, as WAV, FLAC or another format libsndfile reads (mono is fine). One recording serves both languages; longer ones are cut to 30 seconds.
 - **A workstation with Python 3.10 or newer**, not the server: cloning needs the gated model and a Hugging Face token, and neither belongs on the server.
 - **A Hugging Face account** that has accepted the terms of [`kyutai/pocket-tts`](https://huggingface.co/kyutai/pocket-tts) (the cloning model; the server uses the open `kyutai/pocket-tts-without-voice-cloning`).
 
@@ -19,7 +19,9 @@ On the workstation:
 
 ```bash
 python3 -m venv ~/pocket-tts && . ~/pocket-tts/bin/activate
-pip install pocket-tts==4.0.1    # the version the server's models were exported from
+# the version the server's models were exported from; `audio` brings soundfile, without which
+# only 16-bit PCM WAV can be read (a 24-bit WAV fails)
+pip install 'pocket-tts[audio]==4.0.1'
 hf auth login                    # a read token; stays on this machine
 
 pocket-tts export-voice recording.wav german.safetensors --language german
@@ -45,16 +47,20 @@ When the files are on the server (step 2), delete the recording from the worksta
 
 The voice files are binary, so they go in a directory on the server that is mounted into the container. A Coolify **File Mount** does not fit: it holds text that Coolify manages.
 
-On the server, as a user who can write there:
+Copy the files to your home directory on the server, as your normal SSH user:
 
 ```bash
-sudo mkdir -p /srv/opencove-voice
-sudo chmod 750 /srv/opencove-voice
-# from the workstation:
-scp german.safetensors english.safetensors server:/srv/opencove-voice/
+scp german.safetensors english.safetensors server:
 ```
 
-The container user must be able to read the files. Find it with `docker exec <container> id` and give the files that group (`sudo chgrp -R <gid> /srv/opencove-voice && sudo chmod 640 /srv/opencove-voice/*`).
+The container user must be able to read them. On the server, find its group with `docker exec <container> id` (the number after `gid=`), then put the files in place, owned by root and readable by that group only:
+
+```bash
+GID=<gid from above>
+sudo install -d -m 750 -o root -g "$GID" /srv/opencove-voice
+sudo install -m 640 -o root -g "$GID" ~/german.safetensors ~/english.safetensors /srv/opencove-voice/
+rm ~/german.safetensors ~/english.safetensors
+```
 
 In Coolify, on the session-desk application:
 
