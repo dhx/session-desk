@@ -56,11 +56,13 @@ test.describe('Worker web canvas file drop', () => {
     await editor.click()
     await page.keyboard.press('Control+End')
     await page.keyboard.insertText('\nedited in the Web UI\n')
-    await documentNode.getByRole('button', { name: 'Save' }).first().click()
 
+    // The editor saves on its own 650 ms after the last change. Clicking Save would race that:
+    // on a slow runner the auto-save runs first and the button is disabled again before the click.
     await expect
       .poll(async () => await readTextFile(droppedPath))
       .toMatch(/^# dropped[\s\S]*edited in the Web UI\n/)
+    await expect(documentNode.getByRole('button', { name: 'Save' }).first()).toBeDisabled()
   })
 
   test('a dropped folder is refused with a message and nothing is uploaded', async ({ page }) => {

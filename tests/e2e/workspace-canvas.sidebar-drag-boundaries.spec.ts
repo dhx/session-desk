@@ -255,15 +255,22 @@ test.describe('Workspace Canvas - Sidebar Drag Boundaries', () => {
         window.getByTestId('workspace-item-workspace-space-boundary-b'),
       )
 
-      expect(await readTestIds(window, projectASelector)).toEqual([
-        'workspace-space-item-workspace-space-boundary-a-space-boundary-a1',
-        'workspace-space-item-workspace-space-boundary-a-space-boundary-a2',
-      ])
+      // The drop leaves the pointer on project B, and hovering a rail project previews its
+      // spaces; whether that hover fires after the drag depends on timing. Hover A to show it.
+      await window.getByTestId('workspace-item-workspace-space-boundary-a').hover()
+      await expect
+        .poll(async () => await readTestIds(window, projectASelector))
+        .toEqual([
+          'workspace-space-item-workspace-space-boundary-a-space-boundary-a1',
+          'workspace-space-item-workspace-space-boundary-a-space-boundary-a2',
+        ])
       await window.getByTestId('workspace-item-workspace-space-boundary-b').click()
-      expect(await readTestIds(window, projectBSelector)).toEqual([
-        'workspace-space-item-workspace-space-boundary-b-space-boundary-b1',
-        'workspace-space-item-workspace-space-boundary-b-space-boundary-b2',
-      ])
+      await expect
+        .poll(async () => await readTestIds(window, projectBSelector))
+        .toEqual([
+          'workspace-space-item-workspace-space-boundary-b-space-boundary-b1',
+          'workspace-space-item-workspace-space-boundary-b-space-boundary-b2',
+        ])
     } finally {
       await electronApp.close()
     }

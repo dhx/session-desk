@@ -21,8 +21,13 @@ const PRIMARY_SETTINGS_PAGE_CAPTURES = [
   { id: 'advanced', navTestId: 'settings-section-nav-experimental' },
 ] as const
 
-async function openSettings(window: Page): Promise<Locator> {
+async function openSettings(window: Page, layout: 'wide' | 'narrow' = 'wide'): Promise<Locator> {
   const navigationTrigger = window.getByTestId('primary-sidebar-open')
+  if (layout === 'narrow') {
+    // Right after a resize the header may still show the wide layout; `isVisible()` does not
+    // wait, so wait for the narrow layout's sidebar button before deciding.
+    await expect(navigationTrigger).toBeVisible()
+  }
   if (await navigationTrigger.isVisible()) {
     await navigationTrigger.click()
     await expect(window.getByTestId('primary-sidebar-drawer')).toBeVisible()
@@ -269,7 +274,7 @@ test.describe('Settings visual shell', () => {
         .poll(async () => await window.evaluate(() => window.innerWidth))
         .toBe(actualSize.width)
 
-      const dialog = await openSettings(window)
+      const dialog = await openSettings(window, 'narrow')
       const sidebar = dialog.locator('.settings-panel__sidebar')
       const contentWrapper = dialog.locator('.settings-panel__content-wrapper')
       await expect(sidebar).toBeVisible()
