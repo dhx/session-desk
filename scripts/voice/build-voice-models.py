@@ -83,7 +83,12 @@ def export_language(language: str, work: Path, env: dict[str, str]) -> tuple[Pat
     run(sys.executable, str(HERE / "pocket-tts" / "export.py"), language, str(out), "--keep-fp32", env=env)
     bundle = json.loads((out / "bundle.json").read_text())
     repo, revision = open_revision(bundle)
-    voice = hf_hub_download(repo, f"languages/{language}/embeddings/alba.safetensors", revision=revision)
+    voice = hf_hub_download(
+        repo,
+        f"languages/{language}/embeddings/alba.safetensors",
+        revision=revision,
+        cache_dir=env["HF_HUB_CACHE"],
+    )
     run(
         sys.executable, str(HERE / "pocket-tts" / "reference.py"),
         str(out.parent / f"{language}-fp32"), voice, str(work / f"{language}.reference.json"),
@@ -125,7 +130,8 @@ def main() -> None:
     else:
         # An empty cache: one that holds the gated weights would be picked over the open ones.
         env["HF_HUB_CACHE"] = tempfile.mkdtemp(prefix="voice-models-hf-")
-    os.environ["HF_HUB_CACHE"] = env["HF_HUB_CACHE"]
+    # huggingface_hub read HF_HUB_CACHE when it was imported: its own downloads below get the cache
+    # as cache_dir, the export and reference subprocesses through their environment.
 
     out_dir.mkdir(parents=True, exist_ok=True)
     work = Path(tempfile.mkdtemp(prefix="voice-models-", dir=out_dir))
@@ -137,7 +143,14 @@ def main() -> None:
         shutil.copytree(bundle_dir, stage / "pocket-tts" / language)
         revisions.append(f"{language}@{revision}")
 
-    whisper = Path(snapshot_download(WHISPER_REPO, revision=WHISPER_REVISION, allow_patterns=WHISPER_FILES))
+    whisper = Path(
+        snapshot_download(
+            WHISPER_REPO,
+            revision=WHISPER_REVISION,
+            allow_patterns=WHISPER_FILES,
+            cache_dir=env["HF_HUB_CACHE"],
+        )
+    )
     target = stage / WHISPER_REPO
     for path in sorted(whisper.rglob("*")):
         if path.is_file():
