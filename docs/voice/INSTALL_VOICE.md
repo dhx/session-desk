@@ -62,7 +62,9 @@ sudo install -m 640 -o root -g "$GID" ~/german.safetensors ~/english.safetensors
 rm ~/german.safetensors ~/english.safetensors
 ```
 
-In Coolify, on the session-desk application:
+With [session-desk-image](https://github.com/dhx/session-desk-image) nothing more is needed: its `compose.yaml` mounts `/srv/opencove-voice` read-only at `/opt/opencove-voice/voice`, the image sets `OPENCOVE_VOICE_DIR` to it, and its container user is uid/gid 1000 (`GID=1000` above). Restart the application in Coolify, or wait for the idle unload (see below). With the Docker Compose build pack the mounts live in `compose.yaml`, not in Coolify's storage settings.
+
+For another image, deployed in Coolify without Compose:
 
 1. **Persistent Storage › Add › Directory Mount**: source `/srv/opencove-voice`, destination `/opt/opencove-voice/voice`. Read-only is enough; nothing writes there.
 2. **Environment Variables**: `OPENCOVE_VOICE_DIR=/opt/opencove-voice/voice`.
