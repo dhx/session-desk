@@ -15,7 +15,7 @@ Status: draft for approval (2026-11-02). Change size: **Large** (engine swap, ne
 | --- | --- | --- |
 | TTS model | Pocket TTS `german` and `english`, the open weights **without voice cloning** (`kyutai/pocket-tts-without-voice-cloning`) | Not gated; CC-BY-4.0 asks only for attribution |
 | Voice | A **voice state** (`.safetensors`, ~4 MB per language) computed once from a consented recording with the gated cloning model, then loaded into the open model | The spike showed the open model accepts such a state; the image never carries gated weights or anyone's voice |
-| Where the voice lives | Per installation, outside the image: `OPENCOVE_VOICE_DIR` with `german.safetensors`, `english.safetensors` | The voice stays private; the image stays public |
+| Where the voice lives | Per installation, outside the image: `OPENCOVE_VOICE_DIR` with `german.safetensors`, `english.safetensors` (runbook: [INSTALL_VOICE.md](INSTALL_VOICE.md)) | The voice stays private; the image stays public |
 | Speech recognition | Whisper `base` (multilingual) q8 instead of `base.en` | `base.en` cannot hear German |
 | Reply language | The language Whisper detected in the request | Ask in German, hear German back |
 | Pronunciation | A respelling list per language before synthesis (see below), plus an optional `OPENCOVE_VOICE_DIR/lexicon.<german|english>.json` | The German model reads English developer words by German rules |
@@ -121,7 +121,7 @@ One-time, by the person whose voice it is or with their written consent:
 1. Record 5–10 s of clean speech (WAV, mono); keep a separate consent recording.
 2. Accept the terms of `kyutai/pocket-tts` on Hugging Face (needed for cloning only).
 3. `pocket-tts export-voice` for `german` and `english` → two `.safetensors` files.
-4. Put them in the installation's `OPENCOVE_VOICE_DIR` (in Coolify: a file mount). Nothing goes into git or the image.
+4. Put them in the installation's `OPENCOVE_VOICE_DIR` (in Coolify: a Directory Mount; see [INSTALL_VOICE.md](INSTALL_VOICE.md)). Nothing goes into git or the image.
 
 A cloned voice must not imitate anyone without their consent (Pocket TTS terms; WEB_SPEC's privacy rules apply to the recording as personal data).
 
@@ -161,7 +161,7 @@ Invariants, in addition to WEB_SPEC's:
 2. Export tooling and the TypeScript engine (`localEngine/pocketTts/`) with reference tests; wired into the host in step 3.
 3. ~~Swap Kokoro out~~: dependencies, settings, `/voice/speak` body, multilingual Whisper, reply language (above, "In the host").
 4. ~~Respelling list and the per-installation lexicon~~ (above).
-5. Voice runbook (`docs/voice/INSTALL_VOICE.md`).
+5. ~~Voice runbook~~: [INSTALL_VOICE.md](INSTALL_VOICE.md). Voices go in through a Coolify Directory Mount, not a File Mount: a File Mount holds text Coolify manages, and voice files are binary.
 6. Image stage in opencove-image: open weights, ONNX export, `NOTICE`.
 
 Steps 2–4 are one PR each; step 1 decides the shape of 2.
