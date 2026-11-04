@@ -162,6 +162,6 @@ Invariants, in addition to WEB_SPEC's:
 3. ~~Swap Kokoro out~~: dependencies, settings, `/voice/speak` body, multilingual Whisper, reply language (above, "In the host").
 4. ~~Respelling list and the per-installation lexicon~~ (above).
 5. ~~Voice runbook~~: [INSTALL_VOICE.md](INSTALL_VOICE.md). Voices go in through a Coolify Directory Mount, not a File Mount: a File Mount holds text Coolify manages, and voice files are binary.
-6. Image stage in opencove-image: open weights, ONNX export, `NOTICE`.
+6. Image stage: `.github/workflows/dhx-voice-models.yml` (by hand, from main) runs `scripts/voice/build-voice-models.py` — both exports checked against PyTorch, Whisper base q8 at a pinned revision, `NOTICE` and the Apache-2.0 text — and publishes `session-desk-voice-models-<label>.tar.gz` as release `dhx-voice-models/<label>` (never latest; not `dhx/v*`, which would start a server release). session-desk-image pins it by label and SHA-256.
 
 Steps 2–4 are one PR each; step 1 decides the shape of 2.
