@@ -22,7 +22,7 @@ jobs:
       matrix:
         shard: [1, 2, 3]
 
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
       - name: Checkout

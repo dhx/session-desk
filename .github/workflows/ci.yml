@@ -16,9 +16,11 @@ concurrency:
 env:
   PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
 
+# Runners are pinned to ubuntu-24.04, as the dhx workflows are: ubuntu-latest moved to 26.04, where Playwright
+# installs no Chromium or WebKit ("Playwright does not support chromium on ubuntu26.04-x64").
 jobs:
   ci-ubuntu:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
       - name: Checkout
@@ -74,7 +76,7 @@ jobs:
           retention-days: 7
 
   web-canvas-continuity-ubuntu:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
       - name: Checkout
@@ -157,7 +159,7 @@ jobs:
       matrix:
         shard: [1, 2, 3, 4, 5, 6, 7, 8]
 
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
       - name: Checkout
