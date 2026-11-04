@@ -92,7 +92,11 @@ export function useWorkspaceDocumentOpening({
         if (!expanded) {
           return null
         }
-        focusNodeInViewport(reactFlow, expanded, { duration: 120, zoom: reactFlow.getZoom() })
+        focusNodeInViewport(reactFlow, expanded, {
+          duration: 120,
+          zoom: reactFlow.getZoom(),
+          fitNodeInViewport: false,
+        })
         return expanded
       }
       const existing = findExisting()

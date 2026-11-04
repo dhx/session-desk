@@ -145,6 +145,56 @@ test.describe('Worker web canvas zoom anchor', () => {
     expect(Math.abs(after.flowAtAnchor.y - before.flowAtAnchor.y)).toBeLessThan(0.75)
   })
 
+  test('zooms a clicked node only as far as keeps all of it visible', async ({ page }) => {
+    const workspacePath = await createWorkspaceDir('focus-fit-zoom')
+    await writeAppState(
+      page.request,
+      buildAppState({
+        workspacePath,
+        spaces: [
+          {
+            id: 'space-1',
+            name: 'Main',
+            directoryPath: workspacePath,
+            nodeIds: ['tall-note'],
+            rect: { x: 0, y: 0, width: 1200, height: 2800 },
+          },
+        ],
+        nodes: [
+          {
+            id: 'tall-note',
+            title: 'tall',
+            kind: 'note',
+            position: { x: 120, y: 120 },
+            width: 600,
+            height: 2400,
+            text: 'body',
+          },
+        ],
+        settings: { focusNodeOnClick: true, focusNodeTargetZoom: 1.5 },
+      }),
+    )
+
+    await openAuthedCanvas(page)
+
+    const node = page.locator('.react-flow__node', { has: page.locator('.note-node') }).first()
+    await expect(node).toBeVisible()
+    await node.dispatchEvent('click')
+
+    await expect
+      .poll(async () => {
+        const box = await node.boundingBox()
+        return box?.height ?? Number.POSITIVE_INFINITY
+      })
+      .toBeLessThan(page.viewportSize()!.height)
+
+    const box = (await node.boundingBox())!
+    const header = await page.locator('.app-header').boundingBox()
+    const headerBottom = header ? header.y + header.height : 0
+    expect(box.y).toBeGreaterThanOrEqual(headerBottom + 23)
+    expect(box.y + box.height).toBeLessThanOrEqual(page.viewportSize()!.height - 23)
+  })
+
   test('centers the minimap double-click target without changing zoom', async ({ page }) => {
     const workspacePath = await createWorkspaceDir('minimap-double-click')
     await writeAppState(
