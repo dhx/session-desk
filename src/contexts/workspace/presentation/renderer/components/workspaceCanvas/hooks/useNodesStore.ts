@@ -87,6 +87,7 @@ export function useWorkspaceCanvasNodesStore({
     focusNodeInViewport(reactFlow, targetNode, {
       duration: 180,
       zoom,
+      fitNodeInViewport: false,
     })
 
     if (createdNodeViewportSettleTimerRef.current !== null) {

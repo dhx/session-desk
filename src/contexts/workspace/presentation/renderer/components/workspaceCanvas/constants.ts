@@ -8,6 +8,8 @@ import { resolveAgentNodeSize, resolveCanonicalNodeSize } from '../../utils/work
 
 export const MIN_CANVAS_ZOOM = 0.1
 export const MAX_CANVAS_ZOOM = 2
+/** Screen-space gap kept around a focused node when its zoom is limited to fit the canvas. */
+export const NODE_FOCUS_VIEWPORT_PADDING_PX = 24
 export const TRACKPAD_PAN_SCROLL_SPEED = 0.5
 export const TRACKPAD_PINCH_SENSITIVITY = 0.01
 export const TRACKPAD_GESTURE_LOCK_GAP_MS = 220

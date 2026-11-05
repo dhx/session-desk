@@ -11,7 +11,7 @@ import {
 } from '@shared/errors/appError'
 import type { Point, Size, TaskPriority, TerminalNodeData, WorkspaceSpaceState } from '../../types'
 import { providerTitlePrefix } from '../../utils/agentTitle'
-import { TASK_PRIORITIES } from './constants'
+import { MIN_CANVAS_ZOOM, NODE_FOCUS_VIEWPORT_PADDING_PX, TASK_PRIORITIES } from './constants'
 import type { TrackpadGestureAction, TrackpadGestureTarget } from './types'
 
 function isTestEnvironment(): boolean {
@@ -48,10 +48,16 @@ export function resolveWorkspaceCanvasViewportAnimation(duration: number): {
 export function focusNodeInViewport(
   reactFlow: ReactFlowInstance<Node<TerminalNodeData>>,
   node: Pick<Node<TerminalNodeData>, 'position' | 'data'>,
-  options: { duration?: number; zoom?: number; useVisibleCanvasCenter?: boolean } = {},
+  options: {
+    duration?: number
+    zoom?: number
+    useVisibleCanvasCenter?: boolean
+    /** Callers that keep the user's current zoom only pan; they opt out of the fit limit. */
+    fitNodeInViewport?: boolean
+  } = {},
 ): void {
   const requestedZoom = options.zoom ?? 1
-  const zoom = Number.isFinite(requestedZoom) && requestedZoom > 0 ? requestedZoom : 1
+  const targetZoom = Number.isFinite(requestedZoom) && requestedZoom > 0 ? requestedZoom : 1
   const center = resolveNodeCenter(node)
   const animation = resolveWorkspaceCanvasViewportAnimation(options.duration ?? 120)
 
@@ -61,13 +67,19 @@ export function focusNodeInViewport(
       const flowRect = flowElement.getBoundingClientRect()
       if (flowRect.width > 0 && flowRect.height > 0) {
         // Always exclude the header (canvas lives below it). Optionally exclude the primary sidebar.
-        const desiredClientCenter = resolveWorkspaceContentCenterClientPx({
+        const contentBounds = resolveWorkspaceContentBounds({
           subtractSidebar:
             (options.useVisibleCanvasCenter ?? shouldUseVisibleCanvasCenterFromAgentSettings()) ===
             true,
         })
+        const desiredClientCenter = contentBounds ? resolveBoundsCenter(contentBounds) : null
 
-        if (desiredClientCenter) {
+        if (contentBounds && desiredClientCenter) {
+          const zoom =
+            options.fitNodeInViewport === false
+              ? targetZoom
+              : resolveNodeFitZoom(targetZoom, node.data, contentBounds)
+
           // ReactFlow viewport translation is relative to the wrapper's top-left in pixels.
           const desiredInWrapper = {
             x: desiredClientCenter.x - flowRect.left,
@@ -89,8 +101,33 @@ export function focusNodeInViewport(
 
   reactFlow.setCenter(center.x, center.y, {
     ...animation,
-    zoom,
+    zoom: targetZoom,
   })
+}
+
+/**
+ * Lowers the target zoom just enough for the whole node, plus padding on every side, to fit the
+ * visible canvas. It never raises the zoom: a node that already fits lands on the target.
+ */
+export function resolveNodeFitZoom(
+  targetZoom: number,
+  nodeSize: Size,
+  bounds: Size,
+  paddingPx = NODE_FOCUS_VIEWPORT_PADDING_PX,
+): number {
+  const availableWidth = bounds.width - paddingPx * 2
+  const availableHeight = bounds.height - paddingPx * 2
+  if (
+    availableWidth <= 0 ||
+    availableHeight <= 0 ||
+    !(nodeSize.width > 0) ||
+    !(nodeSize.height > 0)
+  ) {
+    return targetZoom
+  }
+
+  const fitZoom = Math.min(availableWidth / nodeSize.width, availableHeight / nodeSize.height)
+  return Math.max(MIN_CANVAS_ZOOM, Math.min(targetZoom, fitZoom))
 }
 
 export function centerNodeInViewport(
@@ -138,20 +175,14 @@ function resolveNodeCenter(node: Pick<Node<TerminalNodeData>, 'position' | 'data
   }
 }
 
-function resolveWorkspaceContentCenterClientPx(options: {
-  subtractSidebar: boolean
+function resolveBoundsCenter(bounds: {
+  left: number
+  top: number
+  width: number
+  height: number
 }): { x: number; y: number } | null {
-  if (typeof document === 'undefined') {
-    return null
-  }
-
-  const clipRect = resolveWorkspaceContentBounds(options)
-  if (!clipRect) {
-    return null
-  }
-
-  const x = clipRect.left + clipRect.width / 2
-  const y = clipRect.top + clipRect.height / 2
+  const x = bounds.left + bounds.width / 2
+  const y = bounds.top + bounds.height / 2
   if (!Number.isFinite(x) || !Number.isFinite(y)) {
     return null
   }
