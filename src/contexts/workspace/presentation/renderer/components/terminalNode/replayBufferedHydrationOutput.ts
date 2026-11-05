@@ -1,5 +1,6 @@
 import type { Terminal } from '@xterm/xterm'
 import { resolveSuffixPrefixOverlap } from './overlap'
+import { findIncompleteTerminalControlSequenceStart } from './hydrationReplacement'
 import { writeTerminalChunkAndCapture } from './committedScreenState'
 
 const TERMINAL_FULL_RESET = '\u001bc'
@@ -10,6 +11,7 @@ export function replayBufferedHydrationOutput({
   bufferedData,
   bufferedExitCode,
   resetTerminalBeforeFirstWrite = false,
+  inputModeReplay = '',
   scrollbackBuffer,
   committedScrollbackBuffer,
   onCommittedScreenState,
@@ -20,6 +22,7 @@ export function replayBufferedHydrationOutput({
   bufferedData: string
   bufferedExitCode: number | null
   resetTerminalBeforeFirstWrite?: boolean
+  inputModeReplay?: string
   scrollbackBuffer: {
     append: (data: string) => void
   }
@@ -31,8 +34,14 @@ export function replayBufferedHydrationOutput({
   onReplayWriteCommitted?: () => void
 }): void {
   let shouldPrefixReset = resetTerminalBeforeFirstWrite
+  let wroteChunk = false
   const writeChunk = (data: string): void => {
-    const terminalData = shouldPrefixReset ? `${TERMINAL_FULL_RESET}${data}` : data
+    const incompleteStart = findIncompleteTerminalControlSequenceStart(data)
+    const boundary = incompleteStart === -1 ? data.length : incompleteStart
+    // Never inject controls into a partially parsed CSI/OSC/DCS. Restore
+    // modes at the last complete boundary, then leave the original tail open.
+    const terminalData = `${shouldPrefixReset ? TERMINAL_FULL_RESET : ''}${data.slice(0, boundary)}${inputModeReplay}${data.slice(boundary)}`
+    wroteChunk = true
     shouldPrefixReset = false
     writeTerminalChunkAndCapture({
       terminal,
@@ -58,5 +67,8 @@ export function replayBufferedHydrationOutput({
     const exitMessage = `\r\n[process exited with code ${bufferedExitCode}]\r\n`
     writeChunk(exitMessage)
     scrollbackBuffer.append(exitMessage)
+  }
+  if (!wroteChunk && inputModeReplay) {
+    terminal.write(inputModeReplay)
   }
 }

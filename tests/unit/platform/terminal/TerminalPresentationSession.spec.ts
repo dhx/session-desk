@@ -135,6 +135,7 @@ describe('TerminalPresentationSession', () => {
     const snapshot = await session.snapshot()
 
     expect(snapshot.serializedScreen).toContain('\u001b[?1000h')
+    expect(snapshot.serializedScreen).toContain('\u001b[?1006h')
     expect(snapshot.serializedScreen).toContain('\u001b[?2004h')
   })
 })

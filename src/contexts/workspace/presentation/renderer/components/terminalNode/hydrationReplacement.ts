@@ -253,10 +253,11 @@ export function containsMeaningfulTerminalDisplayContentAfterLastDestructiveSequ
   return containsMeaningfulTerminalDisplayContent(visibleRegion)
 }
 
-export function endsWithIncompleteTerminalControlSequence(data: string): boolean {
+export function findIncompleteTerminalControlSequenceStart(data: string): number {
   let index = 0
 
   while (index < data.length) {
+    const start = index
     const code = data.charCodeAt(index)
 
     if (code !== 0x1b) {
@@ -266,7 +267,7 @@ export function endsWithIncompleteTerminalControlSequence(data: string): boolean
 
     const next = data.charCodeAt(index + 1)
     if (Number.isNaN(next)) {
-      return true
+      return start
     }
 
     if (next === 0x5b) {
@@ -281,7 +282,7 @@ export function endsWithIncompleteTerminalControlSequence(data: string): boolean
         }
       }
       if (!foundFinalByte) {
-        return true
+        return start
       }
       continue
     }
@@ -304,7 +305,7 @@ export function endsWithIncompleteTerminalControlSequence(data: string): boolean
         cursor += 1
       }
       if (!foundTerminator) {
-        return true
+        return start
       }
       index = cursor
       continue
@@ -322,7 +323,7 @@ export function endsWithIncompleteTerminalControlSequence(data: string): boolean
         cursor += 1
       }
       if (!foundTerminator) {
-        return true
+        return start
       }
       index = cursor
       continue
@@ -331,7 +332,11 @@ export function endsWithIncompleteTerminalControlSequence(data: string): boolean
     index += 2
   }
 
-  return false
+  return -1
+}
+
+export function endsWithIncompleteTerminalControlSequence(data: string): boolean {
+  return findIncompleteTerminalControlSequenceStart(data) !== -1
 }
 
 export function shouldReplacePlaceholderWithBufferedOutput({
