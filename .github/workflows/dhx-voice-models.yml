@@ -1,0 +1,60 @@
+# The speech models session-desk-image ships (docs/voice/POCKET_TTS_SPEC.md, "Packaging"): Pocket TTS for
+# German and English, exported from the open weights and checked against PyTorch, plus Whisper base q8, in one
+# archive with a NOTICE. Published as a release tagged dhx-voice-models/<label>, never marked latest: the
+# server releases (dhx/v*) stay what "latest" means. The image pins the archive by URL and SHA-256.
+#
+# Run by hand from main (Actions → dhx voice models → Run workflow) when the models change: a new pocket-tts
+# release, a new Whisper revision, or a change to scripts/voice/.
+name: dhx voice models
+
+on:
+  workflow_dispatch:
+    inputs:
+      label:
+        description: 'Release label, e.g. 1 (tag dhx-voice-models/<label>; must be new)'
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    permissions:
+      contents: write # the release
+      id-token: write # build provenance
+      attestations: write
+    env:
+      LABEL: ${{ inputs.label }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Label is new
+        run: |
+          [[ "$LABEL" =~ ^[0-9A-Za-z.-]+$ ]] || { echo "label may hold letters, digits, dots and dashes only"; exit 1; }
+          if gh release view "dhx-voice-models/$LABEL" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "dhx-voice-models/$LABEL exists already"; exit 1
+          fi
+
+      - name: Python tools
+        run: |
+          python3 -m venv /tmp/venv
+          /tmp/venv/bin/pip install --quiet -r scripts/voice/pocket-tts/requirements.txt
+
+      - name: Export, check against PyTorch, pack
+        # No HF_TOKEN in this job: the repositories are open, and a token would load the gated weights.
+        run: /tmp/venv/bin/python scripts/voice/build-voice-models.py dist "$LABEL"
+
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: dist/session-desk-voice-models-${{ inputs.label }}.tar.gz
+
+      - name: Release
+        run: |
+          gh release create "dhx-voice-models/$LABEL" dist/* --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+            --latest=false \
+            --title "Session Desk voice models $LABEL" \
+            --notes "Speech models for session-desk-image, built from ${GITHUB_SHA} by scripts/voice/build-voice-models.py: Pocket TTS (Kyutai, CC-BY-4.0) for German and English, converted to ONNX int8 and checked against PyTorch; Whisper base q8 (OpenAI, Apache-2.0, onnx-community conversion). Attribution in NOTICE inside the archive. No voice is included. Verify: sha256sum -c SHA256SUMS.txt, and gh attestation verify session-desk-voice-models-${LABEL}.tar.gz --repo ${GITHUB_REPOSITORY}."
