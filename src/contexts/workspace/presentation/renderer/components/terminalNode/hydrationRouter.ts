@@ -1,4 +1,5 @@
 import type { Terminal } from '@xterm/xterm'
+import { createTerminalInputModeReplay } from '../../../../../../shared/terminal/terminalInputModeReplay'
 import { finalizeTerminalHydration } from './finalizeHydration'
 import {
   extractAutomaticTerminalQuerySequences,
@@ -27,6 +28,7 @@ interface BufferedHydrationChunk {
   data: string
   seq: number | null
   deliveredDuringHydration: boolean
+  inputModeControls: string
 }
 
 function normalizeTerminalDataSeq(seq: number | null | undefined): number | null {
@@ -86,6 +88,7 @@ export function createTerminalHydrationRouter({
   onRevealed: () => void
   isDisposed: () => boolean
 }): TerminalHydrationRouter {
+  const inputModes = createTerminalInputModeReplay()
   let isHydrating = true
   const hydrationBuffer = {
     dataChunks: [] as BufferedHydrationChunk[],
@@ -127,6 +130,7 @@ export function createTerminalHydrationRouter({
       bufferedData: data,
       bufferedExitCode: exitCode,
       resetTerminalBeforeFirstWrite: true,
+      inputModeReplay: inputModes.snapshot(),
       scrollbackBuffer,
       committedScrollbackBuffer,
       onCommittedScreenState: recordCommittedScreenState,
@@ -236,6 +240,7 @@ export function createTerminalHydrationRouter({
         return
       }
 
+      const inputModeControls = inputModes.record(displayData)
       const isInputModeChunk = isInputSemanticTerminalControlChunk(displayData)
       const shouldWriteThroughGeometryGate =
         isAutomaticTerminalQuery(displayData) || isInputModeChunk
@@ -250,6 +255,7 @@ export function createTerminalHydrationRouter({
 
         hydrationBuffer.dataChunks.push({
           data: displayData,
+          inputModeControls,
           seq: normalizeTerminalDataSeq(options?.seq),
           deliveredDuringHydration: shouldWriteThroughGeometryGate,
         })
@@ -257,17 +263,10 @@ export function createTerminalHydrationRouter({
       }
 
       if (shouldWriteThroughGeometryGate) {
-        // A later placeholder reset must replay mode changes in stream order, even though
-        // they take effect immediately. Queries must stay single-delivery.
-        if (isInputModeChunk) {
-          if (
-            shouldReplaceAgentPlaceholderOnNextVisibleChunk ||
-            shouldReplaceAgentPlaceholderOnNextDestructiveChunk
-          ) {
-            deferredPlaceholderBuffer.dataChunks.push(displayData)
-          } else if (deferredHydratedRedrawBuffer.dataChunks.length > 0) {
-            deferredHydratedRedrawBuffer.dataChunks.push(displayData)
-          }
+        // Deferred display writes may contain older modes. Keep write-through
+        // mode changes in their stream order when that buffer is flushed.
+        if (isInputModeChunk && deferredHydratedRedrawBuffer.dataChunks.length > 0) {
+          deferredHydratedRedrawBuffer.dataChunks.push(displayData)
         }
         outputScheduler.handleChunk(displayData, writeThroughGeometryGateOptions)
         return
@@ -375,6 +374,7 @@ export function createTerminalHydrationRouter({
     finalizeHydration: (rawSnapshot, options) => {
       isHydrating = false
       const baselineAppliedSeq = normalizeTerminalDataSeq(options?.baselineAppliedSeq)
+      inputModes.acceptSnapshot(rawSnapshot, baselineAppliedSeq, hydrationBuffer.dataChunks)
       const bufferedHydrationChunks = hydrationBuffer.dataChunks.flatMap(chunk => {
         if (chunk.deliveredDuringHydration) {
           // Input modes survive only if replayed after a synthetic full reset.
@@ -454,6 +454,7 @@ export function createTerminalHydrationRouter({
         bufferedDataChunks: [...bufferedDataChunksForFinalize],
         bufferedExitCode: bufferedExitCodeForFinalize,
         terminal,
+        inputModeReplay: inputModes.snapshot(),
         committedScrollbackBuffer,
         onCommittedScreenState: recordCommittedScreenState,
         markScrollbackDirty,

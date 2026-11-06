@@ -70,6 +70,25 @@ Current tactical baseline:
 17. WebGL device cells are integer pixels and device canvas dimensions are derived exactly from the
     terminal grid. Raster scale changes must not remount xterm or change its columns and rows.
 
+## Input Modes Across Hydration And Reconnect
+
+Xterm owns terminal input modes. Display snapshots and output deduplication must preserve
+application-selected mouse tracking **and encoding**, focus reports and bracketed paste.
+The xterm serializer includes mouse tracking but does not include DEC 1006/1016 encoding;
+`TerminalPresentationSession` appends a bounded input-mode replay checkpoint from committed
+PTY output to its existing serialized snapshot. No new snapshot fields are required.
+
+Hydration tracks complete input controls across PTY chunk boundaries, including controls
+embedded in visible output. An accepted snapshot supersedes earlier controls; later sequenced
+PTY controls supersede the snapshot. Parsing snapshot controls must not disturb a partial live
+CSI. Synthetic full resets restore the latest checkpoint, while application resets and later
+disables remain effective. Control-string contents and terminal queries must not be replayed
+as mode operations. Mouse reports and user text must never be stripped as a workaround.
+
+Regression coverage uses real xterm mouse reports for mixed/fragmented output, baseline
+sequence cutoffs, deferred placeholder replacement and subsequent disables. The Web Canvas
+mouse-encoding test exercises actual motion and wheel input before and after live reattach.
+
 ## Constraints To Preserve
 
 1. keep drag-resize lightweight:

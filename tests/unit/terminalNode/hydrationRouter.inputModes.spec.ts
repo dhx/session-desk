@@ -149,3 +149,89 @@ describe('hydrationRouter input modes', () => {
     expect(wheel().startsWith('\u001b[M')).toBe(true)
   })
 })
+
+it('preserves an embedded mode before a later destructive placeholder replacement', async () => {
+  const { router, drain, wheel } = createHarness(true)
+  router.handleDataChunk('Codex ready')
+  router.finalizeHydration('Codex ready')
+  router.handleDataChunk('\u001b[?1006hWaiting')
+  router.handleDataChunk('\u001b[2J\u001b[?1003hFresh frame')
+  await drain()
+  expect(wheel()).toBe('\u001b[<65;3;4M')
+})
+it('preserves embedded modes discarded by the baseline sequence cutoff', async () => {
+  const { router, drain, wheel } = createHarness()
+  router.handleDataChunk('\u001b[?1006hOld frame', { seq: 3 })
+  router.handleDataChunk('\u001b[2J\u001b[?1003hFresh frame', { seq: 6 })
+  router.finalizeHydration('[accepted snapshot]', { baselineAppliedSeq: 5 })
+  await drain()
+  expect(wheel()).toBe('\u001b[<65;3;4M')
+})
+
+it.each([0, 1, 2, 3, 4, 5, 6, 7, 8])(
+  'preserves a fragmented embedded mode at split %s across a sequence cutoff',
+  async split => {
+    const { router, drain, wheel } = createHarness()
+    const encoding = '\u001b[?1006h'
+    router.handleDataChunk('old' + encoding.slice(0, split), { seq: 2 })
+    router.handleDataChunk(encoding.slice(split) + ' frame', { seq: 3 })
+    router.handleDataChunk('\u001b[2J\u001b[?1003hFresh frame', { seq: 6 })
+    router.finalizeHydration('[accepted snapshot]', { baselineAppliedSeq: 5 })
+    await drain()
+    expect(wheel()).toBe('\u001b[<65;3;4M')
+  },
+)
+it('keeps a later embedded disable after replacing a placeholder', async () => {
+  const { terminal, router, drain, wheel } = createHarness(true)
+  router.handleDataChunk('Codex ready')
+  router.finalizeHydration('Codex ready')
+  router.handleDataChunk('\u001b[?1006;2004hWaiting')
+  router.handleDataChunk('\u001b[?1006;2004lDisabled')
+  router.handleDataChunk('\u001b[2J\u001b[?1003hFresh frame')
+  await drain()
+  expect(terminal.modes.bracketedPasteMode).toBe(false)
+  expect(wheel().startsWith('\u001b[M')).toBe(true)
+})
+it('honors an application full reset before replacement', async () => {
+  const { router, drain, wheel } = createHarness(true)
+  router.handleDataChunk('Codex ready')
+  router.finalizeHydration('Codex ready')
+  router.handleDataChunk('\u001b[?1006hWaiting\u001bc')
+  router.handleDataChunk('\u001b[2J\u001b[?1003hFresh frame')
+  await drain()
+  expect(wheel().startsWith('\u001b[M')).toBe(true)
+})
+
+it.each([true, false])(
+  'honors authoritative snapshot modes and later live updates (liveDisable=%s)',
+  async liveDisable => {
+    const { router, drain, wheel } = createHarness()
+    router.handleDataChunk('\u001b[?1006hOld frame', { seq: 3 })
+    router.handleDataChunk(
+      '\u001b[2J\u001b[?1003hFresh frame' + (liveDisable ? '\u001b[?1006l' : ''),
+      { seq: 6 },
+    )
+    router.finalizeHydration('snapshot\u001b[?1006' + (liveDisable ? 'h' : 'l'), {
+      baselineAppliedSeq: 5,
+    })
+    await drain()
+    expect(wheel().startsWith('\u001b[M')).toBe(true)
+  },
+)
+
+it.each([
+  ['\u001b[', '31mRED'],
+  ['\u001b]0;ti', 'tle\u0007RED'],
+  ['\u001bPq', 'payload\u001b\\RED'],
+])(
+  'does not splice replay controls into an incomplete display sequence %j',
+  async (pending, continuation) => {
+    const { terminal, router, drain } = createHarness()
+    router.handleDataChunk('\u001b[?1006h', { seq: 3 })
+    router.handleDataChunk('\u001b[2J\u001b[?1003hFresh' + pending, { seq: 6 })
+    router.finalizeHydration('[accepted snapshot]', { baselineAppliedSeq: 5 })
+    router.handleDataChunk(continuation)
+    await drain()
+    expect(terminal.buffer.active.getLine(0)?.translateToString(true)).toBe('FreshRED')
+  },
+)

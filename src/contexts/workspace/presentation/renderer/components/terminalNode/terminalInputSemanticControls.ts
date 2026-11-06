@@ -1,4 +1,4 @@
-const INPUT_SEMANTIC_DEC_PRIVATE_MODES = new Set([1000, 1002, 1003, 1004, 1005, 1006, 1015, 2004])
+import { INPUT_SEMANTIC_DEC_PRIVATE_MODES } from '../../../../../../shared/terminal/terminalInputModeReplay'
 
 function readCsiSequence(
   data: string,

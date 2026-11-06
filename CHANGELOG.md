@@ -32,6 +32,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ### 🐛 Fixed
 
+- Terminal: keep mouse encoding through mixed or split startup output and live reconnect snapshots, preventing mouse movement and scrolling from producing stray characters after hydration or reattach. (#42)
+
 - Terminal: copying from Claude Code, Codex and other programs that capture the mouse now reaches the clipboard. They copy through OSC 52, which the terminal ignored; it now accepts such a copy right after you used that terminal. Option+drag on macOS (Shift+drag elsewhere) still selects terminal text directly.
 - Agent terminals: preserve mouse encoding and paste modes across startup screen replacement, preventing split startup output from turning Codex mouse movement and scrolling into stray input characters. (#33)
 - Agent: give each managed Claude launch its own conversation ID and preserve it across recovery, preventing same-directory nodes from binding to the newest unrelated transcript. (#425)

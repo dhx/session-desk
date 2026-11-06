@@ -3,6 +3,8 @@ import { Terminal } from '@xterm/xterm'
 import type { PresentationSnapshotTerminalResult } from '../../../shared/contracts/dto'
 import type { TerminalCanonicalPtyGeometry } from '../../../shared/contracts/dto'
 
+import { createTerminalInputModeReplay } from '../../../shared/terminal/terminalInputModeReplay'
+
 const DEFAULT_COLS = 80
 const DEFAULT_ROWS = 24
 
@@ -25,6 +27,7 @@ export class TerminalPresentationSession {
   private readonly sessionId: string
   private readonly terminal: Terminal
   private readonly serializeAddon: SerializeAddon
+  private readonly inputModes = createTerminalInputModeReplay()
   private operationChain: Promise<void> = Promise.resolve()
   private presentationRevision = 0
   private appliedSeq = 0
@@ -81,6 +84,7 @@ export class TerminalPresentationSession {
       async () =>
         await new Promise<void>(resolve => {
           this.terminal.write(data, () => {
+            this.inputModes.record(data)
             this.appliedSeq = Math.max(this.appliedSeq, normalizedSeq)
             this.presentationRevision += 1
             resolve()
@@ -251,7 +255,7 @@ export class TerminalPresentationSession {
         y: this.terminal.buffer.active.cursorY,
       },
       title: this.title,
-      serializedScreen: this.serializeAddon.serialize(),
+      serializedScreen: this.serializeAddon.serialize() + this.inputModes.snapshot(),
     }
   }
 
