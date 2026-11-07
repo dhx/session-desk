@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest'
 import type { TerminalPresentationEngineKind } from '../../../../src/platform/terminal/presentation/TerminalPresentationEngine'
 import { createTerminalPresentationEngine } from '../../../../src/platform/terminal/presentation/createTerminalPresentationEngine'
 import { LibghosttyPresentationEngine } from '../../../../src/platform/terminal/presentation/libghostty/LibghosttyPresentationEngine'
+import { TerminalPresentationSession } from '../../../../src/platform/terminal/presentation/TerminalPresentationSession'
 
 // Invariant: replaying an engine's serialized screen into a fresh xterm (what the
 // renderer does on hydration) gives the same screen as feeding xterm the raw
@@ -39,6 +40,25 @@ function rows(terminal: Terminal, which: 'normal' | 'alternate'): string[] {
   }
   return lines
 }
+
+// xterm has no public accessor for the mouse encoding (1005/1006/1015/1016).
+function mouseEncoding(terminal: Terminal): string {
+  return (terminal as unknown as { _core: { coreMouseService: { activeEncoding: string } } })._core
+    .coreMouseService.activeEncoding
+}
+
+function mouse(terminal: Terminal) {
+  return { tracking: terminal.modes.mouseTrackingMode, encoding: mouseEncoding(terminal) }
+}
+
+// Mutually exclusive modes where the last one set wins, set against the
+// numeric order an engine might emit them in.
+const lastSetWins: Array<[string, string]> = [
+  ['button tracking after drag tracking', '\u001b[?1002h\u001b[?1000h'],
+  ['button tracking after any-event tracking', '\u001b[?1003h\u001b[?1000h'],
+  ['SGR encoding after urxvt encoding', '\u001b[?1000h\u001b[?1015h\u001b[?1006h'],
+  ['UTF-8 encoding after SGR encoding', '\u001b[?1000h\u001b[?1006h\u001b[?1005h'],
+]
 
 function state(terminal: Terminal) {
   return {
@@ -130,6 +150,22 @@ describe.each<TerminalPresentationEngineKind>(['xterm', 'libghostty'])(
       expect(cell(direct)).toBe(0xff8000)
     })
 
+    it.each(lastSetWins)('hydrates the mode set last: %s', async (_name, modes) => {
+      const direct = rendererTerminal()
+      await write(direct, modes)
+      const engine = createTerminalPresentationEngine(
+        { cols: COLS, rows: ROWS, scrollback: 5_000 },
+        kind,
+      )
+      const session = new TerminalPresentationSession({ sessionId: 's', engine })
+      await session.applyOutput(1, modes)
+      const replay = rendererTerminal()
+      await write(replay, (await session.snapshot()).serializedScreen)
+      session.dispose()
+
+      expect(mouse(replay)).toEqual(mouse(direct))
+    })
+
     it.each([
       ['CJK', '漢字かな'],
       ['emoji', '😀'],
@@ -142,3 +178,25 @@ describe.each<TerminalPresentationEngineKind>(['xterm', 'libghostty'])(
     })
   },
 )
+
+// Why TerminalPresentationSession appends its own input-mode replay to the
+// libghostty serialization: the formatter emits modes in a fixed order. If this
+// starts failing, libghostty keeps the order and the replay may be redundant.
+describe('libghostty formatter mode order', () => {
+  it('loses which mutually exclusive mode was set last', async () => {
+    const direct = rendererTerminal()
+    const modes = '\u001b[?1002h\u001b[?1000h'
+    await write(direct, modes)
+    const engine = createTerminalPresentationEngine(
+      { cols: COLS, rows: ROWS, scrollback: 5_000 },
+      'libghostty',
+    )
+    await engine.write(modes)
+    const replay = rendererTerminal()
+    await write(replay, engine.serialize())
+    engine.dispose()
+
+    expect(direct.modes.mouseTrackingMode).toBe('vt200')
+    expect(replay.modes.mouseTrackingMode).toBe('drag')
+  })
+})

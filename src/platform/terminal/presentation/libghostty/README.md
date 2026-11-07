@@ -8,6 +8,12 @@ worker-side state and the VT that hydrates the browser come from
 Off by default. Set `SESSION_DESK_TERMINAL_ENGINE=libghostty` for the process
 that hosts presentation sessions to use it.
 
+The first terminal the process creates logs the engine in use, e.g.
+`[opencove] terminal engine: libghostty, from SESSION_DESK_TERMINAL_ENGINE="libghostty"`,
+and an unknown value is logged as ignored. If the wasm module fails to load,
+every terminal falls back to xterm; if one terminal cannot be created in it,
+that one does. Both are logged on stderr.
+
 ## Vendored module
 
 | | |
@@ -31,6 +37,10 @@ Zig 0.17). Behind a proxy that Zig's package fetcher cannot use, download each
   active, a snapshot copy of the terminal leaves it, the primary screen is
   formatted from the copy, and the alternate screen is replayed on top.
 - LF also returns to column 0, matching xterm's `convertEol`.
+- Mutually exclusive mouse modes (tracking 1000/1002/1003, encoding
+  1005/1006/1015/1016) come out of the formatter in a fixed order, so the
+  one set last is lost. `TerminalPresentationSession` appends its input-mode
+  replay, which keeps the order the PTY set them in, as it does for xterm.
 
 ## Known differences from xterm
 

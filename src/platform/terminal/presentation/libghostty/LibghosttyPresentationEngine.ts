@@ -19,6 +19,7 @@ const ENTER_ALTERNATE_SCREEN = '\u001b[?1049h\u001b[H\u001b[2J'
 const LEAVE_ALTERNATE_SCREEN = '\u001b[?1049l'
 
 export class LibghosttyPresentationEngine implements TerminalPresentationEngine {
+  public readonly kind = 'libghostty' as const
   private readonly terminal: LibghosttyTerminal
   private readonly titleListeners: Array<(title: string) => void> = []
   private currentCols: number

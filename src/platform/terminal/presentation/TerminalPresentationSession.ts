@@ -26,6 +26,11 @@ export type TerminalPresentationGeometryCommitResult = {
 export class TerminalPresentationSession {
   private readonly sessionId: string
   private readonly terminal: TerminalPresentationEngine
+  // Appended to every engine's serialized screen. Mouse tracking (1000/1002/
+  // 1003) and mouse encoding (1005/1006/1015/1016) modes are mutually
+  // exclusive in xterm, so the last one set wins. xterm's SerializeAddon and
+  // libghostty-vt's formatter both emit modes in a fixed order and lose which
+  // was set last; this replay re-emits them in the order the PTY set them.
   private readonly inputModes = createTerminalInputModeReplay()
   private operationChain: Promise<void> = Promise.resolve()
   private presentationRevision = 0

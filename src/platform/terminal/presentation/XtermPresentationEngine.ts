@@ -7,6 +7,7 @@ import type {
 } from './TerminalPresentationEngine'
 
 export class XtermPresentationEngine implements TerminalPresentationEngine {
+  public readonly kind = 'xterm' as const
   private readonly terminal: Terminal
   private readonly serializeAddon: SerializeAddon
 
