@@ -62,6 +62,29 @@ preserves line/column ranges through a transient document navigation request. Es
 restore terminal focus; successful file navigation owns editor focus. Remote loopback URLs are
 not silently opened on the viewer's machine when no forwarding route is available.
 
+## Programs that open a browser
+
+Programs in a terminal also open links themselves by starting a browser on the machine they run
+on: Codex when a link in its window is clicked (it captures the mouse, so the click never
+reaches the link controller), `gh … --web`, Python's `webbrowser`, `xdg-open`. On a headless
+Linux worker there is no such browser. When a terminal or agent is spawned on Linux without
+`DISPLAY`, `WAYLAND_DISPLAY` or `BROWSER`, `TerminalProfileResolver` writes
+`~/.cache/session-desk/bin/session-desk-open` (`XDG_CACHE_HOME` is honoured), points `BROWSER`
+at it, links `xdg-open` to it at the end of `PATH` (a real `xdg-open` still wins) and sets
+`SESSION_DESK_BROWSER_BRIDGE=1`.
+
+The script accepts only http(s) URLs without control characters and writes
+`ESC ] 7777 ; open ; <url> BEL` to the controlling terminal, wrapped for tmux passthrough inside
+tmux. A program that starts its browser detached from the terminal still reaches it: the script
+walks up its ancestors while they carry the marker variable and writes to the first `/dev/pts`
+one of them has open, never to a terminal the worker itself was started from.
+
+The renderer (`installTerminalBrowserBridge`) handles the sequence only within five seconds
+after the person pressed a key or the mouse in that terminal, the same rule as OSC 52 copies, so
+replayed output and other viewers of the session open nothing. The URL then takes the path of a
+modifier click: it opens at once while the browser still grants user activation, and otherwise,
+or for a loopback URL of a remote worker, shows the link menu at the click.
+
 ## Workspace destinations
 
 Files open through the same document materialization path as Space Explorer. A matching
@@ -80,5 +103,6 @@ viewer's local filesystem. Ambiguous destinations do not select an arbitrary Spa
 - Resolver and contract tests cover source identity, scope failures, old remote metadata and
   launch-directory confirmation.
 - Renderer tests cover late async results, browser user activation and editor readiness.
+- Bridge tests cover the OSC payload, the user-intent window and the spawn environment.
 - Electron/Web Playwright tests cover actual mouse clicks, selection, menus, platform modifiers,
   canvas transforms and document line/column navigation.

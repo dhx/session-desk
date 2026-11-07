@@ -9,6 +9,7 @@ import type { TerminalDiagnosticsLogInput, TerminalWindowsPty } from '@shared/co
 import { withTerminalBackgroundTransparency } from './terminalBackgroundTransparency'
 import { DEFAULT_TERMINAL_FONT_FAMILY } from './constants'
 import { installTerminalOsc52Clipboard } from './terminalOsc52Clipboard'
+import { installTerminalBrowserBridge } from './links/installTerminalBrowserBridge'
 import { installTerminalLinks } from './links/installTerminalLinks'
 import { registerTerminalSelectionTestHandle } from './testHarness'
 import { patchXtermMouseServiceWithRetry } from './patchXtermMouseService'
@@ -188,6 +189,7 @@ export function createMountedXtermSession({
   let disposeTerminalPointerFocus: () => void = () => undefined
   let disposeTerminalLinks: () => void = () => undefined
   let disposeTerminalOsc52Clipboard: () => void = () => undefined
+  let disposeTerminalBrowserBridge: () => void = () => undefined
   let effectiveDprController = installTerminalEffectiveDevicePixelRatioController({
     terminal,
     initialViewportZoom,
@@ -250,6 +252,7 @@ export function createMountedXtermSession({
     }
     cancelMouseServicePatch = patchXtermMouseServiceWithRetry(terminal)
     disposeTerminalOsc52Clipboard = installTerminalOsc52Clipboard({ terminal, container })
+    disposeTerminalBrowserBridge = installTerminalBrowserBridge({ terminal, container })
     disposeTerminalHitTargetCursorScope = registerTerminalHitTargetCursorScope({
       container,
       ownerId,
@@ -310,6 +313,7 @@ export function createMountedXtermSession({
     dispose: () => {
       disposeTerminalLinks()
       disposeTerminalOsc52Clipboard()
+      disposeTerminalBrowserBridge()
       cancelMouseServicePatch()
       disposeTerminalHitTargetCursorScope()
       disposeWebglCanvasTransformCleanupObserver()
