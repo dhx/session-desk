@@ -1,7 +1,12 @@
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { TerminalPresentationSession } from '../../../../src/platform/terminal/presentation/TerminalPresentationSession'
 
-describe('TerminalPresentationSession', () => {
+describe.each(['xterm', 'libghostty'])('TerminalPresentationSession (%s engine)', engine => {
+  beforeEach(() => {
+    vi.stubEnv('SESSION_DESK_TERMINAL_ENGINE', engine)
+    return () => vi.unstubAllEnvs()
+  })
+
   it('captures serialized screen, cursor, and resize state', async () => {
     const session = new TerminalPresentationSession({
       sessionId: 'session-1',

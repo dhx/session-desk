@@ -1,5 +1,5 @@
-import { SerializeAddon } from '@xterm/addon-serialize'
-import { Terminal } from '@xterm/xterm'
+import type { TerminalPresentationEngine } from './TerminalPresentationEngine'
+import { createTerminalPresentationEngine } from './createTerminalPresentationEngine'
 import type { PresentationSnapshotTerminalResult } from '../../../shared/contracts/dto'
 import type { TerminalCanonicalPtyGeometry } from '../../../shared/contracts/dto'
 
@@ -25,8 +25,7 @@ export type TerminalPresentationGeometryCommitResult = {
 
 export class TerminalPresentationSession {
   private readonly sessionId: string
-  private readonly terminal: Terminal
-  private readonly serializeAddon: SerializeAddon
+  private readonly terminal: TerminalPresentationEngine
   private readonly inputModes = createTerminalInputModeReplay()
   private operationChain: Promise<void> = Promise.resolve()
   private presentationRevision = 0
@@ -38,21 +37,24 @@ export class TerminalPresentationSession {
   private rows: number
   private geometryRevision: number | null = null
 
-  public constructor(options: { sessionId: string; cols?: number; rows?: number }) {
+  public constructor(options: {
+    sessionId: string
+    cols?: number
+    rows?: number
+    engine?: TerminalPresentationEngine
+  }) {
     this.sessionId = options.sessionId
 
-    this.terminal = new Terminal({
-      allowProposedApi: true,
-      convertEol: true,
-      cols: normalizePositiveInt(options.cols ?? DEFAULT_COLS, DEFAULT_COLS),
-      rows: normalizePositiveInt(options.rows ?? DEFAULT_ROWS, DEFAULT_ROWS),
-      scrollback: 5_000,
-    })
+    this.terminal =
+      options.engine ??
+      createTerminalPresentationEngine({
+        cols: normalizePositiveInt(options.cols ?? DEFAULT_COLS, DEFAULT_COLS),
+        rows: normalizePositiveInt(options.rows ?? DEFAULT_ROWS, DEFAULT_ROWS),
+        scrollback: 5_000,
+      })
     this.cols = this.terminal.cols
     this.rows = this.terminal.rows
 
-    this.serializeAddon = new SerializeAddon()
-    this.terminal.loadAddon(this.serializeAddon)
     this.terminal.onTitleChange(title => {
       this.title = title.length > 0 ? title : null
       this.presentationRevision += 1
@@ -80,17 +82,12 @@ export class TerminalPresentationSession {
     const normalizedSeq =
       Number.isFinite(seq) && seq > 0 ? Math.max(0, Math.floor(seq)) : this.appliedSeq
 
-    await this.enqueue(
-      async () =>
-        await new Promise<void>(resolve => {
-          this.terminal.write(data, () => {
-            this.inputModes.record(data)
-            this.appliedSeq = Math.max(this.appliedSeq, normalizedSeq)
-            this.presentationRevision += 1
-            resolve()
-          })
-        }),
-    )
+    await this.enqueue(async () => {
+      await this.terminal.write(data)
+      this.inputModes.record(data)
+      this.appliedSeq = Math.max(this.appliedSeq, normalizedSeq)
+      this.presentationRevision += 1
+    })
   }
 
   public resize(
@@ -249,13 +246,10 @@ export class TerminalPresentationSession {
       cols: this.cols,
       rows: this.rows,
       geometryRevision: this.geometryRevision,
-      bufferKind: this.terminal.buffer.active.type ?? 'unknown',
-      cursor: {
-        x: this.terminal.buffer.active.cursorX,
-        y: this.terminal.buffer.active.cursorY,
-      },
+      bufferKind: this.terminal.bufferKind(),
+      cursor: this.terminal.cursor(),
       title: this.title,
-      serializedScreen: this.serializeAddon.serialize() + this.inputModes.snapshot(),
+      serializedScreen: this.terminal.serialize() + this.inputModes.snapshot(),
     }
   }
 
