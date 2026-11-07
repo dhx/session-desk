@@ -1,4 +1,5 @@
 import { normalizePluginSidebar } from './pluginSidebar'
+import { normalizePluginNodeHeader } from './pluginNodeHeader'
 import { normalizePluginPreferences, normalizePluginThemes } from './pluginHostExtensionValidation'
 import { normalizePluginEngines } from './pluginCompatibility'
 import type { LocalPluginPackage } from './pluginRuntimeTypes'
@@ -173,6 +174,7 @@ export function normalizeLocalPluginPackage(value: unknown): LocalPluginPackage 
   const preferences = normalizePluginPreferences(contributes.preferences)
   const themes = normalizePluginThemes(contributes.themes)
   const sidebar = normalizePluginSidebar(contributes.sidebar, commands)
+  const nodeHeader = normalizePluginNodeHeader(contributes.nodeHeader, commands)
   if (
     !view &&
     (raw.preview !== undefined ||
@@ -248,6 +250,7 @@ export function normalizeLocalPluginPackage(value: unknown): LocalPluginPackage 
       preferences,
       themes,
       sidebar,
+      nodeHeader,
     },
     ...(raw.platforms === undefined
       ? {}

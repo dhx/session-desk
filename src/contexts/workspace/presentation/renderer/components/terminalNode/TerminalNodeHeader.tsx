@@ -1,4 +1,4 @@
-import { useCallback, useState, type JSX, type PointerEvent } from 'react'
+import { useCallback, useState, type JSX, type PointerEvent, type ReactNode } from 'react'
 import { useTranslation } from '@app/renderer/i18n'
 import { AgentProviderIcon } from '@app/renderer/components/AgentProviderIcon'
 import type { AgentProvider } from '@contexts/settings/domain/agentSettings'
@@ -29,6 +29,8 @@ interface TerminalNodeHeaderProps {
   onTitleCommit?: (title: string) => void
   onClose: () => void
   onCopyLastMessage?: () => Promise<void>
+  /** Plugin link buttons; shown for every terminal and agent window, whatever runs in it. */
+  headerLinks?: ReactNode
   onReloadSession?: () => Promise<void>
   onListSessions?: (limit?: number) => Promise<AgentSessionSummary[]>
   onSwitchSession?: (summary: AgentSessionSummary) => Promise<void>
@@ -50,6 +52,7 @@ export function TerminalNodeHeader({
   onTitleCommit,
   onClose,
   onCopyLastMessage,
+  headerLinks,
   onReloadSession,
   onListSessions,
   onSwitchSession,
@@ -216,6 +219,8 @@ export function TerminalNodeHeader({
               )}
             </button>
           ) : null}
+
+          {headerLinks}
         </>
       }
       close={{

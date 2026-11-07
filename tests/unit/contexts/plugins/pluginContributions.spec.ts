@@ -95,6 +95,7 @@ describe('plugin declaration contracts', () => {
       preferences: [],
       themes: [],
       sidebar: [],
+      nodeHeader: [],
     })
     expect(normalizeLocalPluginPackage(pkg)).toEqual(pkg)
   })

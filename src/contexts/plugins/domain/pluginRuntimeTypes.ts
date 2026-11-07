@@ -1,5 +1,6 @@
 import type { PluginThemeResources } from './pluginThemeResources'
 import type { PluginSidebarDeclaration } from './pluginSidebar'
+import type { PluginNodeHeaderDeclaration } from './pluginNodeHeader'
 import type {
   PluginCommandDeclaration,
   PluginIconDeclaration,
@@ -32,6 +33,7 @@ export interface LocalPluginPackage {
     preferences?: PluginPreferenceDeclaration[]
     themes?: PluginThemeDeclaration[]
     sidebar?: PluginSidebarDeclaration[]
+    nodeHeader?: PluginNodeHeaderDeclaration[]
   }
   platforms?: Array<'darwin' | 'linux' | 'win32'>
   engines?: { opencove: string }

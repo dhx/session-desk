@@ -409,6 +409,7 @@ export const en = {
       'Bound directory: {{executionDirectory}}\nCurrent directory: {{expectedDirectory}}',
     copyLastMessage: 'Copy last agent message',
     copyingLastMessage: 'Copying last agent message',
+    pluginLinkUnavailable: '{{title}} (no link for this window yet)',
     reloadSession: 'Reload session',
     reloadingSession: 'Reloading session',
     sessionList: 'Session list',

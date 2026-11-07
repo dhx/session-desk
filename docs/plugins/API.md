@@ -60,6 +60,7 @@ Optional fields:
 | `contributes.commands` | Declared plugin or window commands, optionally exposed in host menus; see [Commands and skills](./COMMANDS.md) |
 | `contributes.skills` | Discoverable packaged `SKILL.md` files; see [Commands and skills](./COMMANDS.md#skills) |
 | `contributes.sidebar` | Host-rendered project trees; see [Sidebar](./SIDEBAR.md) |
+| `contributes.nodeHeader` | Link buttons in terminal and agent window headers; see [Window header](./NODE_HEADER.md) |
 | `contributes.preferences`, `contributes.themes` | Standard preference fields and advanced visual themes; see [Host extensions](./HOST_EXTENSIONS.md) |
 | `platforms` | Supported backend OS values: `darwin`, `linux`, `win32`; omit for all |
 | `engines.opencove` | Optional npm SemVer range for the installation's Worker version; incompatible artifacts are rejected before activation |

@@ -1,4 +1,5 @@
 import { registerPluginSidebarHandlers } from './pluginSidebarHandlers'
+import { registerPluginNodeHeaderHandlers } from './pluginNodeHeaderHandlers'
 import { normalizePluginHostContext } from '@contexts/plugins/domain/pluginCommandContext'
 import type { ControlSurface } from '../controlSurface'
 import type { ControlSurfaceHandler } from '../types'
@@ -80,6 +81,7 @@ export function registerPluginCommandHandlers(
   },
 ): void {
   registerPluginSidebarHandlers(control, deps)
+  registerPluginNodeHeaderHandlers(control, deps)
   let mutations: Promise<unknown> = Promise.resolve()
   const register = <T, R>(
     id: string,

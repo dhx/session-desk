@@ -1,5 +1,5 @@
 import { TerminalLinkHost, type TerminalLinkHostOptions } from './links/TerminalLinkHost'
-import React, { useId, type JSX } from 'react'
+import React, { useId, type JSX, type ReactNode } from 'react'
 import { useTranslation } from '@app/renderer/i18n'
 import type { AgentProvider } from '@contexts/settings/domain/agentSettings'
 import { Handle, Position } from '@xyflow/react'
@@ -53,6 +53,7 @@ interface TerminalNodeFrameProps {
   onTitleCommit?: (title: string) => void
   onClose: () => void
   onCopyLastMessage?: () => Promise<void>
+  headerLinks?: ReactNode
   onReloadSession?: () => Promise<void>
   onListSessions?: (limit?: number) => Promise<AgentSessionSummary[]>
   onSwitchSession?: (summary: AgentSessionSummary) => Promise<void>
@@ -107,6 +108,7 @@ export function TerminalNodeFrame({
   onTitleCommit,
   onClose,
   onCopyLastMessage,
+  headerLinks,
   onReloadSession,
   onListSessions,
   onSwitchSession,
@@ -233,6 +235,7 @@ export function TerminalNodeFrame({
         onTitleCommit={onTitleCommit}
         onClose={onClose}
         onCopyLastMessage={onCopyLastMessage}
+        headerLinks={headerLinks}
         onReloadSession={onReloadSession}
         onListSessions={onListSessions}
         onSwitchSession={onSwitchSession}
