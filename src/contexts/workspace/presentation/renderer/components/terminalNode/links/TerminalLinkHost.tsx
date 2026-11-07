@@ -22,6 +22,7 @@ import {
   statTerminalLink,
 } from '../../../utils/terminalLinkApi'
 import {
+  hasTransientUserActivation,
   TERMINAL_LINK_EVENT,
   TERMINAL_LINK_INVALIDATION_EVENT,
   type TerminalLinkIntent,
@@ -174,11 +175,16 @@ export function TerminalLinkHost({
           const resolution: TerminalLinkTargetResolution = remoteLoopback
             ? { status: 'unresolved', reason: 'unavailable' }
             : { status: 'resolved', target: intent.target }
-          if (intent.action === 'open' && !remoteLoopback) {
+          if (
+            intent.action === 'open' &&
+            !remoteLoopback &&
+            (!intent.requiresUserActivation || hasTransientUserActivation())
+          ) {
             openTerminalUrl(intent.target.uri)
             setView(null)
           } else {
-            setView({ intent, resolution })
+            // A bridged open without a live gesture would be blocked: offer the card instead.
+            setView({ intent: { ...intent, action: 'menu' }, resolution })
           }
         } catch {
           setView({ intent, error: 'open_failed' })

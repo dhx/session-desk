@@ -3,6 +3,7 @@ import os from 'node:os'
 import process from 'node:process'
 import type { ListTerminalProfilesResult, SpawnTerminalInput } from '../../shared/contracts/dto'
 import { removeElectronRunAsNode } from '../os/ElectronControlEnvironment'
+import { installBrowserBridge, needsBrowserBridge, withBrowserBridgeEnv } from './browserBridge'
 import {
   buildPowerShellExecArgs,
   findProfileById,
@@ -151,7 +152,23 @@ export class TerminalProfileResolver {
       listWslDistros: overrides.listWslDistros ?? listWslDistros,
       commandDiscoveryTimeoutMs:
         overrides.commandDiscoveryTimeoutMs ?? WINDOWS_COMMAND_DISCOVERY_TIMEOUT_MS,
+      installBrowserBridge:
+        overrides.installBrowserBridge ??
+        (env => installBrowserBridge(env, overrides.homeDir?.() ?? os.homedir())),
     }
+  }
+
+  private browserBridgeDir: string | null | undefined
+
+  /** Headless Linux terminals open links in the viewer's browser (browserBridge.ts). */
+  private withBrowserBridge(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+    if (!needsBrowserBridge(env, this.deps.platform)) {
+      return env
+    }
+    if (this.browserBridgeDir === undefined) {
+      this.browserBridgeDir = this.deps.installBrowserBridge(env)
+    }
+    return this.browserBridgeDir ? withBrowserBridgeEnv(env, this.browserBridgeDir) : env
   }
 
   public async listProfiles(): Promise<ListTerminalProfilesResult> {
@@ -171,9 +188,11 @@ export class TerminalProfileResolver {
   }
 
   public async resolveTerminalSpawn(input: SpawnTerminalInput): Promise<ResolvedTerminalSpawn> {
-    const env = withTerminalCapabilityEnv(
-      removeElectronRunAsNode({ ...this.deps.env(), ...(input.env ?? {}) }),
-      this.deps.platform,
+    const env = this.withBrowserBridge(
+      withTerminalCapabilityEnv(
+        removeElectronRunAsNode({ ...this.deps.env(), ...(input.env ?? {}) }),
+        this.deps.platform,
+      ),
     )
 
     if (this.deps.platform !== 'win32') {
@@ -228,7 +247,7 @@ export class TerminalProfileResolver {
       ...this.deps.env(),
       ...(input.env ?? {}),
     })
-    const resolvedEnv = withTerminalCapabilityEnv(env, this.deps.platform)
+    const resolvedEnv = this.withBrowserBridge(withTerminalCapabilityEnv(env, this.deps.platform))
 
     if (this.deps.platform !== 'win32') {
       return {

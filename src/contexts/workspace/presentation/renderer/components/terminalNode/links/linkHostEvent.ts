@@ -13,6 +13,8 @@ export interface TerminalLinkIntent {
   bufferRow: number
   observedCwd?: string
   preferSystem?: boolean
+  /** Opened by a program, not a click on the link: open only while the browser allows a tab. */
+  requiresUserActivation?: boolean
   isCurrent: () => boolean
   focusTerminal: () => void
 }
@@ -27,4 +29,11 @@ export function dispatchTerminalLinkIntent(
       bubbles: true,
     }),
   )
+}
+
+/** Whether the page may open a tab now. Browsers without the API count as allowed. */
+export function hasTransientUserActivation(): boolean {
+  const activation = (navigator as Navigator & { userActivation?: { isActive: boolean } })
+    .userActivation
+  return activation ? activation.isActive : true
 }

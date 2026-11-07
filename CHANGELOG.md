@@ -34,6 +34,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ### 🐛 Fixed
 
+- Terminals: links that Codex, `gh --web`, `xdg-open` and other programs open on a headless worker open in the viewer's browser instead of failing with "No valid browsers detected"; `BROWSER` points at a bridge script that hands the URL to the terminal.
 - Terminal: keep mouse encoding through mixed or split startup output and live reconnect snapshots, preventing mouse movement and scrolling from producing stray characters after hydration or reattach. (#42)
 
 - Terminal: copying from Claude Code, Codex and other programs that capture the mouse now reaches the clipboard. They copy through OSC 52, which the terminal ignored; it now accepts such a copy right after you used that terminal. Option+drag on macOS (Shift+drag elsewhere) still selects terminal text directly.

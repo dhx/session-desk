@@ -9,6 +9,8 @@ export interface TerminalProfileResolverDeps {
   locateWindowsCommands: (commands: readonly string[]) => Promise<string[]>
   listWslDistros: () => Promise<string[]>
   commandDiscoveryTimeoutMs: number
+  /** Writes the browser bridge script and returns its folder, or null (see browserBridge.ts). */
+  installBrowserBridge: (env: NodeJS.ProcessEnv) => string | null
 }
 
 export interface ResolvedTerminalSpawn {
