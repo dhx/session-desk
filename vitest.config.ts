@@ -1,6 +1,6 @@
 /// <reference types="vitest/config" />
 import { realpathSync } from 'node:fs'
-import { resolve } from 'node:path'
+import { dirname, resolve } from 'node:path'
 import { availableParallelism } from 'node:os'
 import { defineConfig } from 'vitest/config'
 
@@ -8,7 +8,26 @@ const maxVitestWorkers = Math.max(1, Math.min(4, availableParallelism()))
 const reactPath = realpathSync.native(resolve(__dirname, 'node_modules/react'))
 const reactDomPath = realpathSync.native(resolve(__dirname, 'node_modules/react-dom'))
 
+// electron-vite resolves `?asset` imports to a file path at build time; do the same in tests.
+const ASSET_PREFIX = '\0electron-vite-asset:'
+const electronViteAssetPlugin = {
+  name: 'test:electron-vite-asset',
+  enforce: 'pre' as const,
+  resolveId(id: string, importer?: string) {
+    if (!id.endsWith('?asset') || !importer) {
+      return null
+    }
+    return ASSET_PREFIX + resolve(dirname(importer), id.slice(0, -'?asset'.length))
+  },
+  load(id: string) {
+    return id.startsWith(ASSET_PREFIX)
+      ? `export default ${JSON.stringify(id.slice(ASSET_PREFIX.length))}`
+      : null
+  },
+}
+
 export default defineConfig({
+  plugins: [electronViteAssetPlugin],
   test: {
     // React 测试环境
     environment: 'happy-dom',

@@ -9,6 +9,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ### ✨ Added
 
 - Plugins: `host.spaces.list`, `create` and `update` list Spaces, create an empty top-level Space beside the canvas content and rename or recolour one; open windows show the change at once. (#30)
+- Terminals: an optional libghostty-vt engine for the screen state that restores terminals after a reload or reconnect, chosen with `SESSION_DESK_TERMINAL_ENGINE=libghostty`; xterm stays the default.
 
 ### 💅 Changed
 

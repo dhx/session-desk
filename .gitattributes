@@ -4,3 +4,6 @@
 # Windows 批处理脚本必须保留 CRLF
 *.{cmd,[cC][mM][dD]} text eol=crlf
 *.{bat,[bB][aA][tT]} text eol=crlf
+
+# Vendored wasm builds are binary
+*.wasm binary
