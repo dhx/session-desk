@@ -401,6 +401,7 @@ export const zhCN = {
     directoryMismatchTitle: '绑定目录：{{executionDirectory}}\n原目录：{{expectedDirectory}}',
     copyLastMessage: '复制上一条 Agent 消息',
     copyingLastMessage: '正在复制上一条 Agent 消息',
+    pluginLinkUnavailable: '{{title}}（此窗口暂无链接）',
     reloadSession: '重载会话',
     reloadingSession: '正在重载会话',
     sessionList: '会话列表',

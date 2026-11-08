@@ -191,6 +191,8 @@ export const zhCNSettingsPanelPlugins = {
   contributions: {
     sidebar: '在侧边栏显示',
     sidebarDescription: '在项目侧边栏中显示此插件的分组。',
+    nodeHeader: '在窗口标题栏显示',
+    nodeHeaderDescription: '在终端和 Agent 窗口标题栏中显示链接按钮',
     title: '显示位置',
     help: '选择显示插件入口的位置，不影响已有窗口。',
     actionBar: '在操作栏中显示',
@@ -200,6 +202,7 @@ export const zhCNSettingsPanelPlugins = {
   },
   capabilities: {
     sidebar: '侧边栏',
+    nodeHeader: '窗口标题栏',
     preferences: '偏好设置',
     themes: '主题',
     canvas: '画布节点',

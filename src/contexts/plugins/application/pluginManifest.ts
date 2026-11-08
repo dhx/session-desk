@@ -38,5 +38,6 @@ export function installedPluginManifest(runtime: PluginRuntimeState): PluginMani
     preferences: pkg.contributes?.preferences ?? [],
     themes: pkg.contributes?.themes ?? [],
     sidebar: pkg.contributes?.sidebar ?? [],
+    nodeHeader: pkg.contributes?.nodeHeader ?? [],
   }
 }

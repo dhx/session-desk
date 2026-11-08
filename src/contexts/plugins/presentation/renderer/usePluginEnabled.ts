@@ -23,6 +23,10 @@ export function usePluginContributionEnabled(
     isPluginContributionEnabled(state.agentSettings, pluginId, contribution),
   )
   const declared =
-    contribution === 'sidebar' ? Boolean(plugin?.sidebar?.length) : plugin?.[contribution] === true
+    contribution === 'sidebar'
+      ? Boolean(plugin?.sidebar?.length)
+      : contribution === 'nodeHeader'
+        ? Boolean(plugin?.nodeHeader?.length)
+        : plugin?.[contribution] === true
   return declared && enabled && contributionEnabled
 }

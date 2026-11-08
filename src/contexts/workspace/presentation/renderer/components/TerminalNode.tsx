@@ -31,6 +31,7 @@ import { useTerminalLiveReattachScope } from './terminalNode/terminalLiveReattac
 import { useTerminalViewportState } from './terminalNode/useTerminalViewportState'
 import { TerminalGeometryFeedback } from './terminalNode/TerminalGeometryFeedback'
 import { TerminalNodeFrame } from './terminalNode/TerminalNodeFrame'
+import { PluginNodeHeaderActions } from '@contexts/plugins/presentation/renderer/PluginNodeHeaderActions'
 import { resolveAgentNodeMinSize, resolveCanonicalNodeMinSize } from '../utils/workspaceNodeSizing'
 import type { TerminalNodeProps } from './TerminalNode.types'
 import { useLatestCallbackRef } from './terminalNode/useLatestCallbackRef'
@@ -479,6 +480,7 @@ export function TerminalNode({
       onTitleCommit={onTitleCommit}
       onClose={onClose}
       onCopyLastMessage={onCopyLastMessage}
+      headerLinks={<PluginNodeHeaderActions nodeId={nodeId} />}
       onReloadSession={onReloadSession}
       onListSessions={onListSessions}
       onSwitchSession={onSwitchSession}

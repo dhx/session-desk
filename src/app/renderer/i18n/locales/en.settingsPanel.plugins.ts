@@ -249,6 +249,8 @@ export const enSettingsPanelPlugins = {
   contributions: {
     sidebar: 'Show in Sidebar',
     sidebarDescription: 'Show this plugin’s sections in the project Sidebar.',
+    nodeHeader: 'Show in window header',
+    nodeHeaderDescription: 'A link button in the header of terminal and agent windows',
     title: 'Show in',
     help: 'Choose where to show this plugin. Existing windows stay unchanged.',
     actionBar: 'Show in action bar',
@@ -258,6 +260,7 @@ export const enSettingsPanelPlugins = {
   },
   capabilities: {
     sidebar: 'Sidebar',
+    nodeHeader: 'Window header',
     preferences: 'Preferences',
     themes: 'Themes',
     canvas: 'Canvas node',

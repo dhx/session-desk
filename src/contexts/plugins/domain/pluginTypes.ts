@@ -5,6 +5,7 @@ export {
   type PluginThemeToken,
 } from './pluginThemeTypes'
 import type { PluginSidebarDeclaration } from './pluginSidebar'
+import type { PluginNodeHeaderDeclaration } from './pluginNodeHeader'
 
 export type PluginNodeKind = string
 
@@ -51,6 +52,7 @@ export interface PluginManifest {
   skills?: PluginSkillDeclaration[]
   preferences?: PluginPreferenceDeclaration[]
   sidebar?: PluginSidebarDeclaration[]
+  nodeHeader?: PluginNodeHeaderDeclaration[]
   themes?: PluginThemeDeclaration[]
 }
 
