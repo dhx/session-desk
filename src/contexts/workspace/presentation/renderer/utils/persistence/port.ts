@@ -12,6 +12,8 @@ export type PersistencePortKind = 'ipc' | 'localStorage'
 export interface PersistencePort {
   kind: PersistencePortKind
   readAppState: () => Promise<ReadAppStateResult | null>
+  /** Makes an accepted read the base of the next write, where the backend tracks one. */
+  acceptAppState: (syncToken: number) => void
   writeAppState: (
     state: unknown,
     options?: { allowEmptyWorkspaceOverwrite?: boolean },
@@ -71,6 +73,9 @@ function createIpcPort(): PersistencePort | null {
       } catch (error) {
         throw createAppError(toAppErrorDescriptor(error, 'persistence.unavailable'))
       }
+    },
+    acceptAppState: syncToken => {
+      persistenceApi.acceptAppState?.({ syncToken })
     },
     writeAppState: async (state, options) => {
       try {
@@ -183,6 +188,7 @@ function createLocalStoragePort(): PersistencePort | null {
         return { state: null, recovery: null }
       }
     },
+    acceptAppState: () => undefined,
     writeAppState: async state => {
       const raw = JSON.stringify(state)
 

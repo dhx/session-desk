@@ -376,9 +376,8 @@ export function useHydrateAppState({
       if (isCancelledRef.current) {
         return
       }
-      if (persisted) {
-        acceptPersistedStateSnapshot(snapshot)
-      }
+      // Also an empty store: its revision is the base of the first write.
+      acceptPersistedStateSnapshot(snapshot)
 
       if (recovery) {
         const recoveryMessage =

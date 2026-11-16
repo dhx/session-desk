@@ -41,6 +41,7 @@ import type {
   OpenWorkspacePathInput,
   PersistWriteResult,
   ReadAppStateResult,
+  AcceptAppStateInput,
   ReadCanvasImageInput,
   ReadCanvasImageResult,
   WindowDisplayInfo,
@@ -221,6 +222,8 @@ export interface OpenCoveApi {
     readWorkspaceStateRaw: () => Promise<string | null>
     writeWorkspaceStateRaw: (payload: WriteWorkspaceStateRawInput) => Promise<PersistWriteResult>
     readAppState: () => Promise<ReadAppStateResult>
+    /** The renderer took the read with this token in; only the Web UI tracks it. */
+    acceptAppState?: (payload: AcceptAppStateInput) => void
     writeAppState: (payload: WriteAppStateInput) => Promise<PersistWriteResult>
     readNodeScrollback: (payload: ReadNodeScrollbackInput) => Promise<string | null>
     writeNodeScrollback: (payload: WriteNodeScrollbackInput) => Promise<PersistWriteResult>

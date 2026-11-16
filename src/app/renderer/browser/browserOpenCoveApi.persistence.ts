@@ -24,6 +24,52 @@ function setLastKnownSyncState(value: unknown): void {
   lastKnownSyncState = normalizePersistedAppStateForMerge(value)
 }
 
+// Reads the renderer has not taken in yet, by revision. The base of the next write (the
+// revision it is checked against, and the snapshot a conflict merges against) moves only
+// when the renderer accepts one: a read it discards (its canvas changed meanwhile) would
+// otherwise let the next write go through at the new revision without the nodes that read
+// brought, e.g. an agent window a plugin had just opened, while its terminal keeps running.
+const MAX_PENDING_READS = 8
+const pendingReads = new Map<number, unknown>()
+
+function rememberRead(revision: unknown, state: unknown): number | undefined {
+  if (typeof revision !== 'number' || !Number.isFinite(revision) || revision < 0) {
+    return undefined
+  }
+  const token = Math.floor(revision)
+  pendingReads.delete(token)
+  pendingReads.set(token, state)
+  while (pendingReads.size > MAX_PENDING_READS) {
+    const oldest = pendingReads.keys().next().value
+    if (oldest === undefined) {
+      break
+    }
+    pendingReads.delete(oldest)
+  }
+  return token
+}
+
+function acceptRead(token: number): void {
+  if (!pendingReads.has(token)) {
+    return
+  }
+  const state = pendingReads.get(token)
+  pendingReads.delete(token)
+  // A write of our own since that read is the newer base.
+  if (typeof lastKnownSyncRevision === 'number' && token < lastKnownSyncRevision) {
+    return
+  }
+  setLastKnownSyncRevision(token)
+  setLastKnownSyncState(state)
+}
+
+/** Test seam: forget the base and pending reads. */
+export function resetBrowserPersistenceSyncBase(): void {
+  lastKnownSyncRevision = null
+  lastKnownSyncState = null
+  pendingReads.clear()
+}
+
 export function createBrowserPersistenceApi(): PersistenceApi {
   return {
     readWorkspaceStateRaw: async () =>
@@ -47,9 +93,17 @@ export function createBrowserPersistenceApi(): PersistenceApi {
         id: 'sync.state',
         payload: null,
       })
-      setLastKnownSyncRevision(value.revision)
-      setLastKnownSyncState(value.state)
-      return { state: value.state, recovery: null }
+      const syncToken = rememberRead(value.revision, value.state)
+      return {
+        state: value.state,
+        recovery: null,
+        ...(syncToken === undefined ? {} : { syncToken }),
+      }
+    },
+    acceptAppState: payload => {
+      if (typeof payload?.syncToken === 'number' && Number.isFinite(payload.syncToken)) {
+        acceptRead(Math.floor(payload.syncToken))
+      }
     },
     writeAppState: async payload => {
       const attemptWrite = async (
