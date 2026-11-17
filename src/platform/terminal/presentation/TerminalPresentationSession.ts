@@ -26,11 +26,11 @@ export type TerminalPresentationGeometryCommitResult = {
 export class TerminalPresentationSession {
   private readonly sessionId: string
   private readonly terminal: TerminalPresentationEngine
-  // Appended to every engine's serialized screen. Mouse tracking (1000/1002/
-  // 1003) and mouse encoding (1005/1006/1015/1016) modes are mutually
-  // exclusive in xterm, so the last one set wins. xterm's SerializeAddon and
-  // libghostty-vt's formatter both emit modes in a fixed order and lose which
-  // was set last; this replay re-emits them in the order the PTY set them.
+  // Appended to the libghostty engine's serialized screen. Mouse tracking
+  // (1000/1002/1003) and mouse encoding (1005/1006/1015/1016) modes are
+  // mutually exclusive in xterm, so the last one set wins. libghostty-vt's
+  // formatter emits modes in a fixed order and loses which was set last; this
+  // replay re-emits them in the order the PTY set them.
   private readonly inputModes = createTerminalInputModeReplay()
   private operationChain: Promise<void> = Promise.resolve()
   private presentationRevision = 0
@@ -241,21 +241,32 @@ export class TerminalPresentationSession {
   }
 
   public async snapshot(): Promise<PresentationSnapshotTerminalResult> {
-    await this.flush()
-
-    return {
-      sessionId: this.sessionId,
-      epoch: this.epoch,
-      appliedSeq: this.appliedSeq,
-      presentationRevision: this.presentationRevision,
-      cols: this.cols,
-      rows: this.rows,
-      geometryRevision: this.geometryRevision,
-      bufferKind: this.terminal.bufferKind(),
-      cursor: this.terminal.cursor(),
-      title: this.title,
-      serializedScreen: this.terminal.serialize() + this.inputModes.snapshot(),
+    const geometry = this.getGeometry()
+    let snapshot: PresentationSnapshotTerminalResult | undefined
+    // Read inside the FIFO: no write can land between the screen and the modes.
+    await this.enqueue(() => {
+      snapshot = {
+        sessionId: this.sessionId,
+        epoch: this.epoch,
+        appliedSeq: this.appliedSeq,
+        presentationRevision: this.presentationRevision,
+        cols: geometry.cols,
+        rows: geometry.rows,
+        geometryRevision: geometry.revision,
+        bufferKind: this.terminal.bufferKind(),
+        cursor: this.terminal.cursor(),
+        title: this.title,
+        // xterm's serializer (serializeTerminalState) already carries the active modes.
+        serializedScreen:
+          this.terminal.kind === 'xterm'
+            ? this.terminal.serialize()
+            : this.terminal.serialize() + this.inputModes.snapshot(),
+      }
+    })
+    if (!snapshot) {
+      throw new Error('Terminal presentation was disposed')
     }
+    return snapshot
   }
 
   public dispose(): void {

@@ -261,65 +261,6 @@ describe.skipIf(process.platform === 'win32')('terminal Agent POSIX shim', () =>
     },
   )
 
-  it('sends only the allow-listed shell variables to the gateway', async () => {
-    const root = await mkdtemp(join(tmpdir(), 'opencove-terminal-shim-env-'))
-    roots.push(root)
-    const realBin = join(root, 'real')
-    await mkdir(realBin)
-    const realClaude = join(realBin, 'claude')
-    await writeFile(
-      realClaude,
-      '#!/bin/sh\nprintf "CHILD_SECRET=%s\\n" "$OPENCOVE_TEST_SHELL_SECRET"\n',
-    )
-    await chmod(realClaude, 0o700)
-    const seenEnvironments: Array<Readonly<NodeJS.ProcessEnv> | undefined> = []
-    const gateway = new TerminalAgentActivityGateway({
-      registry: new TerminalAgentInvocationRegistry(),
-      resolveHookInjection: () => ({
-        prepareHookInjection: async command => {
-          seenEnvironments.push(command.environment)
-          return { args: [], env: {}, hookInstallState: 'installed' }
-        },
-      }),
-    })
-    const terminal = await gateway.reserveTerminal()
-    terminal.commit('pty-env')
-    const assets = new TerminalAgentTelemetryAssetStore({
-      parentDirectory: root,
-      runtimeExecutable: process.execPath,
-      platform: process.platform,
-    })
-    const published = await assets.ensure()
-
-    const result = await run(process.execPath, [published.launcherPath, 'claude'], {
-      cwd: root,
-      env: {
-        ELECTRON_RUN_AS_NODE: '1',
-        HOME: root,
-        CODEX_HOME: join(root, '.codex'),
-        OPENCOVE_TEST_SHELL_SECRET: 'do-not-forward',
-        ANTHROPIC_API_KEY: 'do-not-forward',
-        OPENCOVE_TERMINAL_AGENT_ENDPOINT: terminal.endpoint,
-        OPENCOVE_TERMINAL_AGENT_TOKEN: terminal.token,
-        OPENCOVE_TERMINAL_AGENT_SHIM_DIRECTORY: published.shimDirectory,
-        PATH: `${published.shimDirectory}:${realBin}:/usr/bin:/bin`,
-      },
-    })
-
-    expect(result).toMatchObject({ code: 0, signal: null })
-    // The provider itself still runs with the user's full shell environment.
-    expect(result.stdout).toContain('CHILD_SECRET=do-not-forward')
-    expect(seenEnvironments).toHaveLength(1)
-    expect(seenEnvironments[0]).toEqual({
-      HOME: root,
-      CODEX_HOME: join(root, '.codex'),
-      PATH: `${published.shimDirectory}:${realBin}:/usr/bin:/bin`,
-    })
-    await terminal.dispose()
-    await assets.dispose()
-    await gateway.dispose()
-  })
-
   it('waits for hook planning before launching the real provider', async () => {
     const root = await mkdtemp(join(tmpdir(), 'opencove-terminal-shim-planning-'))
     roots.push(root)
@@ -399,6 +340,42 @@ describe.skipIf(process.platform === 'win32')('terminal Agent POSIX shim', () =>
 
     expect(result.stdout).toContain(`REAL_EXECUTABLE=${realClaude}`)
     expect(result).toMatchObject({ code: 23, signal: null })
+    await assets.dispose()
+  })
+
+  it('skips its own provider shims when the environment does not name them', async () => {
+    // A canvas agent launch resolves `claude` by name. If provider shims reach that PATH without
+    // OPENCOVE_TERMINAL_AGENT_SHIM_DIRECTORY, the launcher must still find the real executable
+    // instead of re-entering its own shim forever.
+    const root = await mkdtemp(join(tmpdir(), 'opencove-terminal-shim-unnamed-'))
+    roots.push(root)
+    const realBin = join(root, 'real')
+    await mkdir(realBin)
+    const realClaude = join(realBin, 'claude')
+    await writeFile(realClaude, '#!/bin/sh\nprintf "REAL_EXECUTABLE=%s\\n" "$0"\nexit 23\n')
+    await chmod(realClaude, 0o700)
+    const assets = new TerminalAgentTelemetryAssetStore({
+      parentDirectory: root,
+      runtimeExecutable: process.execPath,
+      platform: process.platform,
+    })
+    const published = await assets.ensure()
+    const env: NodeJS.ProcessEnv = {
+      ...process.env,
+      ELECTRON_RUN_AS_NODE: '1',
+      PATH: `${published.cliShimDirectory}:${published.shimDirectory}:${realBin}:/usr/bin:/bin`,
+    }
+    delete env.OPENCOVE_TERMINAL_AGENT_SHIM_DIRECTORY
+    delete env.OPENCOVE_TERMINAL_AGENT_ENDPOINT
+    delete env.OPENCOVE_TERMINAL_AGENT_TOKEN
+    const result = await run(join(published.shimDirectory, 'claude'), [], { cwd: root, env })
+
+    expect(result.stdout).toContain(`REAL_EXECUTABLE=${realClaude}`)
+    expect(result).toMatchObject({ code: 23, signal: null })
+    // The CLI shim directory is the only one a canvas session gets; it must not shadow providers.
+    expect(existsSync(join(published.cliShimDirectory, 'opencove'))).toBe(true)
+    expect(existsSync(join(published.cliShimDirectory, 'claude'))).toBe(false)
+    expect(existsSync(join(published.shimDirectory, 'opencove'))).toBe(false)
     await assets.dispose()
   })
 

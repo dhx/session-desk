@@ -10,9 +10,13 @@ Workspace:
   space    List and inspect project spaces
   node     Create, read, update and delete canvas nodes
   canvas   Focus nodes and spaces on the canvas
+  agent    List, inspect, prompt, wait for and read agents
 
 Introspection:
-  api  Discover operations, inspect input schemas and invoke the Control Surface
+  skill    Print the bundled agent usage guide
+  whoami   Show your caller identity and permission scope
+  context  Orient yourself in a project and space
+  api      Discover operations, inspect input schemas and invoke the Control Surface
 
 Runtime:
   ping      Check whether the Control Surface responds
@@ -29,20 +33,29 @@ Runtime:
 Plugins:
   plugin  Discover, install and manage plugins
 
+Selectors:
+  Node, space and project options accept @self, an exact ID, an exact name (case-sensitive), or a unique ID prefix of 6+ characters.
+  @self uses your terminal identity. Names are scoped by --project or your own project inside OpenCove; explicit --space constrains every node selector, including full IDs. Ambiguous targets require a full ID.
+
 Global options:
   --endpoint <url>         Connect to this Control Surface URL
   --token <token>          Authenticate with this bearer token
   --user-data <dir>        Use this profile directory
   --timeout <ms>           Set the request timeout in milliseconds (default: 20000)
   --pretty                 Indent JSON output for readability
-  --fields <a,b,...>       Select item-relative fields; preserve envelopes and accept item-key prefixes. api call queries use raw output paths
-  -o, --output json|table  Choose JSON (default) or a supported table layout
+  --limit <n>              Limit output lists to n items (0 means all); cut object lists add truncated totals, bare arrays write one stderr notice
+  --fields <a,b,...>       Select item-relative fields; preserve envelopes and accept item-key prefixes. api call queries also accept raw output paths
+  -o, --output json|table  Choose JSON (default; agent read/session final default to message text) or a supported table layout
   -h, --help               Show help for this command or group
   --version                Print the CLI version
 
 Exit codes: 0 success; 1 operation failure; 2 invalid input; 3 unreachable; 4 unauthorized; 5 incompatible protocol; 6 ambiguous target; 124 timeout; 130 interrupted.
 
-Run "opencove <group> --help" for commands in a group. Run "opencove api ops" to list every Control Surface operation.
+Run "opencove <group> --help" for commands in a group.
+Start with "opencove api ops --domains" for a compact domain map.
+Then run "opencove api ops --prefix node --fields id,cliCommand" to explore one domain.
+Run "opencove api ops" only when you need the full catalog.
+AI agents: run \`opencove skill\` for a usage guide.
 "
 `;
 
@@ -61,16 +74,18 @@ Global options: see "opencove --help".
 `;
 
 exports[`TypeScript CLI core > help snapshot "node" 2`] = `
-"Usage: opencove node create note (--space <id> | <other-target-space-options>) [options]
+"Usage: opencove node create note [--space <id> | <other-target-space-options>] [options]
 
 Create a note node
 
-Target space (choose exactly one):
-  --space <id>                                  Select a space by its ID
+When no target is given, inside OpenCove defaults to your own space; project options default to your own project.
+
+Target space (choose one; inside OpenCove defaults to your own space):
+  --space <id>                                  Select a space by its ID; also accepts @self, an exact name or a unique ID prefix (6+ characters)
   --space-name <name> [--project <id>]          Find a named space, optionally within a project
   --worker <id-or-name> --branch <branch>       Find a space by worker and Git branch
   --worker <id-or-name> --path <absolute-path>  Find a space by worker and working directory
-  Add --project <id> to narrow a name, branch or path lookup
+  --project <id>                                Narrow a space name, branch or path lookup to one project; also accepts @self, an exact name or a unique ID prefix (6+ characters)
 
 Options:
   --text <text>         Set the note contents
@@ -105,9 +120,13 @@ Workspace:
   space    List and inspect project spaces
   node     Create, read, update and delete canvas nodes
   canvas   Focus nodes and spaces on the canvas
+  agent    List, inspect, prompt, wait for and read agents
 
 Introspection:
-  api  Discover operations, inspect input schemas and invoke the Control Surface
+  skill    Print the bundled agent usage guide
+  whoami   Show your caller identity and permission scope
+  context  Orient yourself in a project and space
+  api      Discover operations, inspect input schemas and invoke the Control Surface
 
 Runtime:
   ping      Check whether the Control Surface responds
@@ -124,19 +143,28 @@ Runtime:
 Plugins:
   plugin  Discover, install and manage plugins
 
+Selectors:
+  Node, space and project options accept @self, an exact ID, an exact name (case-sensitive), or a unique ID prefix of 6+ characters.
+  @self uses your terminal identity. Names are scoped by --project or your own project inside OpenCove; explicit --space constrains every node selector, including full IDs. Ambiguous targets require a full ID.
+
 Global options:
   --endpoint <url>         Connect to this Control Surface URL
   --token <token>          Authenticate with this bearer token
   --user-data <dir>        Use this profile directory
   --timeout <ms>           Set the request timeout in milliseconds (default: 20000)
   --pretty                 Indent JSON output for readability
-  --fields <a,b,...>       Select item-relative fields; preserve envelopes and accept item-key prefixes. api call queries use raw output paths
-  -o, --output json|table  Choose JSON (default) or a supported table layout
+  --limit <n>              Limit output lists to n items (0 means all); cut object lists add truncated totals, bare arrays write one stderr notice
+  --fields <a,b,...>       Select item-relative fields; preserve envelopes and accept item-key prefixes. api call queries also accept raw output paths
+  -o, --output json|table  Choose JSON (default; agent read/session final default to message text) or a supported table layout
   -h, --help               Show help for this command or group
   --version                Print the CLI version
 
 Exit codes: 0 success; 1 operation failure; 2 invalid input; 3 unreachable; 4 unauthorized; 5 incompatible protocol; 6 ambiguous target; 124 timeout; 130 interrupted.
 
-Run "opencove <group> --help" for commands in a group. Run "opencove api ops" to list every Control Surface operation.
+Run "opencove <group> --help" for commands in a group.
+Start with "opencove api ops --domains" for a compact domain map.
+Then run "opencove api ops --prefix node --fields id,cliCommand" to explore one domain.
+Run "opencove api ops" only when you need the full catalog.
+AI agents: run \`opencove skill\` for a usage guide.
 "
 `;

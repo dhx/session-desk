@@ -2,7 +2,10 @@ import type { AppErrorCode } from '../../../shared/contracts/dto'
 import type { ControlSurfaceOperationKind } from '../../../shared/contracts/controlSurface'
 
 export interface ControlSurfaceContext {
+  readonly spawnIdentity?: import('./sessionSpawnIdentityContext').CanvasSpawnIdentity
+  readonly requestAuth?: import('./http/requestAuth').RequestAuth
   /** In-process caller lifecycle fence; never accepted from a transport payload. */
+  readonly signal?: AbortSignal
   readonly assertActive?: () => void
   readonly validateNodeTarget?: (
     target: import('../../../contexts/workspace/application/nodeControl/nodeCreationTarget').ResolvedNodeCreationTarget,

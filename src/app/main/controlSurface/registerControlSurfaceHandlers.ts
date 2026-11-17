@@ -1,3 +1,6 @@
+import { registerAgentPromptHandlers } from './handlers/agentPromptHandlers'
+import { registerWorkspaceBootstrapHandlers } from './handlers/workspaceBootstrapHandlers'
+import { registerAgentRunStateHandlers } from './handlers/agentRunStateHandlers'
 import { registerPluginHostHandlers } from './handlers/pluginHostHandlers'
 import type { ControlSurfaceContext } from './types'
 import type { PluginDistributionService } from '@contexts/plugins/application/PluginDistributionService'
@@ -69,10 +72,15 @@ export function registerControlSurfaceHandlers(
     terminalSpawnAdmission: TerminalSpawnAdmission
     terminalRecoverySpawnAdmission: TerminalRecoverySpawnAdmission
     agentProviderRegistry: AgentProviderRegistry
-    readHookFinalMessage: (sessionId: string) => string | null
     terminalAgentActivity?: TerminalAgentActivityEnvironmentService
   },
 ): void {
+  const deliveries = registerAgentPromptHandlers(
+    controlSurface,
+    deps.ptyStreamHub,
+    deps.agentProviderRegistry,
+  )
+  registerAgentRunStateHandlers(controlSurface, deps.ptyStreamHub, deliveries)
   registerSystemHandlers(controlSurface, {
     appVersion: deps.appVersion,
     deploymentId: deps.deploymentId,
@@ -88,6 +96,7 @@ export function registerControlSurfaceHandlers(
     userDataPath: deps.userDataPath,
   })
   registerProjectHandlers(controlSurface, deps.getPersistenceStore)
+  registerWorkspaceBootstrapHandlers(controlSurface, deps)
   registerSpaceHandlers(controlSurface, deps.getPersistenceStore)
   registerSpaceMutationHandlers(controlSurface, {
     getPersistenceStore: deps.getPersistenceStore,
@@ -137,7 +146,6 @@ export function registerControlSurfaceHandlers(
     terminalSpawnAdmission: deps.terminalSpawnAdmission,
     terminalRecoverySpawnAdmission: deps.terminalRecoverySpawnAdmission,
     agentProviderRegistry: deps.agentProviderRegistry,
-    readHookFinalMessage: deps.readHookFinalMessage,
   })
   registerSessionStreamingHandlers(controlSurface, {
     approvedWorkspaces: deps.approvedWorkspaces,

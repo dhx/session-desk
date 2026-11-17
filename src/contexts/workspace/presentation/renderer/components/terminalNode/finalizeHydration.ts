@@ -11,7 +11,6 @@ export function finalizeTerminalHydration({
   bufferedDataChunks,
   bufferedExitCode,
   terminal,
-  inputModeReplay = '',
   committedScrollbackBuffer,
   onCommittedScreenState,
   markScrollbackDirty,
@@ -33,7 +32,6 @@ export function finalizeTerminalHydration({
   bufferedDataChunks: string[]
   bufferedExitCode: number | null
   terminal: Parameters<typeof replayBufferedHydrationOutput>[0]['terminal']
-  inputModeReplay?: string
   committedScrollbackBuffer: {
     set: (snapshot: string) => void
     append: (data: string) => void
@@ -78,7 +76,6 @@ export function finalizeTerminalHydration({
     bufferedData,
     bufferedExitCode,
     resetTerminalBeforeFirstWrite: shouldReplaceBaseline,
-    inputModeReplay,
     scrollbackBuffer,
     committedScrollbackBuffer,
     onCommittedScreenState,

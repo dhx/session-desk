@@ -1,3 +1,4 @@
+import { agentMetadataFields } from '../core/agentMetadata'
 import { declaredOutput, noResultOutput } from './declaredOutput'
 import type { RenderSpec } from '../core/command'
 const nodeFields = [
@@ -47,20 +48,34 @@ const dataFields = [
   'taskId',
   'runtimeKind',
 ]
+const summaryDataFields = [
+  'kind',
+  'status',
+  'priority',
+  'requirement',
+  'tags',
+  'url',
+  'linkedAgentNodeId',
+]
 export const nodeListOutput: RenderSpec = {
   listKey: 'nodes',
   fields: [
     ...nodeFields,
+    ...agentMetadataFields,
+    'taskNodeId',
     'data',
-    'data.kind',
-    'data.status',
-    'data.priority',
-    'data.requirement',
-    'data.tags',
-    'data.url',
+    ...summaryDataFields.map(field => `data.${field}`),
   ],
-  columns: ['id', 'kind', 'title', 'STATE'],
-  tableFields: { STATE: ['data.status', 'status'] },
+  fieldHints: Object.fromEntries(
+    dataFields
+      .filter(field => !summaryDataFields.includes(field))
+      .map(field => [
+        `data.${field}`,
+        `Read full node content with "opencove node get --node <id> --fields data.${field}".`,
+      ]),
+  ),
+  columns: ['id', 'kind', 'title', 'state'],
+  tableFields: { state: ['data.status', 'status'] },
   examples: [
     'opencove node list --fields id,data.status',
     '{"projectId":"p","spaceId":null,"nodes":[{"id":"n","data":{"status":"doing"}}]}',
@@ -120,13 +135,23 @@ export const spaceListOutput: RenderSpec = {
     'opencove space list --fields id,name',
     '{"projectId":"p","activeSpaceId":"s","spaces":[{"id":"s","name":"Main"}]}',
   ],
-  fields: [...spaceFields, 'projectId'],
+  fields: [
+    ...spaceFields,
+    'nodeCount',
+    'projectId',
+    ...nodeListOutput.fields!.map(field => `nodes.${field}`),
+  ],
   columns: ['id', 'name', 'projectId'],
   envelopeFields: { projectId: 'projectId' },
 }
 export const spaceGetOutput: RenderSpec = {
   itemKey: 'space',
-  fields: [...spaceFields, ...nodeListOutput.fields!.map(field => `nodes.${field}`)],
+  fields: [
+    ...spaceFields,
+    'projectId',
+    'nodeCount',
+    ...nodeListOutput.fields!.map(field => `nodes.${field}`),
+  ],
   examples: [
     'opencove space get --space s --fields id,nodes',
     '{"projectId":"p","activeSpaceId":"s","space":{"id":"s","nodes":[]}}',

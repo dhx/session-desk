@@ -9,6 +9,7 @@ import { zhCNCanvasCollapse } from './zh-CN.canvasCollapse'
 import { zhCNEdgeBeacons } from './zh-CN.edgeBeacons'
 import { zhCNCanvasHud } from './zh-CN.canvasHud'
 import { zhCNControlCenter } from './zh-CN.controlCenter'
+import { zhCNAgentAttention } from './zh-CN.agentAttention'
 import { zhCNCommandCenter } from './zh-CN.commandCenter'
 import { zhCNSpaceCollapse } from './zh-CN.spaceCollapse'
 import { zhCNVoice } from './zh-CN.voice'
@@ -39,6 +40,7 @@ export const zhCN = {
   ...zhCNEdgeBeacons,
   ...zhCNCanvasHud,
   ...zhCNControlCenter,
+  ...zhCNAgentAttention,
   ...zhCNCommandCenter,
   ...zhCNSpaceCollapse,
   ...zhCNVoice,
@@ -145,12 +147,10 @@ export const zhCN = {
     updateDownloadingTitle: '正在下载 {{version}}（{{percent}}）',
     restartToUpdateShort: '重启更新',
     restartToUpdateTitle: '版本 {{version}} 已准备好安装',
-    agentsWaiting_one: '{{count}} 个待确认',
-    agentsWaiting_other: '{{count}} 个待确认',
+    agentsWaiting_one: '{{count}} 个等你',
+    agentsWaiting_other: '{{count}} 个等你',
     agentsWorking_one: '{{count}} 个工作中',
     agentsWorking_other: '{{count}} 个工作中',
-    goToWaitingAgent_one: '有 Agent 在等你，前往「{{title}}」',
-    goToWaitingAgent_other: '有 {{count}} 个 Agent 在等你，前往「{{title}}」',
   },
   whatsNew: {
     title: '更新内容',
@@ -293,11 +293,19 @@ export const zhCN = {
     deleteTask: '删除任务',
     noTags: '没有标签',
     editMeta: '编辑优先级和标签',
+    status: '任务状态',
     requirement: '任务要求',
+    requirementPlaceholder: '要做什么？拖入文件可添加路径。',
     agents: 'Agent 会话',
-    noAgentSessionsYet: '还没有 Agent 会话记录。',
+    noSessionsHint: '还没有会话 · 运行后出现在这里',
+    noSessions: '没有会话',
+    sessionCount_one: '{{count}} 个会话',
+    sessionCount_other: '{{count}} 个会话',
+    sessionsRunning_one: '{{count}} 个在跑',
+    sessionsRunning_other: '{{count}} 个在跑',
+    moreSessions_one: '还有 {{count}} 个会话',
+    moreSessions_other: '还有 {{count}} 个会话',
     defaultModel: '默认模型',
-    lastRun: '上次运行 · {{timestamp}}',
     resume: '继续',
     removeRecord: '移除记录',
     runAgent: '运行',

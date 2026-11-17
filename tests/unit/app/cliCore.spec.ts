@@ -1,7 +1,9 @@
 // @vitest-environment node
+import { CONTROL_SURFACE_OPERATIONS } from '../../../src/shared/contracts/controlSurface/operations'
 import { describe, it, expect, vi } from 'vitest'
-import { run } from '../../../src/app/cli/core/run'
+import { runWithTargetFixtures as run } from './cliTargetFixtures.helpers'
 import type { CliIo } from '../../../src/app/cli/core/io'
+import { createControlToken } from '../../../src/app/main/controlSurface/http/createControlToken'
 function fixture(value: unknown = { pong: true }) {
   let stdout = '',
     stderr = ''
@@ -76,6 +78,22 @@ describe('TypeScript CLI core', () => {
     )
     expect(f.fetch.mock.calls[0][0]).toBe('http://localhost:2/invoke')
     expect(f.io.readTextFile).not.toHaveBeenCalled()
+    expect(f.out()).toBe('{"pong":true}\n')
+    expect(f.err()).toBe('')
+  })
+  it('accepts a generated token in the documented --token <value> form', async () => {
+    const token = createControlToken(() => Buffer.alloc(32, 0xf8))
+    const f = fixture()
+
+    const code = await run(['ping', '--endpoint', 'http://localhost:2', '--token', token], f.io)
+
+    expect(code, f.err()).toBe(0)
+    expect(f.fetch).toHaveBeenCalledWith(
+      'http://localhost:2/invoke',
+      expect.objectContaining({
+        headers: expect.objectContaining({ authorization: `Bearer ${token}` }),
+      }),
+    )
     expect(f.out()).toBe('{"pong":true}\n')
     expect(f.err()).toBe('')
   })
@@ -187,7 +205,7 @@ describe('TypeScript CLI core', () => {
   it('renders table', async () => {
     const f = fixture({ projects: [{ id: '1', name: 'N' }] })
     await run(['project', 'list', '-o', 'table'], f.io)
-    expect(f.out()).toBe('id  name\n1   N\n')
+    expect(f.out()).toBe('ID  NAME\n1   N\n')
   })
   it.each(['node.create', 'system.operations', 'system.operation.describe'])(
     'schema %s offline',
@@ -202,7 +220,10 @@ describe('TypeScript CLI core', () => {
   )
   it('legacy schema error', async () => {
     const f = fixture()
-    expect(await run(['api', 'schema', 'agent.listSessions'], f.io)).toBe(1)
+    // Any operation still on the legacy contract has no input schema to print.
+    const legacy = CONTROL_SURFACE_OPERATIONS.find(op => op.contract === 'legacy')
+    expect(legacy).toBeDefined()
+    expect(await run(['api', 'schema', legacy!.id], f.io)).toBe(1)
     expect(f.err()).toContain('api.schema_unavailable')
   })
   it('routes session through the core', async () => {

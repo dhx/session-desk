@@ -19,7 +19,7 @@ it('has unique, complete metadata and strictly exportable wire schemas', () => {
   expect(new Set(CONTROL_SURFACE_OPERATIONS.map(op => op.id)).size).toBe(
     CONTROL_SURFACE_OPERATIONS.length,
   )
-  expect(CONTROL_SURFACE_OPERATIONS.filter(op => op.contract === 'schema')).toHaveLength(55) // 54 upstream + filesystem.browseDirectory
+  expect(CONTROL_SURFACE_OPERATIONS.filter(op => op.contract === 'schema')).toHaveLength(151) // 150 upstream + filesystem.browseDirectory
   for (const op of CONTROL_SURFACE_OPERATIONS) {
     expect(Object.isFrozen(op)).toBe(true)
     expect(getControlSurfaceOperation(op.id)).toBe(op)
@@ -55,7 +55,11 @@ registerOperation(surface, filesystemWriteFileTextOperation, {
 })
 const oracles: Record<string, (payload: unknown) => unknown> = {
   'node.create': normalizeCreatePayload,
-  'session.launchAgent': normalizeLaunchAgentPayload,
+  // The frozen oracle predates this opt-in field; legacy corpus inputs omit it.
+  'session.launchAgent': payload => ({
+    ...normalizeLaunchAgentPayload(payload),
+    codexReuseRunningAppServer: null,
+  }),
   'filesystem.writeFileText': normalizeWriteFileTextPayload,
 }
 function attempt(parse: (payload: unknown) => unknown, payload: unknown) {
@@ -132,6 +136,7 @@ it('defaults normalization to identity and freezes constructors', async () => {
 it.each([
   ['endpoint.readDirectory', 'admin'],
   ['session.finalMessage', 'interact'],
+  ['session.finalMessageForNode', 'interact'],
   ['plugin.sidebar.items', 'interact'],
 ] as const)('classifies side-effecting query %s as %s', (id, scope) => {
   expect(getControlSurfaceOperation(id)).toMatchObject({ kind: 'query', scope })
@@ -200,4 +205,44 @@ it('passes original own keys to legacy normalization after successful schema adm
     defaultErrorCode: 'common.unexpected',
   })
   expect(validators[operation.id](payload)).toEqual(['id', '__proto__'])
+})
+
+it('describes every input field in words an agent can act on', () => {
+  const problems: string[] = []
+  const visit = (schema: unknown, path: string, field: string | null): void => {
+    if (!schema || typeof schema !== 'object') {
+      return
+    }
+    const node = schema as Record<string, unknown>
+    const description = typeof node.description === 'string' ? node.description.trim() : null
+    if (description !== null && field !== null) {
+      const lowered = description.toLowerCase()
+      if (
+        description.length < 8 ||
+        lowered === field.toLowerCase() ||
+        lowered.startsWith(`${field.toLowerCase()}:`) ||
+        /^(provide|perform|query|set) (the|a) (identifier|value|field)\b/i.test(description)
+      ) {
+        problems.push(`${path}: "${description}"`)
+      }
+    }
+    for (const [key, value] of Object.entries(node)) {
+      if (key === 'properties' && value && typeof value === 'object') {
+        for (const [name, child] of Object.entries(value)) {
+          visit(child, `${path}.${name}`, name)
+        }
+      } else if (Array.isArray(value)) {
+        value.forEach((child, index) => visit(child, `${path}[${index}]`, field))
+      } else if (value && typeof value === 'object') {
+        visit(value, `${path}.${key}`, field)
+      }
+    }
+  }
+  for (const op of CONTROL_SURFACE_OPERATIONS) {
+    if (op.contract !== 'schema') {
+      continue
+    }
+    visit(z.toJSONSchema(op.input, { io: 'input', unrepresentable: 'throw' }), op.id, null)
+  }
+  expect(problems).toEqual([])
 })

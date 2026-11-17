@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react'
-import { Bot, ChevronUp } from 'lucide-react'
+import { ChevronUpIcon, RobotIcon } from '@app/renderer/components/ui/pixelIcons'
 import { ViewportMenuSurface } from '@app/renderer/components/ViewportMenuSurface'
 import { Button } from '@app/renderer/components/ui/Button'
 import { MenuCheckboxItem, MenuItem } from '@app/renderer/components/ui/Menu'
@@ -53,7 +53,7 @@ export function VoiceTargetPicker({
         <span className="voice-target-button__text">
           {boss ? boss.title : t('voice.target.choose')}
         </span>
-        <ChevronUp aria-hidden="true" size={14} />
+        <ChevronUpIcon aria-hidden="true" size={12} />
       </Button>
       <ViewportMenuSurface
         open={point !== null}
@@ -75,14 +75,14 @@ export function VoiceTargetPicker({
         onDismiss={() => setPoint(null)}
       >
         {agents.length === 0 ? (
-          <MenuItem icon={<Bot />} disabled>
+          <MenuItem icon={<RobotIcon />} disabled>
             {t('voice.settings.bossNoAgents')}
           </MenuItem>
         ) : (
           agents.map(agent => (
             <MenuCheckboxItem
               key={agent.nodeId}
-              icon={<Bot />}
+              icon={<RobotIcon />}
               checked={agent.nodeId === boss?.nodeId}
               data-testid={`voice-target-option-${agent.nodeId}`}
               onCheckedChange={() => {

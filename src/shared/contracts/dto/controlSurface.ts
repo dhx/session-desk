@@ -261,6 +261,8 @@ export interface ArchiveWorktreeResult {
 }
 
 export interface LaunchAgentSessionInput {
+  canvasNodeId?: string
+  workspaceId?: string
   spaceId?: string | null
   cwd?: string | null
   prompt: string
@@ -271,11 +273,15 @@ export interface LaunchAgentSessionInput {
   env?: Record<string, string> | null
   executablePathOverride?: string | null
   agentFullAccess?: boolean | null
+  codexReuseRunningAppServer?: boolean | null
   cols?: number | null
   rows?: number | null
 }
 
 export interface LaunchAgentSessionInMountInput {
+  canvasNodeId?: string
+  workspaceId?: string
+  spaceId?: string
   mountId: string
   cwdUri?: string | null
   prompt: string
@@ -286,6 +292,7 @@ export interface LaunchAgentSessionInMountInput {
   env?: Record<string, string> | null
   executablePathOverride?: string | null
   agentFullAccess?: boolean | null
+  codexReuseRunningAppServer?: boolean | null
   cols?: number | null
   rows?: number | null
 }
@@ -303,9 +310,7 @@ export interface LaunchAgentSessionResult {
   args: string[]
 }
 
-export interface GetSessionInput {
-  sessionId: string
-}
+export type GetSessionInput = import('../controlSurface/operations/sessionAddress').SessionAddress
 
 export interface AttachAgentStateWatcherInput {
   sessionId: string
@@ -330,14 +335,12 @@ export interface GetSessionResult {
   args: string[]
 }
 
-export interface GetSessionFinalMessageInput {
-  sessionId: string
-}
+export type GetSessionFinalMessageInput = GetSessionInput
 
 export interface GetSessionFinalMessageResult {
   sessionId: string
   provider: AgentProviderId
-  startedAt: string
+  startedAt: string | null
   cwd: string
   resumeSessionId: string | null
   message: string | null
@@ -445,6 +448,8 @@ export interface PrepareOrReviveSessionResult {
 export type ControlSurfaceTerminalRuntime = 'shell' | 'node'
 
 export interface SpawnTerminalSessionInput {
+  canvasNodeId?: string
+  workspaceId?: string
   spaceId: string
   runtime?: ControlSurfaceTerminalRuntime | null
   command?: string | null
@@ -460,4 +465,17 @@ export interface SpawnTerminalSessionResult {
   command: string
   args: string[]
   executionContext: ExecutionContextDto
+}
+
+/** Node lookup does not invent launch-only metadata absent after restart. */
+export type GetNodeSessionResult = Omit<
+  GetSessionResult,
+  'provider' | 'startedAt' | 'prompt' | 'command' | 'args'
+> & {
+  nodeId: string
+  provider: AgentProviderId | null
+  startedAt: string | null
+  prompt: string | null
+  command: string | null
+  args: string[] | null
 }

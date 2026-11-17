@@ -1,3 +1,4 @@
+import { agentPromptErrorPresentation } from './agentPromptError'
 import { fileSystemErrorReasonMessage } from './filesystemError'
 import type { AppErrorCode, AppErrorDescriptor, AppErrorParams } from '../contracts/dto'
 import type { IpcInvokeResult } from '../contracts/ipc'
@@ -5,6 +6,7 @@ import type { IpcInvokeResult } from '../contracts/ipc'
 function createMessageMap(): Record<AppErrorCode, string> {
   return {
     'common.protocol_incompatible': 'Client and server protocol versions are incompatible.',
+    'common.forbidden': 'This credential does not permit the operation.',
     'common.invalid_input': 'The request was invalid.',
     'plugin.operation_failed': 'Plugin operation failed.',
     'common.approved_path_required': 'The selected path is outside approved workspaces.',
@@ -20,6 +22,7 @@ function createMessageMap(): Record<AppErrorCode, string> {
     'space.ambiguous': 'Space locator matched multiple spaces.',
     'node.not_found': 'Node not found.',
     'node.unsupported_operation': 'This node operation is not supported.',
+    'session.transcript_not_ready': 'Session transcript is not available yet.',
     'session.not_found': 'Session not found.',
     'control_surface.unauthorized': 'Unauthorized request.',
     'integration.github.unavailable': 'GitHub integration is unavailable.',
@@ -75,9 +78,22 @@ function createMessageMap(): Record<AppErrorCode, string> {
     'terminal.attach_failed': 'Unable to attach the terminal session.',
     'terminal.detach_failed': 'Unable to detach the terminal session.',
     'terminal.snapshot_failed': 'Unable to read terminal output.',
+    'agent.blocked': 'The agent is waiting for input.',
+    'agent.delivery_unsettled':
+      'A previous delivery is unresolved. Check its delivery status; never resend.',
+    'agent.busy': 'The agent is busy.',
+    'agent.state_unknown': 'Agent readiness is not established.',
+    'agent.not_running': 'The agent is not running.',
+    'agent.prompt_unsupported': 'Prompt delivery is unsupported.',
+    'agent.prompt_interrupted':
+      'Text may have reached the terminal; Enter was not sent by this operation; inspect before retrying.',
+    'agent.prompt_stalled':
+      'Submission was not observed; do not resend; check the agent before retrying.',
+    'agent.prompt_timeout': 'Prompt delivery deadline expired before any write.',
     'agent.list_models_failed': 'Unable to load models for this provider.',
     'agent.install_failed': 'Unable to install this agent provider.',
     'agent.launch_failed': 'Unable to start the agent.',
+    'agent.final_message_unavailable': 'No retained hook message is available for this turn.',
     'agent.read_last_message_failed': 'Unable to read the last agent message.',
     'agent.resume_session_resolve_failed': 'Unable to resolve the previous agent session.',
     'task.suggest_title_failed': 'Unable to generate task details.',
@@ -204,6 +220,10 @@ export function toAppErrorDescriptor(
 
 export function formatAppErrorMessage(error: AppErrorDescriptor | OpenCoveAppError): string {
   const descriptor = error instanceof OpenCoveAppError ? error.toDescriptor() : error
+  const prompt = agentPromptErrorPresentation(descriptor)
+  if (prompt) {
+    return prompt.message
+  }
   const message = APP_ERROR_MESSAGES[descriptor.code] ?? APP_ERROR_MESSAGES['common.unexpected']
   if (descriptor.code.startsWith('filesystem.')) {
     const reason = fileSystemErrorReasonMessage(descriptor.params?.reason)

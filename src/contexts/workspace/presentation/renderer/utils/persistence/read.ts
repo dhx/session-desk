@@ -78,57 +78,73 @@ function stripScrollbackFromState(state: PersistedAppState): PersistedAppState {
 }
 
 export interface PersistedStateReadResult {
+  revision: number | null
   state: PersistedAppState | null
   recovery: PersistenceRecoveryReason | null
   hasStandardWindowSizeBucket: boolean
   /** False when legacy data can be restored but its durable migration failed. */
   isPersisted: boolean
-  /** Hand back through acceptPersistedStateSnapshot once this state is taken in. */
-  syncToken?: number
 }
 
 export async function readPersistedStateWithMeta(): Promise<PersistedStateReadResult> {
   const port = getPersistencePort()
   if (!port) {
-    return { state: null, recovery: null, hasStandardWindowSizeBucket: false, isPersisted: false }
+    return {
+      revision: null,
+      state: null,
+      recovery: null,
+      hasStandardWindowSizeBucket: false,
+      isPersisted: false,
+    }
   }
 
   const primary = await port.readAppState()
   const recovery = primary?.recovery ?? null
-  const token = typeof primary?.syncToken === 'number' ? { syncToken: primary.syncToken } : {}
 
   if (primary?.state) {
     const parsed = parsePersistedStateValue(primary.state)
     if (parsed.state) {
       const state = applyLocalViewStateToPersistedState(parsed.state)
       return {
+        revision: primary.revision ?? null,
         state,
         recovery,
         hasStandardWindowSizeBucket: parsed.hasStandardWindowSizeBucket,
         isPersisted: true,
-        ...token,
       }
     }
   }
 
   if (port.kind !== 'ipc') {
-    return { state: null, recovery, hasStandardWindowSizeBucket: false, isPersisted: false }
+    return {
+      revision: null,
+      state: null,
+      recovery,
+      hasStandardWindowSizeBucket: false,
+      isPersisted: false,
+    }
   }
 
   const legacyRaw = readLegacyLocalStorageRaw()
   if (!legacyRaw) {
     return {
+      revision: null,
       state: null,
       recovery,
       hasStandardWindowSizeBucket: false,
       isPersisted: false,
-      ...token,
     }
   }
 
   const legacyParsed = parseRawPersistedState(legacyRaw)
   if (!legacyParsed) {
-    return { state: null, recovery, hasStandardWindowSizeBucket: false, isPersisted: false }
+    return {
+      revision: null,
+      state: null,
+      recovery,
+      hasStandardWindowSizeBucket: false,
+      isPersisted: false,
+    }
   }
 
   const migratedState = stripScrollbackFromState(legacyParsed)
@@ -140,6 +156,7 @@ export async function readPersistedStateWithMeta(): Promise<PersistedStateReadRe
   )
   if (!migratedAppStateResult.ok) {
     return {
+      revision: null,
       state: migratedState,
       recovery,
       hasStandardWindowSizeBucket: false,
@@ -161,6 +178,7 @@ export async function readPersistedStateWithMeta(): Promise<PersistedStateReadRe
   )
 
   return {
+    revision: migratedAppStateResult.revision ?? null,
     state: applyLocalViewStateToPersistedState(migratedState),
     recovery,
     hasStandardWindowSizeBucket: false,

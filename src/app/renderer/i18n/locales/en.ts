@@ -16,6 +16,7 @@ import { enCanvasCollapse } from './en.canvasCollapse'
 import { enEdgeBeacons } from './en.edgeBeacons'
 import { enCanvasHud } from './en.canvasHud'
 import { enControlCenter } from './en.controlCenter'
+import { enAgentAttention } from './en.agentAttention'
 import { enCommandCenter } from './en.commandCenter'
 import { enSpaceCollapse } from './en.spaceCollapse'
 import { enVoice } from './en.voice'
@@ -39,6 +40,7 @@ export const en = {
   ...enEdgeBeacons,
   ...enCanvasHud,
   ...enControlCenter,
+  ...enAgentAttention,
   ...enCommandCenter,
   ...enSpaceCollapse,
   ...enVoice,
@@ -150,8 +152,6 @@ export const en = {
     agentsWaiting_other: '{{count}} waiting',
     agentsWorking_one: '{{count}} working',
     agentsWorking_other: '{{count}} working',
-    goToWaitingAgent_one: 'An agent is waiting. Go to {{title}}',
-    goToWaitingAgent_other: '{{count}} agents waiting. Go to {{title}}',
   },
   whatsNew: {
     title: "What's New",
@@ -294,11 +294,19 @@ export const en = {
     deleteTask: 'Delete task',
     noTags: 'No tags',
     editMeta: 'Edit priority and tags',
+    status: 'Task status',
     requirement: 'Task Requirement',
+    requirementPlaceholder: 'What needs doing? Drop files to add paths.',
     agents: 'Agent Sessions',
-    noAgentSessionsYet: 'No agent sessions yet.',
+    noSessionsHint: 'No sessions yet. Run to start one.',
+    noSessions: 'No sessions',
+    sessionCount_one: '{{count}} session',
+    sessionCount_other: '{{count}} sessions',
+    sessionsRunning_one: '{{count}} running',
+    sessionsRunning_other: '{{count}} running',
+    moreSessions_one: '{{count}} more session',
+    moreSessions_other: '{{count}} more sessions',
     defaultModel: 'default model',
-    lastRun: 'Last run · {{timestamp}}',
     resume: 'Resume',
     removeRecord: 'Remove Record',
     runAgent: 'Run',

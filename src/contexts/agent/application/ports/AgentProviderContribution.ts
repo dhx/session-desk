@@ -1,6 +1,7 @@
 import type {
   AgentLaunchMode,
   AgentHookInstallState,
+  AgentHookCoverage,
   AgentProviderAvailability,
   AgentProviderId,
 } from '../../../../shared/contracts/dto'
@@ -43,14 +44,17 @@ export interface AgentLaunchPlan {
   readonly effectiveModel: string | null
   readonly env: Readonly<NodeJS.ProcessEnv>
   readonly launchMode: AgentLaunchMode
+  readonly hookCoverage?: AgentHookCoverage
   readonly hookInstallState?: AgentHookInstallState
   readonly onStarted?: (sessionId: string) => void
   readonly resumeSessionId: string | null
 }
 
 export interface CreateAgentLaunchPlanCommand {
+  readonly environment?: Readonly<NodeJS.ProcessEnv>
   readonly profileId?: string | null
   readonly agentFullAccess: boolean
+  readonly codexReuseRunningAppServer?: boolean
   readonly artifacts: AgentLaunchArtifactRegistrar
   readonly executablePathOverride?: string | null
   readonly mode: AgentLaunchMode
@@ -71,11 +75,13 @@ export interface AgentLaunchPlanner {
 export interface AgentHookInjectionPlan {
   readonly args: readonly string[]
   readonly env: Readonly<NodeJS.ProcessEnv>
+  readonly hookCoverage?: AgentHookCoverage
   readonly hookInstallState: AgentHookInstallState
   readonly onStarted?: (sessionId: string, terminalActivity?: TerminalAgentHookContext) => void
 }
 
 export interface PrepareAgentHookInjectionCommand {
+  readonly codexReuseRunningAppServer?: boolean
   readonly arguments?: readonly string[]
   readonly artifacts: AgentLaunchArtifactRegistrar
   readonly environment?: Readonly<NodeJS.ProcessEnv>
@@ -89,6 +95,7 @@ export interface AgentHookInjectionPlanner {
 }
 
 export interface AgentProviderContribution {
+  readonly prompting?: import('./PromptDeliveryPorts').PromptingCapability
   readonly descriptor: AgentProviderDescriptor
   readonly detector: AgentProviderDetector
   readonly hookInjection?: AgentHookInjectionPlanner

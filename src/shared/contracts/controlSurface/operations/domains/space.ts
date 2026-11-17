@@ -1,23 +1,67 @@
-import { normalizeGetSpacePayload, normalizeListSpacesPayload } from '../spaceQueriesNormalize'
 import * as z from 'zod'
+import { normalizeBootstrapInput } from '../workspaceBootstrapNormalize'
 import { defineLegacyOperation, defineOperation } from '../defineOperation'
-export const spaceCreateChildOperation = defineLegacyOperation({
+import { normalizeCreateChildPayload } from '../spaceCreateChildNormalize'
+import { normalizeGetSpacePayload, normalizeListSpacesPayload } from '../spaceQueriesNormalize'
+export const spaceCreateChildOperation = defineOperation({
+  input: z.union([
+    z.object({
+      parentSpaceId: z.string().describe('Parent space identifier'),
+      projectId: z
+        .string()
+        .nullish()
+        .describe('Owning project identifier; omit to resolve from parent'),
+      name: z.string().nullish().describe('Child space name'),
+      initialNodeIds: z
+        .array(z.string())
+        .nullish()
+        .describe('Node identifiers to move into the child'),
+      rect: z
+        .object({
+          x: z.number().describe('Horizontal canvas position'),
+          y: z.number().describe('Vertical canvas position'),
+          width: z.number().describe('Positive boundary width'),
+          height: z.number().describe('Positive boundary height'),
+        })
+        .or(z.array(z.unknown()))
+        .nullish()
+        .describe('Child boundary with positive width and height'),
+      anchor: z
+        .object({
+          x: z.number().describe('Horizontal anchor position'),
+          y: z.number().describe('Vertical anchor position'),
+        })
+        .or(z.array(z.unknown()))
+        .nullish()
+        .describe('Child anchor position'),
+    }),
+    z.array(z.unknown()),
+  ]),
+  normalize: normalizeCreateChildPayload,
+  legacyNormalize: normalizeCreateChildPayload,
+  errors: [
+    'space.not_found',
+    'persistence.invalid_state',
+    'persistence.unavailable',
+    'persistence.io_failed',
+  ],
   id: 'space.createChild',
   kind: 'command',
   scope: 'interact',
   availability: 'always',
   summary: 'Create a child space and move selected nodes into it',
 })
-// Session Desk (#30): plugins create a top-level Space and rename or recolour one.
-export const spaceCreateOperation = defineLegacyOperation({
-  id: 'space.create',
+// Session Desk (#30): plugins create an empty top-level Space beside the canvas content, and
+// rename or recolour one (host.spaces.create/update). Fork ids, apart from upstream's space.create.
+export const spaceCreateEmptyOperation = defineLegacyOperation({
+  id: 'space.createEmpty',
   kind: 'command',
   scope: 'interact',
   availability: 'always',
-  summary: 'Create an empty top-level space',
+  summary: 'Create an empty top-level space beside the canvas content',
 })
-export const spaceUpdateOperation = defineLegacyOperation({
-  id: 'space.update',
+export const spaceSetAttributesOperation = defineLegacyOperation({
+  id: 'space.setAttributes',
   kind: 'command',
   scope: 'interact',
   availability: 'always',
@@ -49,10 +93,27 @@ export const spaceListOperation = defineOperation({
   legacyNormalize: normalizeListSpacesPayload,
   errors: ['persistence.unavailable'],
 })
+
+export const spaceCreateOperation = defineOperation({
+  id: 'space.create',
+  kind: 'command',
+  scope: 'interact',
+  availability: 'always',
+  summary: 'Create a top-level space bound to the project default mount',
+  input: z.object({
+    projectId: z.string(),
+    name: z.string(),
+    directoryPath: z.string().optional(),
+  }),
+  normalize: input => normalizeBootstrapInput(input),
+  errors: ['persistence.invalid_state', 'persistence.io_failed', 'persistence.unavailable'],
+})
+
 export const spaceOperations = [
-  spaceCreateChildOperation,
   spaceCreateOperation,
-  spaceUpdateOperation,
+  spaceCreateChildOperation,
+  spaceCreateEmptyOperation,
+  spaceSetAttributesOperation,
   spaceGetOperation,
   spaceListOperation,
 ] as const

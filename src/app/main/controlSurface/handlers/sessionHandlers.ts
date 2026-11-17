@@ -1,3 +1,4 @@
+import { createSessionNodeResolver } from './sessionNodeResolver'
 import { registerOperation } from '../registerOperation'
 import {
   sessionGetOperation,
@@ -18,6 +19,7 @@ import {
 import { normalizePersistedAppState } from '../../../../platform/persistence/sqlite/normalize'
 import { resolveSpaceMountContext } from '../../../../contexts/space/application/resolveSpaceMountContext'
 import type {
+  GetNodeSessionResult,
   GetSessionResult,
   LaunchAgentSessionInput,
   LaunchAgentSessionResult,
@@ -59,6 +61,7 @@ import {
   mergeAgentLaunchEnvironment,
   prepareAgentSessionEnvironment,
 } from './agentLaunchEnvironment'
+
 export function registerSessionHandlers(
   controlSurface: ControlSurface,
   deps: {
@@ -72,10 +75,10 @@ export function registerSessionHandlers(
     terminalSpawnAdmission: TerminalSpawnAdmission
     terminalRecoverySpawnAdmission: TerminalRecoverySpawnAdmission
     agentProviderRegistry: AgentProviderRegistry
-    readHookFinalMessage?: (sessionId: string) => string | null
   },
 ): void {
   const sessions = new Map<string, SessionRecord>()
+  const resolveNode = createSessionNodeResolver(deps)
 
   registerOperation(controlSurface, sessionLaunchAgentOperation, {
     handle: async (ctx, payload): Promise<LaunchAgentSessionResult> => {
@@ -95,6 +98,7 @@ export function registerSessionHandlers(
           resumeSessionIdPresent: !!resumeSessionId,
           executablePathOverridePresent: !!payload.executablePathOverride,
           agentFullAccess: payload.agentFullAccess ?? null,
+          codexReuseRunningAppServer: payload.codexReuseRunningAppServer ?? null,
           cols: payload.cols ?? null,
           rows: payload.rows ?? null,
         },
@@ -145,6 +149,7 @@ export function registerSessionHandlers(
                 env: payload.env ?? null,
                 executablePathOverride: payload.executablePathOverride ?? null,
                 agentFullAccess: payload.agentFullAccess ?? null,
+                codexReuseRunningAppServer: payload.codexReuseRunningAppServer ?? null,
                 cols: payload.cols,
                 rows: payload.rows,
               } satisfies LaunchAgentSessionInput & { mountId: string; cwdUri: string | null },
@@ -206,7 +211,7 @@ export function registerSessionHandlers(
         state: normalizePersistedAppState(await (await deps.getPersistenceStore()).readAppState()),
         provider,
       })
-      const { agentFullAccess, executablePathOverride } = security
+      const { agentFullAccess, executablePathOverride, codexReuseRunningAppServer } = security
       logAgentLaunchInfo('control-surface-resolved-settings', 'Resolved agent launch settings.', {
         provider,
         mode,
@@ -215,6 +220,7 @@ export function registerSessionHandlers(
         executablePathOverridePresent: !!executablePathOverride,
         ...security.diagnostics,
         agentFullAccess,
+        codexReuseRunningAppServer,
         cols: payload.cols ?? 80,
         rows: payload.rows ?? 24,
       })
@@ -234,6 +240,7 @@ export function registerSessionHandlers(
       })
 
       const { launchCommand, managedLaunch, testStub } = await prepareAgentLaunch({
+        environment: { ...sessionEnv, ...payload.env },
         registry: deps.agentProviderRegistry,
         profileId: agentSettings.defaultTerminalProfileId,
         provider,
@@ -243,6 +250,7 @@ export function registerSessionHandlers(
         resumeSessionId,
         prompt: payload.prompt,
         agentFullAccess,
+        codexReuseRunningAppServer,
         opencodeServer,
         executablePathOverride,
       })
@@ -327,6 +335,7 @@ export function registerSessionHandlers(
           ...(managedLaunch.plan.hookInstallState
             ? { hookInstallState: managedLaunch.plan.hookInstallState }
             : {}),
+          hookCoverage: managedLaunch.plan.hookCoverage,
           launchArtifacts: managedLaunch.artifacts,
         })
         .catch(error => {
@@ -428,7 +437,10 @@ export function registerSessionHandlers(
   })
 
   registerOperation(controlSurface, sessionGetOperation, {
-    handle: async (_ctx, payload): Promise<GetSessionResult> => {
+    handle: async (_ctx, payload): Promise<GetSessionResult | GetNodeSessionResult> => {
+      if (payload.nodeId !== undefined) {
+        return (await resolveNode(payload.nodeId)).value
+      }
       const record = sessions.get(payload.sessionId)
       if (!record) {
         throw createAppError('session.not_found', {
@@ -445,11 +457,33 @@ export function registerSessionHandlers(
   registerSessionFinalMessageHandler(controlSurface, {
     sessions,
     topology: deps.topology,
-    readHookFinalMessage: deps.readHookFinalMessage,
+    resolveNode,
   })
 
   registerOperation(controlSurface, sessionKillOperation, {
-    handle: async (_ctx, payload): Promise<void> => {
+    handle: async (ctx, payload): Promise<void> => {
+      if (payload.nodeId !== undefined) {
+        const { value } = await resolveNode(payload.nodeId)
+        const current = normalizePersistedAppState(
+          await (await deps.getPersistenceStore()).readAppState(),
+        )
+        const stillBound = current?.workspaces.some(workspace =>
+          workspace.nodes.some(
+            node => node.id === payload.nodeId && node.sessionId === value.sessionId,
+          ),
+        )
+        if (!stillBound) {
+          throw createAppError('common.invalid_input', {
+            debugMessage: 'Node session changed before kill; read it again.',
+          })
+        }
+        if (!deps.ptyStreamHub.hasSession(value.sessionId)) {
+          throw createAppError('session.not_found')
+        }
+        ctx.assertActive?.()
+        deps.ptyRuntime.kill(value.sessionId)
+        return
+      }
       const record = sessions.get(payload.sessionId) ?? null
       if (!record && !deps.ptyStreamHub.hasSession(payload.sessionId)) {
         throw createAppError('session.not_found', {

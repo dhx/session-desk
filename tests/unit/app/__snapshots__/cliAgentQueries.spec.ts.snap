@@ -1,0 +1,202 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`agent  help is offline and complete 1`] = `
+"Usage: opencove agent <command> [options]
+
+Commands:
+  delivery         Check retained delivery evidence; never resends input
+  history <clear>  History canvas targets
+  list             List live agent run states and node titles
+  get              Inspect an agent run-state snapshot with its node title
+  prompt           Send a prompt to an agent window OpenCove launched
+  wait             Wait until agents reach a state or finish a turn
+  read             Read an agent reply or inspect its current terminal screen
+
+Global options: see "opencove --help".
+"
+`;
+
+exports[`agent get help is offline and complete 1`] = `
+"Usage: opencove agent get --node <id> [options]
+
+Inspect an agent run-state snapshot with its node title
+
+Returns the Worker snapshot plus title and taskNodeId (reverse task-owned link, null if absent/ambiguous), including observed agents inside terminal nodes. A node without registered run state fails with agent.not_found (exit 1); use node get to inspect a terminal/note, or start/resume an agent window. State is runtime evidence, independent of persisted node status. Unknown/degraded is never ready. lastEndedTurn identifies the most recent ended turn with {id, outcome, endedAt} (epoch milliseconds), or null before any end in this incarnation. It persists while the next turn runs and resets on replacement/restart. turnOutcome keeps its legacy behavior: set on end (completed, failed, aborted or unknown), usually cleared on the next start; use lastEndedTurn for identity-bound results.
+
+Options:
+  --node <id>         Select a canvas node by its ID; also accepts @self, an exact name or a unique ID prefix (6+ characters) (required)
+  --space <selector>  Require every node selector, including full IDs, to belong to this space; also accepts @self, an exact name or a unique ID prefix (6+ characters)
+  --project <id>      Narrow target lookup to a project; also accepts @self, an exact name or a unique ID prefix (6+ characters)
+
+Table output (-o table): not supported.
+Projectable fields: nodeId, title, taskNodeId, sessionId, provider, state, blockedReason, turn, turn.id, turn.startedAt, turn.start, lastTransitionAt, source, quality, turnOutcome, lastEndedTurn, lastEndedTurn.id, lastEndedTurn.outcome, lastEndedTurn.endedAt
+
+Projection example:
+  opencove agent get --node '<id>' --fields nodeId
+  {"nodeId":"node-123"}
+
+Examples:
+  opencove agent get --node "Reviewer" --pretty
+  opencove agent get --node @self --fields state,quality,turn
+
+Global options: see "opencove --help".
+"
+`;
+
+exports[`agent list help is offline and complete 1`] = `
+"Usage: opencove agent list [options]
+
+List live agent run states and node titles
+
+Returns {epoch, seq, agents}, one row per live agent session. Exited sessions are excluded by agent.list (so --state exited returns no rows); use agent get or wait for a known exited node. taskNodeId is the task whose linkedAgentNodeId points here (null if absent/ambiguous). Titles come from node metadata; null means unbound or deleted. turn.startedAt is epoch milliseconds, or absent when no turn is active. Inside OpenCove, the default scope is your space; --project selects a whole project.
+
+When no target is given, inside OpenCove defaults to your own space; project options default to your own project.
+
+Options:
+  --space <id>                                   Select a space by its ID; also accepts @self, an exact name or a unique ID prefix (6+ characters)
+  --state <working|waiting|idle|exited|unknown>  Filter the authoritative run state
+  --project <id>                                 Narrow target lookup to a project; also accepts @self, an exact name or a unique ID prefix (6+ characters)
+
+List output: --limit <n> keeps up to n items per list; 0 means all. Cut object lists add top-level truncated totals; bare arrays keep their shape and write one stderr notice. Cut tables also write one stderr notice.
+
+Table output (-o table): supported.
+Projectable fields: nodeId, title, taskNodeId, sessionId, provider, state, blockedReason, turn, turn.id, turn.startedAt, turn.start, lastTransitionAt, source, quality, turnOutcome, lastEndedTurn, lastEndedTurn.id, lastEndedTurn.outcome, lastEndedTurn.endedAt
+
+Projection example:
+  opencove agent list --fields nodeId
+  {"epoch":"e","seq":1,"agents":[{"nodeId":"node-123"}]}
+
+Examples:
+  opencove agent list -o table
+  opencove agent list --space "Review" --state waiting --fields nodeId,title,state,blockedReason
+
+Global options: see "opencove --help".
+"
+`;
+
+exports[`agent read help is offline and complete 1`] = `
+"Usage: opencove agent read --node <id> [options]
+
+Read an agent reply or inspect its current terminal screen
+
+Read the latest ended reply, or exactly --turn <turnId> from agent prompt. Plain text is the default even when piped; -o json exposes outcome, durability and retained deliveryIds/promptIds. Exact reads never fall back to another turn or transcript.
+
+Loop: prompt → delivery status → wait --turn <turnId> → read --turn <turnId> -o json. Check outcome and reply; never resend because a read fails. Local archived exact reads survive restart. Claude continuations share one OpenCove turn; Codex reply reads remain uncorrelated.
+
+--screen inspects the current terminal (last 40 rendered lines); --lines requires --screen. Use it before prompting to inspect drafts/dialogs. Reading never sends input. --screen conflicts with --last/--turn; --last makes the latest-turn default explicit.
+
+Exit codes: 0 readable result (including empty content); 1 unavailable reply/transcript; 2 invalid input. Detailed fallback rules, truncation, retention and recovery: opencove skill.
+
+deliveryIds are retained correlations of OpenCove deliveries with this turn, including refused or uncertain attempts. Membership proves neither submission nor consumption, and an empty list proves nothing either: delivery records live in memory only, are cleared when OpenCove restarts and expire 30 minutes after resolving; inspect each deliveryId with opencove agent delivery <id>. promptIds are the provider prompt IDs for this turn (Claude continuations included); agent delivery does not accept them.
+
+Options:
+  --node <id>         Select a canvas node by its ID; also accepts @self, an exact name or a unique ID prefix (6+ characters) (required)
+  --last              Read the latest ended turn (default; --turn selects an exact turn)
+  --turn <turnId>     Read exactly this OpenCove turn ID from agent prompt; never falls back
+  --screen            Inspect the current terminal screen as plain text instead of the final message
+  --lines <n>         Return the last n screen lines after trimming trailing blank lines (positive integer; default: 40; requires --screen)
+  --space <selector>  Require every node selector, including full IDs, to belong to this space; also accepts @self, an exact name or a unique ID prefix (6+ characters)
+  --project <id>      Narrow target lookup to a project; also accepts @self, an exact name or a unique ID prefix (6+ characters)
+
+Table output (-o table): not supported.
+Projectable fields: nodeId, sessionId, turnId, promptId, deliveryIds, promptIds, outcome, persisted, memoryOnlyReason, message, messageKind, truncated, source, provider, startedAt, cwd, resumeSessionId
+
+Projection example:
+  opencove agent read --node '<id>' --fields nodeId
+  {"nodeId":"node-123"}
+
+Examples:
+  opencove agent read --node "Reviewer" --screen
+  opencove agent read --node "Reviewer" --screen --lines 20 -o json
+  opencove agent read --node "Reviewer" --last
+  opencove agent read --node node-123 --turn turn-123
+  opencove agent read --node node-123 --turn turn-123 -o json
+
+Global options: see "opencove --help".
+"
+`;
+
+exports[`agent wait help is offline and complete 1`] = `
+"Usage: opencove agent wait --node <selector> (--turn <turnId> | --until idle|waiting|exited|turn-end [--node <selector> ...] [--any|--all]) [--timeout <duration>] [options]
+
+Wait until agents reach a state or finish a turn
+
+Wait without sending input. After prompting, save turnId: prompt → delivery status → wait --turn <turnId> → read --turn <turnId> -o json. Never resend because waiting times out.
+
+--turn selects one exact turn on one node, conflicts with --until/--any, and waits through permission/question pauses and provider continuations. Ended results include outcome, state, durability and retained deliveryIds/promptIds. Every ended outcome exits 0: check outcome and reply before claiming success.
+
+--until waits for idle, waiting, exited or turn-end. Existing state matches immediately; idle requires no active turn and known, nondegraded state. turn-end observes an end after waiting starts. Multiple nodes use --all (default) or --any.
+
+Exit codes: 0 condition met; 1 unavailable history; 2 invalid input; 124 timeout (lastKnown on stderr); 130 interruption. Agents keep running. Retention, restart/remote limits and error recovery: opencove skill.
+
+deliveryIds are retained correlations of OpenCove deliveries with this turn, including refused or uncertain attempts. Membership proves neither submission nor consumption, and an empty list proves nothing either: delivery records live in memory only, are cleared when OpenCove restarts and expire 30 minutes after resolving; inspect each deliveryId with opencove agent delivery <id>. promptIds are the provider prompt IDs for this turn (Claude continuations included); agent delivery does not accept them.
+
+Options:
+  --node <id>                             Select a canvas node by its ID; also accepts @self, an exact name or a unique ID prefix (6+ characters) (required)
+  --until <idle|waiting|exited|turn-end>  Condition to observe
+  --turn <turnId>                         Exact OpenCove turn ID returned by agent prompt
+  --any                                   Resolve when any selected node matches
+  --all                                   Resolve when all selected nodes match (default)
+  --timeout <duration>                    Overall wait budget, e.g. 30s, 2m or 20000ms (default: 20s; minimum: 250ms)
+  --space <selector>                      Require every node selector, including full IDs, to belong to this space; also accepts @self, an exact name or a unique ID prefix (6+ characters)
+  --project <id>                          Narrow target lookup to a project; also accepts @self, an exact name or a unique ID prefix (6+ characters)
+
+List output: --limit <n> keeps up to n items per list; 0 means all. Cut object lists add top-level truncated totals; bare arrays keep their shape and write one stderr notice. Cut tables also write one stderr notice.
+
+Table output (-o table): not supported.
+Projectable fields: nodeId, taskNodeId, sessionId, provider, state, blockedReason, turn, turn.id, turn.startedAt, turn.start, lastTransitionAt, source, quality, turnOutcome, lastEndedTurn, lastEndedTurn.id, lastEndedTurn.outcome, lastEndedTurn.endedAt, endedTurn, endedTurn.id, endedTurn.startedAt, endedTurn.start, endedTurnOutcome, turnId, deliveryIds, promptIds, outcome, endedAt, persisted, memoryOnlyReason
+
+Projection example:
+  opencove agent wait --node node-123 --until idle --fields nodeId,state
+  {"until":"idle","mode":"all","agents":[{"nodeId":"node-123","state":"idle"}]}
+
+Examples:
+  opencove agent wait --node node-123 --turn turn-123 --timeout 2m
+  opencove agent wait --node "Reviewer" --until idle --timeout 2m
+  opencove agent wait --node node-123 --node node-456 --until waiting --any --timeout 30s
+
+Global options: see "opencove --help".
+"
+`;
+
+exports[`explains session.not_found and next steps 1`] = `
+{
+  "code": "session.not_found",
+  "hint": "Run opencove node list to check the selector, then start or resume its agent session before reading.",
+  "message": "No agent conversation was found for this node.",
+}
+`;
+
+exports[`explains session.transcript_not_ready and next steps 1`] = `
+{
+  "code": "session.transcript_not_ready",
+  "hint": "Use "opencove agent wait --node node-123456 --until idle", then read again. Inspect the terminal with "opencove agent read --node node-123456 --screen".",
+  "message": "No readable final message is available for this session.",
+}
+`;
+
+exports[`gets a snapshot plus title and supports @self 1`] = `
+"{"sessionId":"session-123456","nodeId":"node-123456","provider":"claude-code","state":"working","blockedReason":null,"turn":{"id":"turn","startedAt":10,"start":"observed"},"lastTransitionAt":10,"source":"claude_hook","quality":"authoritative","turnOutcome":null,"lastEndedTurn":null,"taskNodeId":null,"title":"Shell"}
+"
+`;
+
+exports[`lists titles and defaults to the caller space, preserving the cursor envelope 1`] = `
+"{"epoch":"e","seq":5,"agents":[{"sessionId":"session-123456","nodeId":"node-123456","provider":"claude-code","state":"working","blockedReason":null,"turn":{"id":"turn","startedAt":10,"start":"observed"},"lastTransitionAt":10,"source":"claude_hook","quality":"authoritative","turnOutcome":null,"lastEndedTurn":null,"title":"Shell","taskNodeId":null}]}
+"
+`;
+
+exports[`preserves structured results for -o json and --fields 1`] = `
+"{"sessionId":"session-123456","provider":"claude-code","startedAt":"now","cwd":"/repo","resumeSessionId":"r","message":"Review complete.\\n第二行","source":"transcript","truncated":false,"persisted":false}
+"
+`;
+
+exports[`prints final wait snapshots with a projectable ended outcome 1`] = `
+"{"until":"idle","mode":"all","agents":[{"sessionId":"session-123456","nodeId":"node-123456","provider":"claude-code","state":"idle","blockedReason":null,"turn":null,"lastTransitionAt":10,"source":"claude_hook","quality":"authoritative","turnOutcome":null,"lastEndedTurn":null}]}
+"
+`;
+
+exports[`renders a golden table with all required columns 1`] = `
+"NODEID       TITLE  PROVIDER     STATE    BLOCKEDREASON  TURN.STARTEDAT  QUALITY
+node-123456  Shell  claude-code  working                 10              authoritative
+"
+`;

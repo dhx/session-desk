@@ -201,13 +201,6 @@ export const webTargetSkips: WebTargetSkip[] = [
     reason: CANVAS_IMAGE_SEED,
   },
   {
-    file: 'workspace-canvas.pixel-light.spec.ts',
-    title:
-      'switches existing Pixel work into a readable light canvas and terminal without replacing editors',
-    category: 'web-ui-gap',
-    reason: CANVAS_IMAGE_SEED,
-  },
-  {
     file: 'workspace-canvas.spatial-pixel.materials.spec.ts',
     title:
       'uses one readable material across every node kind and gives Spaces a real worktree identity',

@@ -1,3 +1,10 @@
+import { createWorkerAgentTurnArchiveRuntime } from './agentTurnArchiveRuntime'
+import { withAgentRunBindings } from './agentRunStatePersistence'
+import { createWorkerAgentRunState } from './ptyStream/ptyStreamAgentRunState'
+import { createSessionGrantPtyRuntime } from './sessionGrantPtyRuntime'
+import { canvasSpawnIdentity, canvasSpawnOperations } from './sessionSpawnIdentityContext'
+import { resolveCanvasSpawnIdentity } from './resolveCanvasSpawnIdentity'
+import { resolveWorkerCliScriptPath } from '../../../shared/runtime/opencoveRuntimePaths'
 import { PluginDistributionService } from '@contexts/plugins/application/PluginDistributionService'
 import { GitPluginSources } from '@contexts/plugins/infrastructure/GitPluginSources'
 import { registerPluginDistributionHandlers } from './handlers/pluginDistributionHandlers'
@@ -5,12 +12,13 @@ import { resolve } from 'node:path'
 import { PluginInstallationManager } from '../../../contexts/plugins/application/PluginInstallationManager'
 import { LocalPluginFiles } from '../../../contexts/plugins/infrastructure/LocalPluginFiles'
 import { NodePluginBackend } from '../../../contexts/plugins/infrastructure/NodePluginBackend'
-import { randomBytes, randomUUID } from 'node:crypto'
+import { randomUUID } from 'node:crypto'
 import { ManagedSshEndpointOperationOwner } from '../../../contexts/topology/application/ManagedSshEndpointOperationOwner'
 import { createManagedSshOperationDiagnosticSink } from './topology/managedSshOperationDiagnostics'
 import type { ServerResponse } from 'node:http'
 import { createControlSurface } from './controlSurface'
 import { WebSessionManager } from './http/webSessionManager'
+import { createControlToken } from './http/createControlToken'
 import { createLazyPersistenceStore } from './http/lazyPersistenceStore'
 import { publishLiveSyncEvent } from './http/publishSyncEvent'
 import type { SyncEventPayload } from './http/syncSse'
@@ -46,6 +54,33 @@ const PTY_STREAM_DEFAULT_REPLAY_WINDOW_MAX_BYTES = 400_000
 export function createControlSurfaceHttpRuntime(
   options: RegisterControlSurfaceHttpServerOptions,
 ): ControlSurfaceHttpRuntime {
+  const instanceId = randomUUID()
+  const turnArchive = createWorkerAgentTurnArchiveRuntime({
+    enabled: options.enableAgentTurnArchive === true,
+    userDataPath: options.userDataPath,
+    getPersistenceStore: () => persistence.getPersistenceStore(),
+    onNodesRemoved: ids => agentRuns.registry.revokeNodes(ids, false),
+  })
+  const agentRuns = createWorkerAgentRunState(
+    instanceId,
+    Date.now,
+    options.enableAgentTurnArchive
+      ? {
+          archive: turnArchive.port,
+          membership: turnArchive.membership,
+          isRemote: turnArchive.isRemote,
+        }
+      : {},
+  )
+  agentRuns.registry.subscribe(
+    { epoch: instanceId, afterSeq: 0 },
+    { types: ['agent.state_changed'] },
+    event => {
+      if (event.type !== 'resync_required') {
+        options.desktopPtyStateSink?.(agentRuns.project(event.snapshot))
+      }
+    },
+  )
   const appVersion = normalizeControlSurfaceAppVersion(options.appVersion)
   const pluginFiles = new LocalPluginFiles(options.userDataPath, process.platform, appVersion)
   const plugins = new PluginInstallationManager({
@@ -65,9 +100,11 @@ export function createControlSurfaceHttpRuntime(
     new GitPluginSources(options.userDataPath),
   )
   const pluginViews = new PluginViewLifecycle(plugins)
-  const token = options.token ?? randomBytes(32).toString('base64url')
+  const token = options.token ?? createControlToken()
   const webSessions = new WebSessionManager(resolve(options.userDataPath))
+  const invocationLifetime = new AbortController()
   const ctx = createControlSurfaceHttpServerContext({
+    signal: invocationLifetime.signal,
     enableWebShell: options.enableWebShell === true,
     ptyProtocolVersion: PTY_STREAM_PROTOCOL_VERSION,
     replayWindowMaxBytes: PTY_STREAM_DEFAULT_REPLAY_WINDOW_MAX_BYTES,
@@ -133,23 +170,34 @@ export function createControlSurfaceHttpRuntime(
   const agentHookChannels =
     options.agentHookChannels ?? (options.claudeHookChannel ? [options.claudeHookChannel] : [])
   const terminalAgents = createTerminalAgentActivityRuntime({
+    getPersistenceStore: () => getPersistenceStore(),
     userDataPath: options.userDataPath,
     agentHookChannels,
     agentProviderRegistry: options.agentProviderRegistry,
     appVersion,
     desktopMetadataSink: options.desktopPtyMetadataSink,
-    desktopStateSink: options.desktopPtyStateSink,
+
     disposeSessionStateWatcher: options.ptyRuntime.disposeSessionStateWatcher,
   })
   const agentProviderRegistry = terminalAgents.agentProviderRegistry
+  let privateControlUrl = ''
+  const sessionAccess = createSessionGrantPtyRuntime({
+    runtime: options.ptyRuntime,
+    onSpawnIdentity: (sessionId, nodeId) => agentRuns.captureLaunchIdentity(sessionId, nodeId),
+    controlUrl: () => privateControlUrl,
+    cliPath: resolveWorkerCliScriptPath(__dirname),
+    ensureAssets: terminalAgents.ensureAssets,
+  })
   const ptyRuntime = createMultiEndpointPtyRuntime({
-    localRuntime: options.ptyRuntime,
+    localRuntime: sessionAccess.runtime,
     topology,
     disposeLocalRuntime: options.ownsPtyRuntime === true,
     agentStateSources: terminalAgents.stateSources,
     agentMetadataSources: terminalAgents.metadataSources,
   })
   const ptyStreamService = createPtyStreamService({
+    agentRuns,
+    sessionGrants: sessionAccess.grants,
     token,
     webSessions,
     now: ctx.now,
@@ -163,7 +211,7 @@ export function createControlSurfaceHttpRuntime(
     dbPath: options.dbPath,
     createPersistenceStore: options.createPersistenceStore,
   })
-  const getPersistenceStore = persistence.getPersistenceStore
+  const getPersistenceStore = withAgentRunBindings(turnArchive.getPersistenceStore, agentRuns)
   const terminalRuntimeAvailability = new TerminalRuntimeAvailability()
   let runtimeReady = false
   void plugins.start()
@@ -175,6 +223,7 @@ export function createControlSurfaceHttpRuntime(
       getPersistenceStore,
       availability: terminalRuntimeAvailability,
     })
+    await turnArchive.start()
     runtimeReady = true
   })()
   const terminalRecovery = createControlSurfaceTerminalRecoveryRuntime({
@@ -186,6 +235,7 @@ export function createControlSurfaceHttpRuntime(
     ptyStreamService,
   })
   const syncClients = new Set<ServerResponse>()
+  const agentClients = new Set<ServerResponse>()
   const syncEventBuffer: SyncEventPayload[] = []
   const publishSyncEventToLiveClients = (payload: SyncEventPayload): number =>
     publishLiveSyncEvent({
@@ -193,7 +243,6 @@ export function createControlSurfaceHttpRuntime(
       payload,
       desktopSink: options.desktopSyncEventSink,
     })
-  const instanceId = randomUUID()
   const maintenance = options.deploymentId
     ? new ManagedRuntimeMaintenance(
         () => options.ptyRuntime.isIdle?.() === true && managedSshOperations.isIdle(),
@@ -201,6 +250,25 @@ export function createControlSurfaceHttpRuntime(
       )
     : null
   const controlSurface = createControlSurface({
+    run: async (context, request, execute) => {
+      if (!canvasSpawnOperations.has(request.id)) {
+        return await execute()
+      }
+      // Direct PTY spawn admission must precede identity's persistence read, just as
+      // it precedes persistence-dependent work in the handler.
+      if (request.id === 'pty.spawn') {
+        const payload = request.payload as { workspaceId?: unknown }
+        terminalRuntimeAvailability.assertSpawnAllowed(
+          typeof payload.workspaceId === 'string' ? payload.workspaceId.trim() || null : null,
+          context.terminalRecoverySpawnScope,
+        )
+      }
+      const identity =
+        canvasSpawnIdentity.getStore() ??
+        (await resolveCanvasSpawnIdentity(context, request.payload, getPersistenceStore))
+      context.assertActive?.()
+      return identity ? await canvasSpawnIdentity.run(identity, execute) : await execute()
+    },
     enter: id =>
       maintenance &&
       !id.startsWith('worker.maintenance.') &&
@@ -247,8 +315,6 @@ export function createControlSurfaceHttpRuntime(
     terminalRecoverySpawnAdmission: terminalRuntimeAvailability,
     agentProviderRegistry,
     terminalAgentActivity: terminalAgents.activity,
-    readHookFinalMessage: sessionId =>
-      agentHookChannels.map(channel => channel.getFinalMessage(sessionId)).find(Boolean) ?? null,
   })
 
   let closed = false
@@ -260,6 +326,9 @@ export function createControlSurfaceHttpRuntime(
       return
     }
     closed = true
+    turnArchive.stop()
+    invocationLifetime.abort()
+    sessionAccess.dispose()
     plugins.beginShutdown()
     pluginViews.dispose()
     // Accepted long operations outlive HTTP handlers, but not runtime shutdown authority.
@@ -275,20 +344,28 @@ export function createControlSurfaceHttpRuntime(
       }
     }
     syncClients.clear()
+    for (const client of agentClients) {
+      client.end()
+    }
+    agentClients.clear()
     listeners.forEach(listener => {
       void listener.stopAccepting({ drainTimeoutMs: 0 }).catch(() => undefined)
     })
   }
 
   const handleRequest = createControlSurfaceHttpRequestHandler({
+    sessionGrants: sessionAccess.grants,
     plugins,
     ctx,
     token,
     webSessions,
     controlSurface,
-    getPersistenceStore,
+    // Revision probes must not hydrate agent bindings before operation admission.
+    getPersistenceStore: persistence.getPersistenceStore,
     syncClients,
     syncEventBuffer,
+    agentRuns: agentRuns.registry,
+    agentClients,
     desktopSyncEventSink: options.desktopSyncEventSink,
     getWebAccessPolicy: () => webAccessPolicy,
     isRuntimeClosed: () => closed,
@@ -303,6 +380,7 @@ export function createControlSurfaceHttpRuntime(
   const runtime: ControlSurfaceHttpRuntime = {
     token,
     appVersion,
+    agentTurnArchive: turnArchive.port,
     ready,
     beginShutdown,
     registerHandlers: register => {
@@ -333,6 +411,19 @@ export function createControlSurfaceHttpRuntime(
         },
         acceptedRequests,
       })
+      if (listenerOptions.role !== 'web') {
+        void listener.ready
+          .then(address => {
+            const host =
+              address.bindHostname === '0.0.0.0'
+                ? '127.0.0.1'
+                : address.bindHostname === '::'
+                  ? '::1'
+                  : address.bindHostname
+            privateControlUrl = `http://${host.includes(':') ? `[${host}]` : host}:${address.port}`
+          })
+          .catch(() => undefined)
+      }
       listeners.add(listener)
       return listener
     },
@@ -391,6 +482,7 @@ export function createControlSurfaceHttpRuntime(
         }
 
         await terminalRecovery.dispose()
+        turnArchive.dispose()
 
         try {
           await persistence.dispose()

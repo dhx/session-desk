@@ -5,7 +5,7 @@ import {
   stopWorkerLifecycle,
 } from '../../../src/app/cli/workerLifecycle.mjs'
 import { commands } from '../../../src/app/cli/commands'
-import { run } from '../../../src/app/cli/core/run'
+import { runWithTargetFixtures as run } from './cliTargetFixtures.helpers'
 import type { CliIo } from '../../../src/app/cli/core/io'
 
 vi.mock('../../../src/app/cli/workerLifecycle.mjs', () => ({
@@ -78,7 +78,7 @@ it.each([
   { args: mount, fields: 'mountId,nope', value: {} },
   { args: ['plugin', 'install', './sample'], fields: 'id,nope', value: {} },
   {
-    args: ['worker', 'stop', '--user-data', '.codex-out/tmp/review1-worker'],
+    args: ['worker', 'stop', '--user-data', '/fixture/worker-profile'],
     fields: 'status,nope',
     value: {},
   },
@@ -242,3 +242,28 @@ it.each(
     })
   },
 )
+
+it('shows each projection example with the field it projects', () => {
+  const keys = (value: unknown): string[] =>
+    value && typeof value === 'object'
+      ? Object.entries(value).flatMap(([key, child]) => [key, ...keys(child)])
+      : []
+  const mismatched = commands.flatMap(command => {
+    const [projection, output] = command.render?.examples ?? []
+    if (!projection?.startsWith('--fields ') || output === undefined) {
+      return []
+    }
+    const field = projection.slice('--fields '.length).replace(/^'|'$/g, '').split(',')[0]
+    const leaf = field.split('.').at(-1) ?? field
+    let parsed: unknown
+    try {
+      parsed = JSON.parse(output)
+    } catch {
+      return []
+    }
+    return keys(parsed).includes(leaf)
+      ? []
+      : [`${command.path.join(' ')}: ${projection} → ${output}`]
+  })
+  expect(mismatched).toEqual([])
+})

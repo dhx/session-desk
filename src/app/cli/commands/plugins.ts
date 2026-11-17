@@ -72,6 +72,10 @@ export const pluginCommands: Command[] = [
       path: ['plugin', name],
       render: pluginOutputs[name],
       summary: summaries[name as keyof typeof summaries],
+      description:
+        name === 'run'
+          ? 'Inside OpenCove, window commands without an explicit node or project default to your own project. Plugin-wide commands receive no default target.'
+          : undefined,
       connect: true,
       operation,
       timeoutMs: resolvePluginCommandTimeout({ id: operation }) ?? undefined,
@@ -97,19 +101,38 @@ export const pluginCommands: Command[] = [
         ...(name === 'install-git'
           ? {
               directory: option('Select the plugin directory within the repository', 'path'),
-              build: option('Choose an explicit build strategy', 'none|npm|pnpm'),
+              build: {
+                ...option('Choose an explicit build strategy', 'none|npm|pnpm'),
+                choices: ['none', 'npm', 'pnpm'],
+              },
               script: option('Run this package script', 'name'),
               'build-output': option('Read the built plugin from this directory', 'path'),
             }
           : {}),
         ...(name === 'discover' ? { query: option('Search for plugins', 'text') } : {}),
         ...(['run', 'open', 'windows'].includes(name)
-          ? { project: option('Select the project', 'id') }
+          ? {
+              project: {
+                ...option('Select the project', 'id'),
+                ...(name === 'run' ? { defaultSelf: false } : {}),
+                ...(name === 'open' ? { defaultSelfUnless: ['node'] } : {}),
+              },
+            }
           : {}),
         ...(['run', 'open'].includes(name)
           ? { node: option('Select an existing plugin window', 'id') }
           : {}),
-        ...(name === 'open' ? { space: option('Place a new window in this space', 'id') } : {}),
+        ...(name === 'open'
+          ? {
+              space: {
+                ...option(
+                  'Place a new window here, or narrow an existing node lookup to this space',
+                  'id',
+                ),
+                defaultSelfUnless: ['node'],
+              },
+            }
+          : {}),
         ...(name === 'run'
           ? {
               view: option('Select the plugin view', 'id'),
@@ -135,10 +158,7 @@ export const pluginCommands: Command[] = [
         }
         if (name === 'install-git') {
           const kind = o.build ?? 'none'
-          if (
-            !['none', 'npm', 'pnpm'].includes(String(kind)) ||
-            (kind === 'none' && (o.script !== undefined || o['build-output'] !== undefined))
-          ) {
+          if (kind === 'none' && (o.script !== undefined || o['build-output'] !== undefined)) {
             usage(
               'Invalid plugin build options',
               'Choose --build npm or --build pnpm before specifying --script or --build-output.',
@@ -164,12 +184,6 @@ export const pluginCommands: Command[] = [
             `Run "opencove plugin ${name} --help" to see its arguments.`,
           )
         }
-        if (name === 'open' && o.node !== undefined && o.space !== undefined) {
-          usage(
-            'Cannot use --node and --space together',
-            'Use --node for an existing window, or --space for a new window.',
-          )
-        }
         if (name === 'run' && Buffer.byteLength(JSON.stringify(o.params ?? null)) > 1024 * 1024) {
           usage('Plugin --params exceeds 1 MiB', 'Pass a smaller JSON value.')
         }
@@ -177,7 +191,11 @@ export const pluginCommands: Command[] = [
           pluginId: p[0],
           ...Object.fromEntries(
             ['project', 'node', 'view', 'space']
-              .filter(k => o[k] !== undefined)
+              .filter(
+                k =>
+                  o[k] !== undefined &&
+                  (k !== 'space' || (name === 'open' && o.node === undefined)),
+              )
               .map(k => [`${k}Id`, o[k]]),
           ),
           ...(o.ref !== undefined ? { ref: o.ref } : {}),
@@ -187,7 +205,36 @@ export const pluginCommands: Command[] = [
           ...(['enable', 'disable'].includes(name) ? { enabled: name === 'enable' } : {}),
         }
       },
-      async execute({ invoke, input }) {
+      async execute({ invoke, input, options, io, self }) {
+        if (
+          name === 'run' &&
+          io.env.OPENCOVE_ENV === '1' &&
+          options.project === undefined &&
+          options.node === undefined
+        ) {
+          const request = input as { pluginId: string; commandId: string }
+          const details = (await invoke('plugin.details', { pluginId: request.pluginId })) as {
+            plugin?: {
+              revision?: string
+              runtimeGeneration?: number
+              commands?: { id: string; target: 'plugin' | 'window' }[]
+            }
+          }
+          input = {
+            ...request,
+            expectedRevision: details.plugin?.revision,
+            expectedRuntimeGeneration: details.plugin?.runtimeGeneration,
+          }
+          if (
+            details.plugin?.commands?.find(command => command.id === request.commandId)?.target ===
+            'window'
+          ) {
+            input = {
+              ...(input as object),
+              projectId: await self('project'),
+            }
+          }
+        }
         const result = await invoke(operation, input)
         if (
           result &&

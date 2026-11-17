@@ -2,6 +2,7 @@ import { execFile } from 'node:child_process'
 import os from 'node:os'
 import process from 'node:process'
 import type { ListTerminalProfilesResult, SpawnTerminalInput } from '../../shared/contracts/dto'
+import { stripParentAgentSessionEnv } from '../../shared/runtime/stripParentAgentSessionEnv'
 import { removeElectronRunAsNode } from '../os/ElectronControlEnvironment'
 import { installBrowserBridge, needsBrowserBridge, withBrowserBridgeEnv } from './browserBridge'
 import {
@@ -194,6 +195,7 @@ export class TerminalProfileResolver {
         this.deps.platform,
       ),
     )
+    stripParentAgentSessionEnv(env)
 
     if (this.deps.platform !== 'win32') {
       const shell = input.shell ?? resolvePosixShell(this.deps.env().SHELL)
@@ -247,6 +249,7 @@ export class TerminalProfileResolver {
       ...this.deps.env(),
       ...(input.env ?? {}),
     })
+    stripParentAgentSessionEnv(env)
     const resolvedEnv = this.withBrowserBridge(withTerminalCapabilityEnv(env, this.deps.platform))
 
     if (this.deps.platform !== 'win32') {
@@ -282,8 +285,10 @@ export class TerminalProfileResolver {
     const profileId = profile.id
 
     if (profile.runtimeKind === 'wsl') {
-      const envPairs = Object.entries(input.commandEnv ?? input.env ?? {}).flatMap(
-        ([key, value]) => (typeof value === 'string' ? [`${key}=${value}`] : []),
+      const commandEnv = { ...(input.commandEnv ?? input.env ?? {}) }
+      stripParentAgentSessionEnv(commandEnv)
+      const envPairs = Object.entries(commandEnv).flatMap(([key, value]) =>
+        typeof value === 'string' ? [`${key}=${value}`] : [],
       )
       return {
         command: shellSpawn.command,
