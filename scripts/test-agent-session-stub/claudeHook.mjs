@@ -204,10 +204,17 @@ export async function runClaudeHookVoiceReplyScenario(cwd) {
           process.stdout.write(`[opencove-test-voice] instruction: ${instruction !== undefined}\n`)
           const language = /spoken summary in (\w+)/.exec(instruction ?? '')?.[1] ?? 'none'
           process.stdout.write(`[opencove-test-voice] reply language: ${language}\n`)
-          await postHook(raw('UserPromptSubmit'))
+          // Claude Code names each prompt; the Worker keeps a Stop hook's reply only for the
+          // prompt it answers (same prompt_id as the UserPromptSubmit).
+          const promptId = `voice-prompt-${turn + 1}`
+          await postHook({ ...raw('UserPromptSubmit'), prompt_id: promptId, prompt })
           await new Promise(resolveDelay => setTimeout(resolveDelay, 150))
           turn += 1
-          await postHook({ ...raw('Stop'), last_assistant_message: voiceReply(turn, language) })
+          await postHook({
+            ...raw('Stop'),
+            prompt_id: promptId,
+            last_assistant_message: voiceReply(turn, language),
+          })
           process.stdout.write('[opencove-test-voice] replied\n')
         })
       }

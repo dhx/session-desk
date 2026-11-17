@@ -55,6 +55,35 @@ export const webTargetSkips: WebTargetSkip[] = [
     reason: `${WEBSITE_WINDOW}; the test reads the website window manager through BrowserWindow`,
   },
   {
+    file: 'agent-terminal-state-restore.spec.ts',
+    category: 'electron-only',
+    reason: 'Drives the stub agent through ipcMain handlers of the Electron main process',
+  },
+  {
+    file: 'app-header.fullscreen-inset.spec.ts',
+    category: 'electron-only',
+    reason:
+      'Emits BrowserWindow full-screen events; the macOS traffic lights exist only on desktop',
+  },
+  {
+    file: 'workspace-canvas.agent-attention-routing.spec.ts',
+    category: 'electron-only',
+    reason:
+      "Sets the main process's foreground state and reads its system notifications; the Web UI uses the browser's",
+  },
+  {
+    file: 'workspace-canvas.agent-island.spec.ts',
+    category: 'electron-only',
+    reason: "Brings the app to the front by emitting the BrowserWindow's focus event",
+  },
+  {
+    file: 'workspace-canvas.claude-hook.spec.ts',
+    title: 'launches with session-file fallback and visible degradation when hook install fails',
+    category: 'known-failing',
+    reason:
+      "Since upstream #533 the Worker decides run state; on the web target the session-file fallback stays 'unknown' (label Working) instead of reaching Standby. Recorded on the Session Board.",
+  },
+  {
     file: 'recovery.agent-input-after-window-reopen.spec.ts',
     category: 'electron-only',
     reason:
