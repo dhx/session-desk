@@ -89,31 +89,19 @@ test.describe('Workspace Canvas - Color Identity', () => {
           }
           expect(appearance.ribbonHeight).toBe(2)
           expect(appearance.borderWidth).toBe('1px')
-          if (appearance.kind === 'agent') {
-            expect(appearance.icon).toBeNull()
-            expect(appearance.providerIcon).toMatchObject({
-              provider: 'codex',
-              width: 12,
-              background: 'rgba(0, 0, 0, 0)',
-              borderWidth: '0px',
-              label: 'Codex',
-              svgHidden: 'true',
-              svg: true,
-            })
-          } else {
-            // Window headers put the glyph on a 20px kind tile; image has no header.
-            const tiled = appearance.kind !== 'image'
-            expect(appearance.icon).toMatchObject({
-              kind: appearance.kind,
-              fill: 'none',
-              stroke: appearance.kind === 'document' ? '1.4' : '1.75',
-              width: tiled ? 12 : 16,
-              tile: tiled ? 20 : null,
-              pointer: 'none',
-              hidden: 'true',
-              focusable: 'false',
-            })
-          }
+          // Window headers put the pixel glyph on a 20px kind tile; image has no header.
+          const tiled = appearance.kind !== 'image'
+          expect(appearance.icon).toMatchObject({
+            kind: appearance.kind,
+            glyph: appearance.kind === 'agent' ? 'ai' : appearance.kind,
+            fill: 'currentColor',
+            shapeRendering: 'crispEdges',
+            width: tiled ? 12 : 16,
+            tile: tiled ? 20 : null,
+            pointer: 'none',
+            hidden: 'true',
+            focusable: 'false',
+          })
           if (appearance.kind !== 'image') {
             expect(appearance.headerImage).toContain('linear-gradient')
             expect(
@@ -332,7 +320,7 @@ test.describe('Workspace Canvas - Color Identity', () => {
       await clearCanvasSelection(page)
       const inspectZoom = async (zoom: number) => {
         await wheelToZoom(page, zoom)
-        await expectSpaceFrameHeader(page)
+        await expectSpaceFrameHeader(page, zoom === 0.2 ? 'far' : 'near')
         const spaces = await readSpaceIdentity(page)
         await testInfo.attach(`color-identity-space-${zoom}-metrics`, {
           body: JSON.stringify(spaces, null, 2),
@@ -356,9 +344,17 @@ test.describe('Workspace Canvas - Color Identity', () => {
           expect(space.edge.width * zoom).toBeGreaterThanOrEqual(0.65)
           expect(space.edge.width * zoom).toBeLessThanOrEqual(1.1)
           for (const group of space.groups) {
-            expect(group.width).toBeLessThanOrEqual(space.rect.width / 2 + 1)
+            // Far names share one scale and may span 300 screen pixels even in a narrow Space.
+            const farCaption = zoom === 0.2 && group.side === 'left'
+            const widthBudget = farCaption
+              ? Math.max(space.rect.width, 300)
+              : space.rect.width * 0.5
+            const rightBound = farCaption
+              ? Math.max(space.rect.x + space.rect.width, group.left + 300)
+              : space.rect.x + space.rect.width
+            expect(group.width).toBeLessThanOrEqual(widthBudget + 1)
             expect(group.left).toBeGreaterThanOrEqual(space.rect.x - 1)
-            expect(group.right).toBeLessThanOrEqual(space.rect.x + space.rect.width + 1)
+            expect(group.right).toBeLessThanOrEqual(rightBound + 1)
           }
         }
         const review = spaces.find(space => space.id === 'pixel-review-space')!
@@ -379,11 +375,11 @@ test.describe('Workspace Canvas - Color Identity', () => {
             await page.keyboard.press('Tab')
             await expect(files).toBeFocused()
             await expect(files).toHaveCSS('opacity', '1')
-            await expectSpaceFrameHeader(page)
+            await expectSpaceFrameHeader(page, 'far')
             await page.keyboard.press('Tab')
             await expect(menu).toBeFocused()
             await expect(menu).toHaveCSS('opacity', '1')
-            await expectSpaceFrameHeader(page)
+            await expectSpaceFrameHeader(page, 'far')
             await menu.evaluate(element => (element as HTMLElement).blur())
             await label.hover()
             await expect(files).toHaveCSS('pointer-events', 'auto')

@@ -4,11 +4,16 @@ import type { IpcInvokeResult } from '../contracts/ipc'
 
 function createMessageMap(): Record<AppErrorCode, string> {
   return {
+    'common.protocol_incompatible': 'Client and server protocol versions are incompatible.',
     'common.invalid_input': 'The request was invalid.',
     'plugin.operation_failed': 'Plugin operation failed.',
     'common.approved_path_required': 'The selected path is outside approved workspaces.',
     'common.unavailable': 'This feature is unavailable.',
     'common.unexpected': 'Something went wrong. Please try again.',
+    'worker.external_owner_unreachable':
+      'Another Worker owns this data directory but is unreachable or incompatible. Stop it explicitly before retrying.',
+    'worker.stop_not_owned':
+      'This Worker was started outside OpenCove Desktop. Stop it where it was started, for example with opencove worker stop.',
     'worker.unavailable': 'Worker is unavailable.',
     'endpoint.operation_in_progress': 'Another endpoint operation is already in progress.',
     'space.not_found': 'Space not found.',

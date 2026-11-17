@@ -27,3 +27,67 @@
   overflow: hidden;
   z-index: 5;
 }
+
+/* The pixel wall sits under the particle layer and every window. Before its first frame it is
+   a static grid of the theme's cells and seams, aligned with the view's cells (Tide 5.5), so the
+   first WebGL frame continues it instead of replacing a flat colour. */
+.workspace-pixel-wall {
+  --cove-wall-cell: 24px;
+  --cove-wall-gap: 2px;
+  --cove-wall-origin-x: -1px;
+  --cove-wall-origin-y: -1px;
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  z-index: 0;
+  pointer-events: none;
+  background-color: var(--cove-pixel-cell, var(--cove-app-background));
+  background-image:
+    linear-gradient(
+      to right,
+      var(--cove-pixel-gap, transparent) var(--cove-wall-gap),
+      transparent var(--cove-wall-gap)
+    ),
+    linear-gradient(
+      to bottom,
+      var(--cove-pixel-gap, transparent) var(--cove-wall-gap),
+      transparent var(--cove-wall-gap)
+    );
+  background-position: var(--cove-wall-origin-x) var(--cove-wall-origin-y);
+  background-size: var(--cove-wall-cell) var(--cove-wall-cell);
+}
+
+.workspace-pixel-wall__surface {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.workspace-pixel-wall__surface[hidden],
+.workspace-pixel-wall[data-cove-wall-renderer='2d'] > .workspace-pixel-wall__surface--gl {
+  display: none;
+}
+
+/* Work light and ripple colours. Generated families light each window by its kind;
+   hand-written themes fall back to their label colours. Waiting is yellow and failure red. */
+:root {
+  --cove-wall-light-ai: var(--cove-kind-ai-solid, var(--cove-label-purple));
+  --cove-wall-light-shell: var(--cove-kind-shell-solid, var(--cove-label-green));
+  --cove-wall-light-plan: var(--cove-kind-plan-solid, var(--cove-label-orange));
+  --cove-wall-light-knowledge: var(--cove-kind-knowledge-solid, var(--cove-label-blue));
+  --cove-wall-light-media: var(--cove-kind-media-solid, var(--cove-label-red));
+  --cove-wall-light-neutral: var(--cove-kind-neutral-solid, var(--cove-label-gray));
+  --cove-wall-light-waiting: var(--cove-status-waiting, var(--cove-label-yellow));
+  --cove-wall-light-failed: var(--cove-status-failed, var(--cove-label-red));
+}
+
+/* With window kind colours off every window casts the neutral light; status colours stay. */
+:root[data-cove-kind-colors='off'] {
+  --cove-wall-light-ai: var(--cove-wall-light-neutral);
+  --cove-wall-light-shell: var(--cove-wall-light-neutral);
+  --cove-wall-light-plan: var(--cove-wall-light-neutral);
+  --cove-wall-light-knowledge: var(--cove-wall-light-neutral);
+  --cove-wall-light-media: var(--cove-wall-light-neutral);
+}

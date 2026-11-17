@@ -71,7 +71,8 @@ export function AppShellOverlays({
         anchorRef={controlCenterAnchorRef}
         uiTheme={agentSettings.uiTheme}
         isMinimapVisible={activeWorkspace?.isMinimapVisible ?? false}
-        isPixelBackgroundEnabled={agentSettings.canvasPixelBackgroundEnabled}
+        backgroundStyle={agentSettings.canvasBackgroundStyle}
+        isBackgroundTwinkleEnabled={agentSettings.canvasBackgroundTwinkleEnabled}
         areMotionSignalsEnabled={
           agentSettings.nodeCreationPixelEffectEnabled &&
           agentSettings.nodeClosePixelEffectEnabled &&
@@ -106,8 +107,11 @@ export function AppShellOverlays({
 
           onMinimapVisibilityChange(!activeWorkspace.isMinimapVisible)
         }}
-        onChangePixelBackground={enabled => {
-          setAgentSettings(prev => ({ ...prev, canvasPixelBackgroundEnabled: enabled }))
+        onChangeBackgroundStyle={style => {
+          setAgentSettings(prev => ({ ...prev, canvasBackgroundStyle: style }))
+        }}
+        onChangeBackgroundTwinkle={enabled => {
+          setAgentSettings(prev => ({ ...prev, canvasBackgroundTwinkleEnabled: enabled }))
         }}
         onChangeMotionSignals={enabled => {
           setAgentSettings(prev => ({

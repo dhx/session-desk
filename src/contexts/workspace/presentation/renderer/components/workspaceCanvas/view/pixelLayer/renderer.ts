@@ -5,8 +5,9 @@ import {
   type PixelNode,
   type PixelViewport,
 } from './model'
-import { drawPixelBackground } from './background'
 import { drawWorkingPixels } from './workingRenderer'
+import { drawDotRipples } from './dotRipples'
+import type { Ripple } from '../pixelWall/ripples'
 
 export interface PixelTheme {
   blue: string
@@ -14,22 +15,17 @@ export interface PixelTheme {
   mint: string
   warning: string
   danger: string
-  gap: number
-  opacity: number
 }
 
 export function readPixelTheme(canvas: HTMLCanvasElement): PixelTheme {
   const style = getComputedStyle(canvas)
   const color = (token: string) => style.getPropertyValue(token).trim() || style.color
-  const opacity = Number.parseFloat(style.getPropertyValue('--cove-pixel-grid-opacity'))
   return {
     blue: color('--cove-pixel-blue'),
     cyan: color('--cove-pixel-cyan'),
     mint: color('--cove-pixel-mint'),
     warning: color('--cove-warning'),
     danger: color('--cove-danger'),
-    gap: Number.parseFloat(style.getPropertyValue('--cove-pixel-grid-gap')) || 17,
-    opacity: Number.isFinite(opacity) ? Math.max(0, Math.min(0.8, opacity)) : 0,
   }
 }
 
@@ -80,8 +76,8 @@ export function drawPixelLayer({
   now,
   reducedMotion,
   background = true,
+  ripples = [],
   working = false,
-  backgroundNow = now,
   workingNow = now,
 }: {
   canvas: HTMLCanvasElement
@@ -92,9 +88,11 @@ export function drawPixelLayer({
   theme: PixelTheme
   now: number
   reducedMotion: boolean
+  /** Status corner marks and output observation; the pixel wall paints the ambient background. */
   background?: boolean
+  /** Output ripples through the dot grid (「简约」); under the pixel wall the wall draws them. */
+  ripples?: readonly Ripple[]
   working?: boolean
-  backgroundNow?: number
   workingNow?: number
 }): boolean {
   const buffer = resolvePixelBuffer(viewport.width, viewport.height, window.devicePixelRatio)
@@ -115,19 +113,21 @@ export function drawPixelLayer({
   gradient.addColorStop(0.5, theme.cyan)
   gradient.addColorStop(1, theme.mint)
   context.fillStyle = gradient
-  if (background) {
-    drawPixelBackground(context, viewport, theme.gap, theme.opacity, backgroundNow, reducedMotion)
-  }
 
   activity.prune(nodes, now)
   let active = false
   for (const node of background ? nodes : []) {
-    const intensity = reducedMotion ? 0 : activity.intensity(node, now)
-    active ||= intensity > 0
-    drawNodePixels(context, node, intensity, theme, gradient)
+    // Output shows as ripples now; the frame keeps only its status corner marks.
+    active ||= !reducedMotion && activity.intensity(node, now) > 0
+    drawNodePixels(context, node, 0, theme, gradient)
   }
-  if (working && !reducedMotion) {
-    drawWorkingPixels(context, nodes, viewport, theme, workingNow)
+  if (background && !reducedMotion && ripples.length > 0) {
+    drawDotRipples(context, viewport, ripples)
+    active = true
+  }
+  if (working) {
+    // Reduced motion keeps a still outline round working frames instead of the patrol.
+    drawWorkingPixels(context, nodes, viewport, theme, reducedMotion ? null : workingNow)
   }
   context.globalAlpha = 1
   return active

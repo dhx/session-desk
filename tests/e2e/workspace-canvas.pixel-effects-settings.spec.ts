@@ -17,43 +17,14 @@ import {
   setPixelEffect,
   setPixelEffects,
   stopPixelEffectProbe,
+  setBackgroundStyle,
 } from './workspace-canvas.pixel-effects.helpers'
+import { expectPaintedWall, readWallProbe } from './workspace-canvas.pixel-wall.helpers'
 
 async function attachFrame(page: Page, testInfo: TestInfo, name: string) {
   const output = testInfo.outputPath(`${name}.png`)
   await page.screenshot({ path: output, animations: 'allow' })
   await testInfo.attach(name, { path: output, contentType: 'image/png' })
-}
-
-async function readFieldColor(page: Page) {
-  return await page.getByTestId('workspace-pixel-layer').evaluate(element => {
-    const canvas = element as HTMLCanvasElement
-    const pixels =
-      canvas.width && canvas.height
-        ? canvas.getContext('2d')?.getImageData(0, 0, canvas.width, canvas.height).data
-        : null
-    let red = 0,
-      green = 0,
-      blue = 0,
-      count = 0
-    if (pixels) {
-      for (let index = 0; index < pixels.length; index += 8) {
-        if (pixels[index + 3]! <= 8) {
-          continue
-        }
-        red += pixels[index]!
-        green += pixels[index + 1]!
-        blue += pixels[index + 2]!
-        count++
-      }
-    }
-    return {
-      red: red / Math.max(1, count),
-      green: green / Math.max(1, count),
-      blue: blue / Math.max(1, count),
-      count,
-    }
-  })
 }
 
 async function createNode(page: Page, kind: 'note' | 'terminal', x = 240) {
@@ -121,10 +92,15 @@ test.describe('Independent pixel effects settings', () => {
       await expect(window.locator('.react-flow__background')).toBeVisible()
       await openPixelAppearance(window)
       await Promise.all(
-        Object.values(EFFECT_CONTROL_IDS).map(id =>
-          expect(window.getByTestId(id)).not.toBeChecked(),
-        ),
+        Object.entries(EFFECT_CONTROL_IDS)
+          .filter(([key]) => key !== 'canvasBackgroundTwinkleEnabled')
+          .map(([, id]) => expect(window.getByTestId(id)).not.toBeChecked()),
       )
+      await expect(window.getByTestId('settings-canvas-background-style-off')).toBeChecked()
+      // Twinkle keeps its choice but only applies to the pixel background.
+      await expect(
+        window.getByTestId(EFFECT_CONTROL_IDS.canvasBackgroundTwinkleEnabled),
+      ).toBeDisabled()
       await setPixelEffect(window, 'nodeCreationPixelEffectEnabled', true)
       await expect(window.getByTestId('workspace-pixel-assembly')).toHaveAttribute(
         'data-cove-pixel-assembly',
@@ -144,7 +120,7 @@ test.describe('Independent pixel effects settings', () => {
       await expect(window.getByTestId('workspace-pixel-layer')).toBeHidden()
       await openPixelAppearance(window)
       await setPixelEffect(window, 'nodeClosePixelEffectEnabled', true)
-      await setPixelEffect(window, 'canvasPixelBackgroundEnabled', true)
+      await setBackgroundStyle(window, 'pixel')
       await setPixelEffect(window, 'agentWorkingPixelEffectEnabled', true)
       await expect(window.getByTestId('workspace-pixel-layer')).toHaveCount(1)
       await expect(window.getByTestId('workspace-pixel-layer')).toHaveJSProperty('hidden', false)
@@ -208,10 +184,16 @@ test.describe('Independent pixel effects settings', () => {
         await window.locator('.settings-panel__close').click()
         await expect(window.locator('html')).toHaveAttribute('data-cove-theme', base)
         await expect(window.getByTestId('workspace-pixel-layer')).toBeVisible()
+        await expectPaintedWall(window)
+        // The wall takes the theme's own cells: dark or light, with the themes' cool tint.
         await expect
           .poll(async () => {
-            const color = await readFieldColor(window)
-            return color.count > 20 && color.blue > color.red
+            const mean = (await readWallProbe(window))?.mean
+            if (!mean) {
+              return false
+            }
+            const lightness = (0.2126 * mean[0] + 0.7152 * mean[1] + 0.0722 * mean[2]) / 255
+            return (base === 'dark' ? lightness < 0.35 : lightness > 0.65) && mean[2] > mean[0]
           })
           .toBe(true)
         await expect.poll(() => readPixelEffects(window)).toEqual(PIXEL_EFFECTS_ENABLED)
@@ -254,14 +236,14 @@ test.describe('Independent pixel effects settings', () => {
           uiTheme: 'light',
           language: 'en',
           ...PIXEL_EFFECTS_ENABLED,
-          canvasPixelBackgroundEnabled: false,
+          canvasBackgroundStyle: 'off',
           terminalFontSize: 14,
           focusNodeOnClick: false,
           standardWindowSizeBucket: 'compact',
         },
       })
       await openPixelAppearance(window)
-      await window.getByTestId('settings-canvas-pixel-background').scrollIntoViewIfNeeded()
+      await window.getByTestId('settings-canvas-background-style').scrollIntoViewIfNeeded()
       await attachFrame(window, testInfo, 'pixel-effects-foreground-only-settings')
       if (videoDirectory) {
         await window.waitForTimeout(1200)

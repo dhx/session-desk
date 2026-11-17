@@ -31,6 +31,10 @@
 @import './styles/workspace-canvas.css' layer(opencove);
 @import './styles/workspace-canvas-action-bar.css' layer(opencove);
 @import './styles/workspace-pixel-layer.css' layer(opencove);
+@import './styles/app-shell-wall.css' layer(opencove);
+@import './styles/app-showcase.css' layer(opencove);
+@import './styles/workspace-edge-beacons.css' layer(opencove);
+@import './styles/window-signals.css' layer(opencove);
 @import './styles/workspace-overlays.css' layer(opencove);
 @import './styles/workspace-overlays.spaces.explorer.preview.css' layer(opencove);
 @import './styles/workspace-context-menu.css' layer(opencove);
@@ -101,6 +105,8 @@
 @import './styles/themes/generated/cove.css' layer(opencove);
 @import './styles/node-color-identity.css' layer(opencove);
 @import './styles/window-kind-identity.css' layer(opencove);
+@import './styles/workspace-far-view.css' layer(opencove);
+@import './styles/workspace-canvas-hud.css' layer(opencove);
 @import './styles/themes/reduced-transparency.css' layer(opencove);
 @import './styles/node-collapse.css' layer(opencove);
 @import './styles/node-collapse-motion.css' layer(opencove);

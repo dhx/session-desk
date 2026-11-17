@@ -12,6 +12,7 @@ import { toPersistedState } from '@contexts/workspace/presentation/renderer/util
 import { EndpointOverviewProvider } from './components/EndpointOverviewProvider'
 import { AppHeader } from './components/AppHeader'
 import { AppShellBootBoundary } from './components/AppShellBootBoundary'
+import { AppShellFrame } from './components/AppShellFrame'
 import { AppShellOverlays } from './components/AppShellOverlays'
 import { AppSettingsPage } from './components/AppSettingsPage'
 import { WhatsNewDialog } from './components/WhatsNewDialog'
@@ -191,7 +192,6 @@ export default function App(): React.JSX.Element {
 
   const sidebar = usePrimarySidebar({
     isCollapsed: isPrimarySidebarCollapsed,
-    isMenuOpen: projectContextMenu !== null,
     hasBlockingOverlay: hasBlockingShellOverlay || isAddProjectWizardOpen,
     onTogglePinned: toggleSidebarPinned,
   })
@@ -302,13 +302,11 @@ export default function App(): React.JSX.Element {
   return (
     <AppShellBootBoundary isBootReady={isPersistReady}>
       <EndpointOverviewProvider>
-        <div
-          className={`app-shell ${isPrimarySidebarCollapsed ? 'app-shell--sidebar-collapsed' : ''}${sidebar.isPeekOpen ? ' app-shell--sidebar-peek' : ''}${sidebar.isMobile ? ' app-shell--mobile-navigation' : ''}`}
-        >
+        <AppShellFrame isSidebarCollapsed={isPrimarySidebarCollapsed} sidebar={sidebar}>
           <AppHeader
             sidebarTriggerRef={sidebarTriggerRef}
-            showSidebarTrigger={sidebar.isMobile}
-            isSidebarOpen={sidebar.isDrawerOpen}
+            sidebarIsDrawer={sidebar.isMobile}
+            isSidebarOpen={sidebar.isOpen}
             onToggleSidebar={sidebar.toggle}
             activeWorkspaceName={activeWorkspace?.name ?? null}
             activeWorkspacePath={activeWorkspace?.path ?? null}
@@ -342,11 +340,9 @@ export default function App(): React.JSX.Element {
             controller={sidebar}
             isMenuOpen={projectContextMenu !== null}
             triggerRef={sidebarTriggerRef}
-            isPinned={!isPrimarySidebarCollapsed}
             workspaces={workspaces}
             activeWorkspaceId={activeWorkspaceId}
             persistNotice={persistNotice}
-            onTogglePinned={toggleSidebarPinned}
             onAddProject={handleAddWorkspace}
             onOpenSettings={handleOpenSettings}
             onSelectWorkspace={handleSelectWorkspace}
@@ -424,7 +420,7 @@ export default function App(): React.JSX.Element {
               }))
             }}
           />
-        </div>
+        </AppShellFrame>
 
         <AppShellOverlays
           floatingMessage={floatingMessage}

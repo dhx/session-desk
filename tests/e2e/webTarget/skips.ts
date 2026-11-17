@@ -49,6 +49,12 @@ export const webTargetSkips: WebTargetSkip[] = [
     reason: 'Reads app.getAppPath()/getName() of the Electron main process',
   },
   {
+    file: 'workspace-canvas.far-view.spec.ts',
+    title: 'zoom steps and a continuous wheel gesture do not commit window headers',
+    category: 'electron-only',
+    reason: `${WEBSITE_WINDOW}; the test reads the website window manager through BrowserWindow`,
+  },
+  {
     file: 'recovery.agent-input-after-window-reopen.spec.ts',
     category: 'electron-only',
     reason:

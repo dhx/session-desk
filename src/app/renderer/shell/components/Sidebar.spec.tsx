@@ -257,8 +257,8 @@ describe('Sidebar', () => {
     expect(agentButton.getAttribute('data-drag-listener')).toBeNull()
     expect(agentButton.textContent).toContain('workspace-a task')
     expect(
-      agentButton.querySelector('.agent-provider-icon')?.getAttribute('data-agent-provider'),
-    ).toBe('codex')
+      agentButton.querySelector('.cove-pixel-glyph')?.getAttribute('data-cove-pixel-glyph'),
+    ).toBe('ai')
 
     fireEvent.click(workspaceButton)
     expect(onSelectWorkspace).toHaveBeenCalledWith('workspace-a')
@@ -305,12 +305,13 @@ describe('Sidebar', () => {
     )
 
     const agentButton = screen.getByTestId('workspace-agent-item-workspace-a-workspace-a-agent')
-    const badge = agentButton.querySelector('.agent-provider-icon')
+    const badge = agentButton.querySelector('[data-cove-pixel-glyph="ai"]')!
     const group = container.querySelector('.workspace-space-group--space')
 
     expect(group?.getAttribute('data-cove-label-color')).toBe('blue')
     expect(group?.querySelector('.workspace-space-group__branch')).not.toBeNull()
-    expect(badge?.getAttribute('data-cove-label-color')).toBeNull()
+    expect(badge).not.toBeNull()
+    expect(badge.getAttribute('data-cove-label-color')).toBeNull()
     expect(agentButton.getAttribute('data-cove-label-color')).toBeNull()
   })
 
@@ -351,7 +352,7 @@ describe('Sidebar', () => {
     })
   })
 
-  it('shows only projects in the rail while preserving project button identity', () => {
+  it('keeps navigation mounted while hidden and preserves project button identity', () => {
     const onSelectWorkspace = vi.fn()
 
     const { rerender } = render(
@@ -373,7 +374,7 @@ describe('Sidebar', () => {
     expect(onSelectWorkspace).not.toHaveBeenCalled()
     rerender(
       <Sidebar
-        variant="rail"
+        variant="hidden"
         workspaces={[createWorkspace('workspace-a', { hasAgent: true })]}
         activeWorkspaceId="workspace-a"
         persistNotice={null}
@@ -385,9 +386,11 @@ describe('Sidebar', () => {
       />,
     )
     expect(screen.getByTestId('workspace-item-workspace-a')).toBe(projectButton)
-    expect(screen.queryByTestId('workspace-sidebar-navigation')).toBeNull()
-    expect(screen.queryByTestId('workspace-agent-item-workspace-a-workspace-a-agent')).toBeNull()
-    expect(screen.queryByTestId('workspace-space-root-workspace-a')).toBeNull()
+    expect(
+      screen.getByTestId('workspace-sidebar').classList.contains('workspace-sidebar--hidden'),
+    ).toBe(true)
+    expect(screen.getByTestId('workspace-agent-item-workspace-a-workspace-a-agent')).toBeTruthy()
+    expect(screen.getByTestId('workspace-sidebar-navigation')).toBeTruthy()
   })
 
   it('selects a space from the expanded project tree', () => {
@@ -441,7 +444,7 @@ describe('Sidebar', () => {
     expect(onSelectSpace).not.toHaveBeenCalled()
     rerender(
       <Sidebar
-        variant="rail"
+        variant="hidden"
         workspaces={[createWorkspace('workspace-a', { hasAgent: true, spaceLabelColor: 'blue' })]}
         activeWorkspaceId="workspace-a"
         persistNotice={null}
@@ -452,14 +455,14 @@ describe('Sidebar', () => {
         onReorderWorkspaces={() => undefined}
       />,
     )
-    expect(screen.queryByTestId('workspace-space-item-workspace-a-workspace-a-space')).toBeNull()
+    expect(screen.getByTestId('workspace-space-item-workspace-a-workspace-a-space')).toBeTruthy()
     expect(screen.queryByTestId('workspace-agent-item-workspace-a-workspace-a-agent')).toBeNull()
   })
 
-  it('renders every project in the collapsed rail without spaces or agents', () => {
+  it('keeps every project and the active navigation mounted while hidden', () => {
     const { container } = render(
       <Sidebar
-        variant="rail"
+        variant="hidden"
         workspaces={[
           createWorkspace('workspace-a', {
             hasAgent: true,
@@ -486,7 +489,7 @@ describe('Sidebar', () => {
       'page',
     )
     expect(screen.getByTestId('workspace-item-workspace-b').getAttribute('aria-current')).toBeNull()
-    expect(container.querySelector('.workspace-space-group')).toBeNull()
-    expect(container.querySelector('.workspace-agent-item')).toBeNull()
+    expect(container.querySelector('.workspace-space-group')).not.toBeNull()
+    expect(container.querySelector('.workspace-agent-item')).not.toBeNull()
   })
 })

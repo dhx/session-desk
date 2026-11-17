@@ -35,7 +35,8 @@
     "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
     "files": [
       "out{,/**/*}",
-      "src/app/cli{,/**/*}",
+      "src/app/cli/opencove.mjs",
+      "src/app/cli/publishRuntime.mjs",
       "docs/plugins{,/**/*}",
       "package.json",
       "!node_modules/onnxruntime-web{,/**/*}",
@@ -65,7 +66,7 @@
     }
   },
   "bin": {
-    "opencove": "src/app/cli/opencove.mjs"
+    "opencove": "out/cli/opencove.mjs"
   },
   "engines": {
     "node": ">=22.12.0",
@@ -73,7 +74,8 @@
   },
   "scripts": {
     "dev": "node scripts/run-electron-vite-dev.mjs",
-    "build": "node scripts/run-electron-vite-build.mjs",
+    "build": "node scripts/run-electron-vite-build.mjs && node scripts/build-cli.mjs",
+    "build:cli": "node scripts/build-cli.mjs",
     "check": "tsc -b tsconfig.node.json tsconfig.web.json --noEmit",
     "preview": "electron-vite preview",
     "postinstall": "electron-builder install-app-deps",
@@ -92,6 +94,7 @@
     "test:coverage": "vitest run --coverage",
     "test:terminal-recovery:native": "node scripts/run-terminal-recovery-native-tests.mjs",
     "test:e2e": "node scripts/test-e2e-with-window-fallback.mjs",
+    "test:perf": "playwright test -c tests/perf/playwright.config.ts",
     "test:e2e:web-canvas": "node scripts/test-e2e-web-canvas.mjs",
     "test:e2e:web-shell": "node scripts/test-e2e-web-shell.mjs",
     "test:terminal:presentation": "node scripts/test-terminal-presentation-contract.mjs",
@@ -107,7 +110,7 @@
     "arch:results": "node harness/architecture/check.mjs --mode audit --write-results harness/architecture/results",
     "arch:results:check": "node harness/architecture/check-doc-sync.mjs --verify-results",
     "arch:test": "vitest --run --config harness/architecture/vitest.config.ts",
-    "opencove": "node src/app/cli/opencove.mjs",
+    "opencove": "node out/cli/opencove.mjs",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "format-check:staged": "node scripts/check-format-staged.mjs",
@@ -171,6 +174,7 @@
     "tailwind-merge": "^3.5.0",
     "tailwindcss": "^4.2.1",
     "ws": "^8.20.0",
+    "zod": "^4",
     "zustand": "^5.0.11"
   },
   "devDependencies": {

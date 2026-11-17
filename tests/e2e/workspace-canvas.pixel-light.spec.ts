@@ -25,10 +25,11 @@ import {
   setPixelEffect,
   setPixelEffects,
   stopPixelEffectProbe,
+  setBackgroundStyle,
 } from './workspace-canvas.pixel-effects.helpers'
 import { expectSpaceFrameHeader } from './workspace-canvas.space-caption-border.helpers'
 import { wheelToZoom } from './workspace-canvas.zoom.helpers'
-import { readStableFieldBaseline } from './workspace-canvas.pixel-field.helpers'
+import { expectStillWall } from './workspace-canvas.pixel-wall.helpers'
 
 async function nodeGeometry(page: Page) {
   return await page.locator('.react-flow__node').evaluateAll(nodes =>
@@ -180,7 +181,7 @@ test.describe('Workspace Canvas - Pixel Light', () => {
     try {
       await (
         await electronApp.browserWindow(page)
-      ).evaluate(window => window.setContentSize(1800, 1200))
+      ).evaluate(window => window.setContentSize(1440, 900))
       await seedIdentityFixture(page, fixture)
       await printIdentityMarker(page)
       const geometry = await nodeGeometry(page)
@@ -212,7 +213,7 @@ test.describe('Workspace Canvas - Pixel Light', () => {
           expect(Object.values(node.identity)).toEqual(node.themePalette)
         }
       }
-      expect(nodes.find(node => node.kind === 'agent')?.providerIcon?.provider).toBe('codex')
+      expect(nodes.find(node => node.kind === 'agent')?.icon?.glyph).toBe('ai')
       const paint = await readLightPaint(page)
       expect(paint.app).toBeGreaterThan(0.7)
       expect(paint.terminal.luminance).toBeGreaterThan(0.7)
@@ -242,7 +243,7 @@ test.describe('Workspace Canvas - Pixel Light', () => {
         contentType: 'application/json',
       })
       await wheelToZoom(page, 0.2)
-      await expectSpaceFrameHeader(page)
+      await expectSpaceFrameHeader(page, 'far')
       const spaces = await readSpaceIdentity(page)
       expect(spaces.every(space => space.fill.alpha < 0.01 && space.labelScreenFont >= 8)).toBe(
         true,
@@ -253,6 +254,9 @@ test.describe('Workspace Canvas - Pixel Light', () => {
       await wheelToZoom(page, 1)
       expect(await terminalIdentity(page)).toEqual(identity)
       expect(await nodeGeometry(page)).toEqual(geometry)
+      // The native window can stay this small on macOS CI. Wheel zoom is pointer-centred,
+      // so different unobstructed anchors do not undo the pan when the zoom returns to 1.
+      await page.locator('.react-flow__controls-fitview').click()
       await printIdentityMarker(page)
       await selectIdentityTheme(page, 'pixel')
       await expect(
@@ -301,7 +305,7 @@ test.describe('Workspace Canvas - Pixel Light', () => {
       )
       await openPixelAppearance(page)
       await setPixelEffect(page, 'nodeClosePixelEffectEnabled', false)
-      await setPixelEffect(page, 'canvasPixelBackgroundEnabled', false)
+      await setBackgroundStyle(page, 'off')
       await page.locator('.settings-panel__close').click()
       await page.getByTestId('app-header-control-center').click()
       await page.getByTestId('control-center-theme-mode-light').check()
@@ -312,7 +316,7 @@ test.describe('Workspace Canvas - Pixel Light', () => {
       const mixed = {
         ...PIXEL_EFFECTS_ENABLED,
         nodeClosePixelEffectEnabled: false,
-        canvasPixelBackgroundEnabled: false,
+        canvasBackgroundStyle: 'off' as const,
       }
       await expect.poll(() => readPixelEffects(page)).toEqual(mixed)
       // The unchanged effect flags can already match the old snapshot. Wait for
@@ -332,6 +336,7 @@ test.describe('Workspace Canvas - Pixel Light', () => {
       await expect(page.locator('html')).toHaveAttribute('data-cove-theme', 'light')
       await expect.poll(() => readPixelEffects(page)).toEqual(mixed)
       await expect(page.getByTestId('workspace-pixel-layer')).toBeHidden()
+      await expect(page.getByTestId('workspace-pixel-wall')).toHaveCount(0)
       await expect(page.locator('.react-flow__background')).toBeVisible()
       await openPixelAppearance(page)
       await Promise.all(
@@ -350,12 +355,8 @@ test.describe('Workspace Canvas - Pixel Light', () => {
         'data-cove-pixel-motion',
         'static',
       )
-      // Settle the last invalidation and Chromium's readback rasterization before
-      // the strict idle comparison. Creating a node later deliberately pans this field.
-      await readStableFieldBaseline(page.getByTestId('workspace-pixel-layer'))
-      const field = await pixelFrame(page)
-      expect(field.before.painted).toBeGreaterThan(20)
-      expect(field.after).toEqual(field.before)
+      // The wall paints the background and holds still; creating a node later pans it.
+      await expectStillWall(page)
       await installPixelEffectProbe(page)
       await page
         .locator('.workspace-canvas .react-flow__pane')
