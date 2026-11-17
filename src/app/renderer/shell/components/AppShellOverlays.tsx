@@ -58,7 +58,12 @@ export function AppShellOverlays({
         onDismiss={dismissNotification}
       />
 
-      <VoiceAssistant settings={agentSettings} />
+      <VoiceAssistant
+        settings={agentSettings}
+        onPickBoss={nodeId => {
+          setAgentSettings(prev => ({ ...prev, voice: { ...prev.voice, bossNodeId: nodeId } }))
+        }}
+      />
 
       <ControlCenter
         isOpen={isControlCenterOpen}

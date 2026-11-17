@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
-import { clearAndSeedWorkspace, launchApp, selectCoveOption } from './workspace-canvas.helpers'
+import { clearAndSeedWorkspace, launchApp } from './workspace-canvas.helpers'
 import { isWebE2ETarget } from './webTarget/webTargetLaunch'
 
 // Voice runs on the worker and is offered by the Web UI; the desktop app has no voice engine.
@@ -52,9 +52,17 @@ async function chooseVoiceBoss(window: Page, bossNodeId: string): Promise<void> 
   await dialog.getByTestId('settings-section-nav-agent').click()
   await dialog.getByTestId('settings-agent-tab-voice').click()
   await dialog.getByTestId('settings-voice-enabled').click()
-  await selectCoveOption(window, 'settings-voice-boss', bossNodeId)
   await window.keyboard.press('Escape')
   await expect(dialog).toHaveCount(0)
+
+  // The agent is picked beside the hold button, without going back to the settings.
+  await expect(window.getByTestId('voice-hold-button')).toHaveCount(0)
+  const target = window.getByTestId('voice-target-button')
+  await expect(target).toHaveText('Choose agent')
+  await target.click()
+  await window.getByTestId(`voice-target-option-${bossNodeId}`).click()
+  await expect(window.getByTestId('voice-target-menu')).toHaveCount(0)
+  await expect(target).not.toHaveText('Choose agent')
 }
 
 async function holdPushToTalk(window: Page, holdMs: number): Promise<void> {

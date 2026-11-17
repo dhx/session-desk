@@ -69,7 +69,8 @@
 
 /*
  * Hold-to-talk: bottom centre, clear of the minimap and the canvas controls, big enough for a
- * thumb. The status pill moves up above it while it is there.
+ * thumb. The status pill moves up above it while it is there. Translucent at rest like the canvas
+ * zoom controls, so the canvas behind it stays readable; solid while in use.
  */
 .cove-icon-button.voice-hold-button {
   position: fixed;
@@ -88,11 +89,21 @@
   color: var(--cove-text);
   box-shadow: var(--cove-shadow-md);
   backdrop-filter: blur(18px);
+  opacity: 0.76;
+  transition: opacity var(--cove-motion-normal) var(--cove-ease-standard);
   cursor: pointer;
   touch-action: none;
   user-select: none;
   -webkit-user-select: none;
   -webkit-touch-callout: none;
+}
+
+.cove-icon-button.voice-hold-button:hover,
+.cove-icon-button.voice-hold-button:focus-visible,
+.cove-icon-button.voice-hold-button[data-voice-phase='listening'],
+.cove-icon-button.voice-hold-button[data-voice-phase='transcribing'],
+.cove-icon-button.voice-hold-button[data-voice-phase='sending'] {
+  opacity: 1;
 }
 
 .cove-icon-button.voice-hold-button:focus-visible {
@@ -107,4 +118,62 @@
 
 body:has(.voice-hold-button) .voice-indicator {
   bottom: calc(var(--cove-spacing-6) + 64px + var(--cove-spacing-3));
+}
+
+/*
+ * The agent voice goes to, right of the hold button and level with its middle; tap to pick
+ * another. Without a chosen agent it stands alone where the button would be.
+ */
+.cove-button.voice-target-button {
+  position: fixed;
+  left: calc(50% + 32px + var(--cove-spacing-2));
+  bottom: calc(var(--cove-spacing-6) + 32px);
+  transform: translateY(50%);
+  z-index: var(--cove-z-toast);
+  display: flex;
+  align-items: center;
+  gap: var(--cove-spacing-1);
+  max-width: calc(50vw - 32px - var(--cove-spacing-2) - 12px);
+  min-height: 32px;
+  padding: 0 var(--cove-spacing-2) 0 var(--cove-spacing-3);
+  border: 1px solid var(--cove-border);
+  border-radius: var(--cove-radius-round);
+  background: var(--cove-popover);
+  color: var(--cove-text);
+  box-shadow: var(--cove-shadow-sm);
+  backdrop-filter: blur(18px);
+  font-size: var(--cove-font-size-secondary);
+  opacity: 0.76;
+  transition: opacity var(--cove-motion-normal) var(--cove-ease-standard);
+  cursor: pointer;
+}
+
+body:not(:has(.voice-hold-button)) .cove-button.voice-target-button {
+  left: 50%;
+  transform: translate(-50%, 50%);
+  max-width: calc(100vw - 24px);
+}
+
+.cove-button.voice-target-button:hover,
+.cove-button.voice-target-button:focus-visible,
+.cove-button.voice-target-button[aria-expanded='true'] {
+  opacity: 1;
+}
+
+.cove-button.voice-target-button:focus-visible {
+  outline: 2px solid var(--cove-focus-ring);
+  outline-offset: 2px;
+}
+
+.voice-target-button__text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cove-button.voice-target-button .cove-button__content {
+  display: flex;
+  align-items: center;
+  gap: var(--cove-spacing-1);
+  min-width: 0;
 }
