@@ -7,6 +7,7 @@ import { randomUUID } from 'node:crypto'
 import WebSocket from 'ws'
 import { describe, expect, it } from 'vitest'
 import { registerControlSurfaceHttpServer } from '../../../src/app/main/controlSurface/controlSurfaceHttpServer'
+import type { TerminalSessionStateEvent } from '../../../src/shared/contracts/dto'
 import type { ControlSurfacePtyRuntime } from '../../../src/app/main/controlSurface/handlers/sessionPtyRuntime'
 import { createApprovedWorkspaceStoreForPath } from '../../../src/contexts/workspace/infrastructure/approval/ApprovedWorkspaceStoreCore'
 import {
@@ -46,9 +47,7 @@ describe('Control Surface HTTP server (multi-endpoint orchestration)', () => {
 
     const remoteDataListeners = new Set<(event: { sessionId: string; data: string }) => void>()
     const remoteExitListeners = new Set<(event: { sessionId: string; exitCode: number }) => void>()
-    const remoteStateListeners = new Set<
-      (event: { sessionId: string; state: 'working' | 'standby' }) => void
-    >()
+    const remoteStateListeners = new Set<(event: TerminalSessionStateEvent) => void>()
     const remoteMetadataListeners = new Set<
       (event: {
         sessionId: string
@@ -89,7 +88,7 @@ describe('Control Surface HTTP server (multi-endpoint orchestration)', () => {
         remoteExitListeners.add(listener)
         return () => remoteExitListeners.delete(listener)
       },
-      onState: (listener: (event: { sessionId: string; state: 'working' | 'standby' }) => void) => {
+      onState: (listener: (event: TerminalSessionStateEvent) => void) => {
         remoteStateListeners.add(listener)
         return () => remoteStateListeners.delete(listener)
       },
@@ -214,7 +213,12 @@ describe('Control Surface HTTP server (multi-endpoint orchestration)', () => {
       expect(dataMessage.data).toBe(expectedData)
 
       remoteStateListeners.forEach(listener =>
-        listener({ sessionId: remoteSessionId as string, state: 'working' }),
+        listener({
+          sessionId: remoteSessionId as string,
+          state: 'working',
+          agentProvider: 'gemini',
+          source: 'session_file',
+        }),
       )
       const stateMessage = await waitForMessage(
         ws,
@@ -222,7 +226,8 @@ describe('Control Surface HTTP server (multi-endpoint orchestration)', () => {
           isRecord(message) &&
           message.type === 'state' &&
           message.sessionId === homeSessionId &&
-          message.state === 'working',
+          message.state === 'working' &&
+          (message.agentRunState as { state?: string } | undefined)?.state === 'working',
       )
       expect(stateMessage.state).toBe('working')
 

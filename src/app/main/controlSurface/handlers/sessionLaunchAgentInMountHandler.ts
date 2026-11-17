@@ -25,7 +25,8 @@ import { invokeControlSurface } from '../remote/controlSurfaceHttpClient'
 import type { MultiEndpointPtyRuntime } from '../ptyStream/multiEndpointPtyRuntime'
 import type { SessionRecord } from './sessionRecords'
 import { normalizeOptionalString } from './sessionLaunchPayloadSupport'
-import { normalizeLaunchAgentInMountPayload } from './sessionLaunchAgentInMountPayload'
+import { registerOperation } from '../registerOperation'
+import { sessionLaunchAgentInMountOperation } from '@shared/contracts/controlSurface/operations/domains/session'
 import type { TerminalSpawnAdmission } from '../../../../contexts/terminal/application/TerminalRuntimeAvailability'
 import { resolveAdmittedMountAgentLaunch } from './resolveAdmittedMountAgentLaunch'
 import {
@@ -35,10 +36,7 @@ import {
   logAgentLaunchInfo,
 } from '../../diagnostics/agentLaunchRuntimeDiagnostics'
 import { prepareAgentLaunch } from './prepareAgentLaunch'
-import {
-  buildForwardedLaunchAgentPayload,
-  resolveLocalAgentLaunchSecurity,
-} from './agentLaunchOverrides'
+import { forwardLaunchAgentPayload, resolveLocalAgentLaunchSecurity } from './agentLaunchOverrides'
 import { rollbackAgentLaunchArtifacts } from '../../../../contexts/agent/application/services/AgentLaunchArtifactOwner'
 import {
   mergeAgentLaunchEnvironment,
@@ -59,9 +57,7 @@ export function registerSessionLaunchAgentInMountHandler(
     agentProviderRegistry: AgentProviderRegistry
   },
 ): void {
-  controlSurface.register('session.launchAgentInMount', {
-    kind: 'command',
-    validate: normalizeLaunchAgentInMountPayload,
+  registerOperation(controlSurface, sessionLaunchAgentInMountOperation, {
     handle: async (ctx, payload): Promise<LaunchAgentSessionResult> => {
       const { target, cwd, mode } = await resolveAdmittedMountAgentLaunch({
         ctx,
@@ -112,13 +108,11 @@ export function registerSessionLaunchAgentInMountHandler(
           const agentLaunchResult = await invokeControlSurface(endpoint, {
             kind: 'command',
             id: 'session.launchAgent',
-            payload: buildForwardedLaunchAgentPayload({
+            payload: await forwardLaunchAgentPayload({
               payload,
               cwd,
               mode,
-              state: normalizePersistedAppState(
-                await (await deps.getPersistenceStore()).readAppState(),
-              ),
+              getPersistenceStore: deps.getPersistenceStore,
             }),
           })
 
@@ -248,7 +242,7 @@ export function registerSessionLaunchAgentInMountHandler(
         state: normalized,
         provider,
       })
-      const { agentFullAccess, executablePathOverride } = security
+      const { agentFullAccess, executablePathOverride, codexReuseRunningAppServer } = security
       logAgentLaunchInfo(
         'control-surface-mount-local-resolved-settings',
         'Resolved local mount agent launch settings.',
@@ -261,6 +255,7 @@ export function registerSessionLaunchAgentInMountHandler(
           executablePathOverridePresent: !!executablePathOverride,
           ...security.diagnostics,
           agentFullAccess,
+          codexReuseRunningAppServer,
           cols: payload.cols ?? 80,
           rows: payload.rows ?? 24,
         },
@@ -282,6 +277,7 @@ export function registerSessionLaunchAgentInMountHandler(
 
       const resumeSessionId = mode === 'resume' ? (payload.resumeSessionId ?? null) : null
       const { launchCommand, managedLaunch, testStub } = await prepareAgentLaunch({
+        environment: { ...sessionEnv, ...payload.env },
         registry: deps.agentProviderRegistry,
         profileId: agentSettings.defaultTerminalProfileId,
         provider,
@@ -291,6 +287,7 @@ export function registerSessionLaunchAgentInMountHandler(
         resumeSessionId,
         prompt: payload.prompt,
         agentFullAccess,
+        codexReuseRunningAppServer,
         opencodeServer,
         executablePathOverride,
       })
@@ -389,6 +386,7 @@ export function registerSessionLaunchAgentInMountHandler(
           ...(managedLaunch.plan.hookInstallState
             ? { hookInstallState: managedLaunch.plan.hookInstallState }
             : {}),
+          hookCoverage: managedLaunch.plan.hookCoverage,
           launchArtifacts: managedLaunch.artifacts,
         })
         .catch(error => {

@@ -17,6 +17,7 @@ import { normalizeSidebarCollapsedIds } from './sidebarTreeSettings'
 import { normalizeSidebarViewSettings } from './sidebarViewSettings'
 import { normalizePixelEffectSettings } from './pixelEffectSettings'
 import { normalizeWindowAppearanceSettings } from './windowAppearanceSettings'
+import { normalizeNotificationSettings } from './notificationSettings'
 import { normalizeDisabledPluginIds, normalizePluginContributions } from './pluginSettings'
 import { isValidUiLanguage, normalizeUiTheme } from './uiSettings'
 import {
@@ -88,11 +89,14 @@ export type {
 } from './agentSettings.providers'
 export type {
   AgentSettings,
+  NotificationSettings,
+  NotificationSound,
   PixelEffectSettings,
   PixelEffectToggle,
   TaskTitleProvider,
   TerminalProfileId,
 } from './agentSettings.types'
+export { NOTIFICATION_SOUNDS } from './agentSettings.types'
 export {
   VIEWPORT_TRANSITIONS,
   CANVAS_INPUT_MODES,
@@ -187,6 +191,9 @@ export function normalizeAgentSettings(value: unknown): AgentSettings {
     defaultProvider,
   )
 
+  const codexReuseRunningAppServer =
+    normalizeBoolean(value.codexReuseRunningAppServer) ??
+    DEFAULT_AGENT_SETTINGS.codexReuseRunningAppServer
   // Upstream turns Full Access on for saved settings without the key (installs from before the
   // setting). This fork has defaulted to off since its agent policy; a missing key stays off.
   const agentFullAccess =
@@ -287,21 +294,6 @@ export function normalizeAgentSettings(value: unknown): AgentSettings {
   const focusNodeUseVisibleCanvasCenter =
     normalizeBoolean(value.focusNodeUseVisibleCanvasCenter) ??
     DEFAULT_AGENT_SETTINGS.focusNodeUseVisibleCanvasCenter
-  const systemNotificationsEnabled =
-    normalizeBoolean(value.systemNotificationsEnabled) ??
-    DEFAULT_AGENT_SETTINGS.systemNotificationsEnabled
-  const standbyBannerEnabled =
-    normalizeBoolean(value.standbyBannerEnabled) ?? DEFAULT_AGENT_SETTINGS.standbyBannerEnabled
-  const standbyBannerShowTask =
-    normalizeBoolean(value.standbyBannerShowTask) ?? DEFAULT_AGENT_SETTINGS.standbyBannerShowTask
-  const standbyBannerShowSpace =
-    normalizeBoolean(value.standbyBannerShowSpace) ?? DEFAULT_AGENT_SETTINGS.standbyBannerShowSpace
-  const standbyBannerShowBranch =
-    normalizeBoolean(value.standbyBannerShowBranch) ??
-    DEFAULT_AGENT_SETTINGS.standbyBannerShowBranch
-  const standbyBannerShowPullRequest =
-    normalizeBoolean(value.standbyBannerShowPullRequest) ??
-    DEFAULT_AGENT_SETTINGS.standbyBannerShowPullRequest
   const disableAppShortcutsWhenTerminalFocused =
     normalizeBoolean(value.disableAppShortcutsWhenTerminalFocused) ??
     DEFAULT_AGENT_SETTINGS.disableAppShortcutsWhenTerminalFocused
@@ -426,6 +418,7 @@ export function normalizeAgentSettings(value: unknown): AgentSettings {
     defaultProvider,
     agentProviderOrder,
     agentFullAccess,
+    codexReuseRunningAppServer,
     defaultTerminalProfileId:
       defaultTerminalProfileId.length > 0
         ? defaultTerminalProfileId
@@ -447,12 +440,7 @@ export function normalizeAgentSettings(value: unknown): AgentSettings {
     focusNodeOnClick,
     focusNodeTargetZoom,
     focusNodeUseVisibleCanvasCenter,
-    systemNotificationsEnabled,
-    standbyBannerEnabled,
-    standbyBannerShowTask,
-    standbyBannerShowSpace,
-    standbyBannerShowBranch,
-    standbyBannerShowPullRequest,
+    ...normalizeNotificationSettings(value),
     disableAppShortcutsWhenTerminalFocused,
     keybindings,
     canvasInputMode,

@@ -1,8 +1,10 @@
+import { editDistance } from './suggestions'
 import { jsonErrorOffset } from './jsonLocation'
 import { parseArgs, type ParseArgsConfig } from 'node:util'
 import type { Command, OptionSpec } from './command'
 import type { CliIo } from './io'
-import { CliError, usage } from './errors'
+import { choiceMessage, CliError, usage } from './errors'
+import { applySelfDefaults } from './selectors'
 export const globals: Record<string, OptionSpec> = {
   endpoint: {
     type: 'string',
@@ -17,13 +19,24 @@ export const globals: Record<string, OptionSpec> = {
     description: 'Set the request timeout in milliseconds (default: 20000)',
   },
   pretty: { type: 'boolean', description: 'Indent JSON output for readability' },
+  limit: {
+    type: 'number',
+    valueName: 'n',
+    description:
+      'Limit output lists to n items (0 means all); cut object lists add truncated totals, bare arrays write one stderr notice',
+  },
   fields: {
     type: 'string',
     valueName: 'a,b,...',
     description:
-      'Select item-relative fields; preserve envelopes and accept item-key prefixes. api call queries use raw output paths',
+      'Select item-relative fields; preserve envelopes and accept item-key prefixes. api call queries also accept raw output paths',
   },
-  output: { type: 'string', description: 'Choose JSON (default) or a supported table layout' },
+  output: {
+    type: 'string',
+    choices: ['json', 'table'],
+    description:
+      'Choose JSON (default; agent read/session final default to message text) or a supported table layout',
+  },
   help: { type: 'boolean', description: 'Show help for this command or group' },
   version: { type: 'boolean', description: 'Print the CLI version' },
 }
@@ -31,25 +44,12 @@ export function commandHelpHint(path: string[]) {
   return `Run "opencove${path.length ? ' ' + path.join(' ') : ''} --help" to see its options.`
 }
 export function suggest(value: string, choices: string[]): string {
-  const distance = (a: string, b: string) => {
-    const row = Array.from({ length: b.length + 1 }, (_, i) => i)
-    for (let i = 1; i <= a.length; i++) {
-      let prev = row[0]
-      row[0] = i
-      for (let j = 1; j <= b.length; j++) {
-        const old = row[j]
-        row[j] = Math.min(row[j] + 1, row[j - 1] + 1, prev + Number(a[i - 1] !== b[j - 1]))
-        prev = old
-      }
-    }
-    return row[b.length]
-  }
   const prefixes = choices.filter(c => c.startsWith(value))
   const best =
     prefixes.length === 1
       ? prefixes[0]
-      : [...choices].sort((a, b) => distance(value, a) - distance(value, b))[0]
-  return best && (prefixes.length === 1 || distance(value, best) <= 2)
+      : [...choices].sort((a, b) => editDistance(value, a) - editDistance(value, b))[0]
+  return best && (prefixes.length === 1 || editDistance(value, best) <= 2)
     ? `Did you mean ${best}?`
     : ''
 }
@@ -141,10 +141,20 @@ export async function parseCommand(argv: string[], command: Command, io: CliIo) 
   const specs = { ...globals, ...command.options }
   const parsed = parse(argv, specs, command.path)
   const values: Record<string, unknown> = { ...parsed.values }
+  if (!values.help) {
+    applySelfDefaults(values, command, io.env)
+  }
   for (const [key, spec] of Object.entries(specs)) {
     const file = values[`${key}-file`]
+    if (file !== undefined && values.help) {
+      delete values[`${key}-file`]
+      continue
+    }
     if (file !== undefined) {
       if (values[key] !== undefined) {
+        if (command.operation === 'agent.prompt' && key === 'text') {
+          usage('Use either --text or --text-file, not both.', 'Remove one of the two options.')
+        }
         usage(`Cannot use --${key} and --${key}-file together`, commandHelpHint(command.path))
       }
       try {
@@ -154,6 +164,12 @@ export async function parseCommand(argv: string[], command: Command, io: CliIo) 
       } catch (error) {
         if (error instanceof CliError && error.exitCode === 130) {
           throw error
+        }
+        if (command.operation === 'agent.prompt' && key === 'text') {
+          usage(
+            `Could not read prompt text from ${file}. Nothing was sent.`,
+            'Check that the file exists and is readable, or use --text-file - for stdin.',
+          )
         }
         usage(`Unable to read --${key}-file: ${file}`)
       }
@@ -176,9 +192,32 @@ export async function parseCommand(argv: string[], command: Command, io: CliIo) 
       }
     }
     const convert = (value: unknown) => {
+      const received = value
+      if (spec.type === 'string' && spec.normalize) {
+        value = spec.normalize(String(value))
+      }
+      const choices =
+        typeof spec.choices === 'function'
+          ? spec.choices({
+              options: values,
+              positionals: parsed.positionals.slice(command.path.length),
+            })
+          : spec.choices
+      if (choices && !choices.includes(String(value))) {
+        usage(choiceMessage(`--${key}`, received, choices), commandHelpHint(command.path))
+      }
       if (spec.type === 'number') {
-        const number = Number(value)
+        const duration = key === 'timeout' ? /^(\d+(?:\.\d+)?)(ms|s|m)$/.exec(String(value)) : null
+        const number = duration
+          ? Number(duration[1]) * ({ ms: 1, s: 1000, m: 60000 }[duration[2]] ?? 1)
+          : Number(value)
         if (!Number.isFinite(number)) {
+          if (command.operation === 'agent.prompt' && key === 'timeout') {
+            usage(
+              'The delivery timeout must be a whole number of milliseconds from 1ms to 60s.',
+              'For example, use --timeout 15s or --timeout 15000ms.',
+            )
+          }
           usage(`Invalid number for --${key}`)
         }
         return number
@@ -204,10 +243,22 @@ export async function parseCommand(argv: string[], command: Command, io: CliIo) 
       ? (values[key] as unknown[]).map(convert)
       : convert(values[key])
   }
-  if (values.output !== undefined && !['json', 'table'].includes(String(values.output))) {
-    usage('Output must be json or table')
+  if (
+    values.limit !== undefined &&
+    (!Number.isSafeInteger(values.limit) || Number(values.limit) < 0)
+  ) {
+    usage('--limit must be a non-negative safe integer')
   }
   if (values.timeout !== undefined && Number(values.timeout) <= 0) {
+    if (command.operation === 'agent.prompt') {
+      usage(
+        'The delivery timeout must be a whole number of milliseconds from 1ms to 60s.',
+        'For example, use --timeout 15s or --timeout 15000ms.',
+      )
+    }
+    if (command.path.join(' ') === 'agent wait') {
+      usage('Wait timeout minimum is 250ms.')
+    }
     usage('Timeout must be positive')
   }
   if (
@@ -231,7 +282,7 @@ export async function parseCommand(argv: string[], command: Command, io: CliIo) 
       commandHelpHint(command.path),
     )
   }
-  return { options: values, positionals }
+  return { options: values, positionals, explicitOptions: new Set(Object.keys(parsed.values)) }
 }
 
 export function globalArgv(argv: string[], specs: Record<string, OptionSpec>): string[] {

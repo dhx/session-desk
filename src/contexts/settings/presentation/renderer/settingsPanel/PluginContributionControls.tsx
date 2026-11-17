@@ -1,5 +1,10 @@
 import type { JSX } from 'react'
-import { MousePointer2, PanelRight, PanelLeft, PanelTop } from 'lucide-react'
+import {
+  LayoutIcon,
+  PointerIcon,
+  SidebarIcon,
+  SidebarRightIcon,
+} from '@app/renderer/components/ui/pixelIcons'
 import { useTranslation } from '@app/renderer/i18n'
 import { Toggle } from '@app/renderer/components/ui/Toggle'
 import type { PluginManifest } from '@contexts/plugins/domain/pluginTypes'
@@ -10,10 +15,10 @@ import {
 } from '@contexts/settings/domain/pluginSettings'
 
 const CONTRIBUTIONS = [
-  { key: 'actionBar', Icon: PanelRight },
-  { key: 'contextMenu', Icon: MousePointer2 },
-  { key: 'sidebar', Icon: PanelLeft },
-  { key: 'nodeHeader', Icon: PanelTop },
+  { key: 'actionBar', Icon: SidebarRightIcon },
+  { key: 'contextMenu', Icon: PointerIcon },
+  { key: 'sidebar', Icon: SidebarIcon },
+  { key: 'nodeHeader', Icon: LayoutIcon },
 ] as const
 
 export function PluginContributionControls({
@@ -49,7 +54,7 @@ export function PluginContributionControls({
             data-testid={`settings-plugin-contribution-tile-${key}-${plugin.id}`}
             key={key}
           >
-            <Icon size={20} aria-hidden="true" />
+            <Icon size={18} />
             <span className="settings-plugin-contribution__copy">
               <span className="settings-plugin-contribution__title">
                 {t(`settingsPanel.plugins.capabilities.${key}`)}

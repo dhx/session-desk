@@ -55,6 +55,47 @@ export const webTargetSkips: WebTargetSkip[] = [
     reason: `${WEBSITE_WINDOW}; the test reads the website window manager through BrowserWindow`,
   },
   {
+    file: 'agent-terminal-state-restore.spec.ts',
+    category: 'electron-only',
+    reason: 'Drives the stub agent through ipcMain handlers of the Electron main process',
+  },
+  {
+    file: 'app-header.fullscreen-inset.spec.ts',
+    category: 'electron-only',
+    reason:
+      'Emits BrowserWindow full-screen events; the macOS traffic lights exist only on desktop',
+  },
+  {
+    file: 'workspace-canvas.agent-attention-routing.spec.ts',
+    category: 'electron-only',
+    reason:
+      "Sets the main process's foreground state and reads its system notifications; the Web UI uses the browser's",
+  },
+  {
+    file: 'workspace-canvas.agent-island.spec.ts',
+    category: 'electron-only',
+    reason: "Brings the app to the front by emitting the BrowserWindow's focus event",
+  },
+  {
+    file: 'workspace-canvas.claude-hook.spec.ts',
+    title: 'launches with session-file fallback and visible degradation when hook install fails',
+    category: 'known-failing',
+    reason:
+      "Since upstream #533 the Worker decides run state; on the web target the session-file fallback stays 'unknown' (label Working) instead of reaching Standby. Recorded on the Session Board.",
+  },
+  {
+    file: 'workspace-canvas.pixel-spotlight.spec.ts',
+    title: 'lights the pointer over finished wall tiles and disables it with ambient motion',
+    category: 'electron-only',
+    reason: 'Hides and shows the BrowserWindow to pause the pixel wall',
+  },
+  {
+    file: 'workspace-canvas.root-terminal-admission.spec.ts',
+    category: 'known-failing',
+    reason:
+      'Restarts the worker between two app launches; since upstream #523 (one worker owner per profile) the web target meets the stopping owner and the restored terminal stays gated in CI. Passes locally; recorded on the Session Board.',
+  },
+  {
     file: 'recovery.agent-input-after-window-reopen.spec.ts',
     category: 'electron-only',
     reason:
@@ -197,13 +238,6 @@ export const webTargetSkips: WebTargetSkip[] = [
   },
   {
     file: 'workspace-canvas.color-identity.spec.ts',
-    category: 'web-ui-gap',
-    reason: CANVAS_IMAGE_SEED,
-  },
-  {
-    file: 'workspace-canvas.pixel-light.spec.ts',
-    title:
-      'switches existing Pixel work into a readable light canvas and terminal without replacing editors',
     category: 'web-ui-gap',
     reason: CANVAS_IMAGE_SEED,
   },

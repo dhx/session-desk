@@ -1,5 +1,5 @@
 import React, { memo, useMemo } from 'react'
-import { ArrowRight, Bot } from 'lucide-react'
+import { ArrowRightIcon, RobotIcon } from '@app/renderer/components/ui/pixelIcons'
 import { useReactFlow, useStore, type Node, type ReactFlowState } from '@xyflow/react'
 import { Button } from '@app/renderer/components/ui/Button'
 import { KindTile } from '@app/renderer/components/ui/KindTile'
@@ -7,6 +7,7 @@ import { useTranslation } from '@app/renderer/i18n'
 import type { TerminalNodeData } from '../../../types'
 import { resolveAgentPresentation } from '../../../utils/agentPresentation'
 import { focusNodeInViewport } from '../helpers'
+import { showWindowFocus } from './windowSignals/windowFocus'
 import { resolveEdgeBeacons, type EdgeBeaconSide } from './edgeBeacons'
 
 /** How far beacons sit inside the canvas edges, in px: room for the pill's half width. */
@@ -35,7 +36,9 @@ function sameView(left: View | null, right: View | null): boolean {
  */
 export const WorkspaceEdgeBeacons = memo(function WorkspaceEdgeBeacons({
   nodes,
+  canvasRef,
 }: {
+  canvasRef: React.RefObject<HTMLDivElement | null>
   nodes: Node<TerminalNodeData>[]
 }): React.JSX.Element | null {
   const { t } = useTranslation()
@@ -82,6 +85,9 @@ export const WorkspaceEdgeBeacons = memo(function WorkspaceEdgeBeacons({
     const node = waiting.find(candidate => candidate.id === id)
     if (node) {
       focusNodeInViewport(reactFlow, node, { zoom: Math.max(view.zoom, 0.6), duration: 320 })
+      if (canvasRef.current) {
+        showWindowFocus(canvasRef.current, node.id)
+      }
     }
   }
   return (
@@ -100,14 +106,13 @@ export const WorkspaceEdgeBeacons = memo(function WorkspaceEdgeBeacons({
         >
           <span className="workspace-edge-beacon__dot" aria-hidden="true" />
           <KindTile kind="ai" size="sm">
-            <Bot aria-hidden="true" />
+            <RobotIcon />
           </KindTile>
           <span className="workspace-edge-beacon__title">{beacon.title}</span>
           <span className="workspace-edge-beacon__status">· {t('edgeBeacons.waiting')}</span>
-          <ArrowRight
+          <ArrowRightIcon
             className="workspace-edge-beacon__arrow"
-            size={14}
-            aria-hidden="true"
+            size={18}
             style={{ transform: `rotate(${ARROW_ROTATION[beacon.side]}deg)` }}
           />
         </Button>

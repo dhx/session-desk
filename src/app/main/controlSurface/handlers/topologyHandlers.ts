@@ -1,21 +1,28 @@
 import { assertApprovableWorkspaceRoot } from './workspaceHandlers'
+import { hostname } from 'node:os'
+import { toFileUri } from '../../../../contexts/filesystem/domain/fileUri'
+import type { ApprovedWorkspaceStore } from '../../../../contexts/workspace/infrastructure/approval/ApprovedWorkspaceStore'
+import { resolveHomeDirectory } from '../../../../platform/os/HomeDirectory'
 import {
+  endpointHomeDirectoryOperation,
   endpointListOperation,
   endpointPingOperation,
+  endpointPrepareOperation,
+  endpointReadDirectoryOperation,
+  endpointRegisterManagedSshOperation,
   endpointRegisterOperation,
   endpointRemoveOperation,
+  endpointRepairOperation,
+  endpointSshConfigHostsOperation,
+  endpointUpdateManagedSshOperation,
 } from '../../../../shared/contracts/controlSurface/operations/domains/endpoint'
 import {
   mountCreateOperation,
   mountListOperation,
+  mountPromoteOperation,
   mountRemoveOperation,
 } from '../../../../shared/contracts/controlSurface/operations/domains/mount'
 import { mountTargetResolveOperation } from '../../../../shared/contracts/controlSurface/operations/domains/mountTarget'
-import { registerOperation } from '../registerOperation'
-import { hostname } from 'node:os'
-import type { ControlSurface } from '../controlSurface'
-import { createAppError, OpenCoveAppError } from '../../../../shared/errors/appError'
-import type { ApprovedWorkspaceStore } from '../../../../contexts/workspace/infrastructure/approval/ApprovedWorkspaceStore'
 import type {
   ControlSurfaceHomeDirectoryResult,
   GetEndpointHomeDirectoryResult,
@@ -26,22 +33,13 @@ import type {
   RepairWorkerEndpointResult,
   SshConfigHost,
 } from '../../../../shared/contracts/dto'
-import type { WorkerTopologyStore } from '../topology/topologyStore'
+import { createAppError, OpenCoveAppError } from '../../../../shared/errors/appError'
+import type { ControlSurface } from '../controlSurface'
+import { registerOperation } from '../registerOperation'
 import { invokeControlSurface } from '../remote/controlSurfaceHttpClient'
-import { toFileUri } from '../../../../contexts/filesystem/domain/fileUri'
-import { resolveHomeDirectory } from '../../../../platform/os/HomeDirectory'
 import type { EndpointHealthService } from '../topology/endpointHealthService'
-import {
-  isUnknownControlSurfaceOperationError,
-  normalizeEndpointHomeDirectoryPayload,
-  normalizeEndpointReadDirectoryPayload,
-  normalizePrepareEndpointPayload,
-  normalizePromoteMountPayload,
-  normalizeRegisterManagedSshEndpointPayload,
-  normalizeRepairEndpointPayload,
-  normalizeSshConfigHostsPayload,
-  normalizeUpdateManagedSshEndpointPayload,
-} from './topologyHandlerPayloads'
+import type { WorkerTopologyStore } from '../topology/topologyStore'
+import { isUnknownControlSurfaceOperationError } from './topologyHandlerPayloads'
 export function registerTopologyHandlers(
   controlSurface: ControlSurface,
   deps: {
@@ -58,9 +56,7 @@ export function registerTopologyHandlers(
     defaultErrorCode: 'common.unexpected',
   })
 
-  controlSurface.register('endpoint.sshConfigHosts', {
-    kind: 'query',
-    validate: normalizeSshConfigHostsPayload,
+  registerOperation(controlSurface, endpointSshConfigHostsOperation, {
     handle: async () => await deps.readSshConfigHosts(),
     defaultErrorCode: 'common.unexpected',
   })
@@ -70,16 +66,12 @@ export function registerTopologyHandlers(
     defaultErrorCode: 'common.unexpected',
   })
 
-  controlSurface.register('endpoint.registerManagedSsh', {
-    kind: 'command',
-    validate: normalizeRegisterManagedSshEndpointPayload,
+  registerOperation(controlSurface, endpointRegisterManagedSshOperation, {
     handle: async (_ctx, payload) => await deps.topology.registerManagedSshEndpoint(payload),
     defaultErrorCode: 'common.unexpected',
   })
 
-  controlSurface.register('endpoint.updateManagedSsh', {
-    kind: 'command',
-    validate: normalizeUpdateManagedSshEndpointPayload,
+  registerOperation(controlSurface, endpointUpdateManagedSshOperation, {
     handle: async (_ctx, payload) => {
       const result = await deps.topology.updateManagedSshEndpoint(payload)
       try {
@@ -108,17 +100,13 @@ export function registerTopologyHandlers(
     defaultErrorCode: 'common.unexpected',
   })
 
-  controlSurface.register('endpoint.prepare', {
-    kind: 'command',
-    validate: normalizePrepareEndpointPayload,
+  registerOperation(controlSurface, endpointPrepareOperation, {
     handle: async (_ctx, payload): Promise<PrepareWorkerEndpointResult> =>
       await deps.endpointHealth.prepareEndpoint(payload),
     defaultErrorCode: 'common.unexpected',
   })
 
-  controlSurface.register('endpoint.repair', {
-    kind: 'command',
-    validate: normalizeRepairEndpointPayload,
+  registerOperation(controlSurface, endpointRepairOperation, {
     handle: async (_ctx, payload): Promise<RepairWorkerEndpointResult> =>
       await deps.endpointHealth.repairEndpoint(payload),
     defaultErrorCode: 'common.unexpected',
@@ -206,9 +194,7 @@ export function registerTopologyHandlers(
     defaultErrorCode: 'common.unexpected',
   })
 
-  controlSurface.register('endpoint.homeDirectory', {
-    kind: 'query',
-    validate: normalizeEndpointHomeDirectoryPayload,
+  registerOperation(controlSurface, endpointHomeDirectoryOperation, {
     handle: async (_ctx, payload): Promise<GetEndpointHomeDirectoryResult> => {
       if (payload.endpointId === 'local') {
         return {
@@ -279,9 +265,7 @@ export function registerTopologyHandlers(
     defaultErrorCode: 'common.unexpected',
   })
 
-  controlSurface.register('endpoint.readDirectory', {
-    kind: 'query',
-    validate: normalizeEndpointReadDirectoryPayload,
+  registerOperation(controlSurface, endpointReadDirectoryOperation, {
     handle: async (_ctx, payload): Promise<ReadEndpointDirectoryResult> => {
       if (payload.endpointId === 'local') {
         throw createAppError('common.unavailable', {
@@ -436,9 +420,7 @@ export function registerTopologyHandlers(
     defaultErrorCode: 'common.unexpected',
   })
 
-  controlSurface.register('mount.promote', {
-    kind: 'command',
-    validate: normalizePromoteMountPayload,
+  registerOperation(controlSurface, mountPromoteOperation, {
     handle: async (_ctx, payload) => await deps.topology.promoteMount(payload),
     defaultErrorCode: 'common.unexpected',
   })

@@ -1,15 +1,15 @@
 import { useMemo } from 'react'
 import {
-  Bot,
-  FolderPlus,
-  MonitorPlay,
-  Package,
-  PanelLeftClose,
-  PanelLeftOpen,
-  Search,
-  Settings,
-  Scan,
-} from 'lucide-react'
+  FocusIcon,
+  FolderPlusIcon,
+  PackageIcon,
+  RobotIcon,
+  SearchIcon,
+  SettingsIcon,
+  ShowcaseIcon,
+  SidebarCloseIcon,
+  SidebarOpenIcon,
+} from '@app/renderer/components/ui/pixelIcons'
 import { useTranslation } from '@app/renderer/i18n'
 import {
   describeKeyChord,
@@ -20,6 +20,7 @@ import { usePluginCommands } from '@contexts/plugins/presentation/renderer/usePl
 import { PluginIcon } from '@contexts/plugins/presentation/renderer/PluginIcon'
 import { NodeKindIcon } from '@contexts/workspace/presentation/renderer/components/shared/NodeKindIcon'
 import { resolveWindowKindFamily } from '@contexts/workspace/presentation/renderer/utils/windowKindFamily'
+import { resolveAgentPresentationProvider } from '@contexts/workspace/presentation/renderer/utils/agentPresentation'
 import { KindTile } from '@app/renderer/components/ui/KindTile'
 import type { WorkspaceState } from '@contexts/workspace/presentation/renderer/types'
 import { useWorkspaceMountDetails } from '../hooks/useWorkspaceMountSummaries'
@@ -100,7 +101,7 @@ export function useCommandCenterSections({
       tone: 'waiting',
       icon: (
         <KindTile kind="ai">
-          <Bot aria-hidden="true" />
+          <RobotIcon />
         </KindTile>
       ),
       onSelect: () => actions.onSelectNode(agent.workspaceId, agent.nodeId),
@@ -119,6 +120,7 @@ export function useCommandCenterSections({
             const space = activeWorkspace.spaces.find(item => item.nodeIds.includes(node.id))
             const spaceName = space?.name ?? t('sidebar.rootCanvas')
             const agent = agentItems.get(node.id)
+            const provider = resolveAgentPresentationProvider(node.data)
             return {
               id: `window:${node.id}`,
               title: agent?.displayTitle || node.data.title || node.data.kind,
@@ -129,7 +131,11 @@ export function useCommandCenterSections({
                 : { trailing: spaceName }),
               icon: (
                 <KindTile kind={resolveWindowKindFamily(node.data)}>
-                  <NodeKindIcon kind={node.data.kind} />
+                  <NodeKindIcon
+                    kind={provider ? 'agent' : node.data.kind}
+                    provider={provider}
+                    pluginId={node.data.plugin?.pluginId}
+                  />
                 </KindTile>
               ),
               onSelect: () => actions.onSelectNode(activeWorkspace.id, node.id),
@@ -143,7 +149,7 @@ export function useCommandCenterSections({
         .map(space => ({
           id: `space:${space.id}`,
           title: space.name,
-          icon: <Scan aria-hidden="true" size={16} />,
+          icon: <FocusIcon size={18} />,
           labelColor: space.labelColor,
           isCurrent: space.id === activeSpace?.id,
           onSelect: () => actions.onSelectSpace(space.id),
@@ -168,7 +174,7 @@ export function useCommandCenterSections({
             {
               id: 'command:workspace-search',
               title: t('commandCenter.commands.searchWorkspace'),
-              icon: <Search aria-hidden="true" size={16} />,
+              icon: <SearchIcon size={18} />,
               shortcut: shortcutFor('workspace.search'),
               onSelect: actions.onOpenWorkspaceSearch,
             },
@@ -178,7 +184,7 @@ export function useCommandCenterSections({
         id: 'command:settings',
         title: t('commandCenter.commands.openSettings'),
         keywords: t('commandCenter.commands.openSettingsHint'),
-        icon: <Settings aria-hidden="true" size={16} />,
+        icon: <SettingsIcon size={18} />,
         shortcut: shortcutFor('app.openSettings'),
         onSelect: actions.onOpenSettings,
       },
@@ -188,7 +194,7 @@ export function useCommandCenterSections({
               id: 'command:space-archives',
               title: t('commandCenter.commands.spaceArchives'),
               keywords: t('commandCenter.commands.spaceArchivesHint'),
-              icon: <Package aria-hidden="true" size={16} />,
+              icon: <PackageIcon size={18} />,
               onSelect: actions.onOpenSpaceArchives,
             },
           ]
@@ -200,9 +206,9 @@ export function useCommandCenterSections({
           : t('commandCenter.commands.hidePrimarySidebar'),
         keywords: t('commandCenter.commands.togglePrimarySidebarHint'),
         icon: isPrimarySidebarCollapsed ? (
-          <PanelLeftOpen aria-hidden="true" size={16} />
+          <SidebarOpenIcon size={18} />
         ) : (
-          <PanelLeftClose aria-hidden="true" size={16} />
+          <SidebarCloseIcon size={18} />
         ),
         shortcut: shortcutFor('app.togglePrimarySidebar'),
         onSelect: actions.onTogglePrimarySidebar,
@@ -213,14 +219,14 @@ export function useCommandCenterSections({
           ? t('commandCenter.commands.exitShowcase')
           : t('commandCenter.commands.enterShowcase'),
         keywords: t('commandCenter.commands.showcaseHint'),
-        icon: <MonitorPlay aria-hidden="true" size={16} />,
+        icon: <ShowcaseIcon size={18} />,
         onSelect: () => setShowcaseMode(!showcase),
       },
       {
         id: 'command:add-project',
         title: t('commandCenter.commands.addProject'),
         keywords: t('commandCenter.commands.addProjectHint'),
-        icon: <FolderPlus aria-hidden="true" size={16} />,
+        icon: <FolderPlusIcon size={18} />,
         shortcut: shortcutFor('workspace.addProject'),
         onSelect: actions.onAddWorkspace,
       },

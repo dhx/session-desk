@@ -1,3 +1,7 @@
+import {
+  RevisionedSnapshotCache,
+  writeRevisionedSnapshot,
+} from '@shared/sync/revisionedSnapshotCache'
 import { toAppErrorDescriptor } from '@shared/errors/appError'
 import { invokeBrowserControlSurface } from './browserControlSurface'
 import {
@@ -9,68 +13,8 @@ import {
 
 type PersistenceApi = Window['opencoveApi']['persistence']
 
-let lastKnownSyncRevision: number | null = null
-let lastKnownSyncState: BrowserPersistedAppState | null = null
-
-function setLastKnownSyncRevision(value: unknown): void {
-  if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) {
-    return
-  }
-
-  lastKnownSyncRevision = Math.floor(value)
-}
-
-function setLastKnownSyncState(value: unknown): void {
-  lastKnownSyncState = normalizePersistedAppStateForMerge(value)
-}
-
-// Reads the renderer has not taken in yet, by revision. The base of the next write (the
-// revision it is checked against, and the snapshot a conflict merges against) moves only
-// when the renderer accepts one: a read it discards (its canvas changed meanwhile) would
-// otherwise let the next write go through at the new revision without the nodes that read
-// brought, e.g. an agent window a plugin had just opened, while its terminal keeps running.
-const MAX_PENDING_READS = 8
-const pendingReads = new Map<number, unknown>()
-
-function rememberRead(revision: unknown, state: unknown): number | undefined {
-  if (typeof revision !== 'number' || !Number.isFinite(revision) || revision < 0) {
-    return undefined
-  }
-  const token = Math.floor(revision)
-  pendingReads.delete(token)
-  pendingReads.set(token, state)
-  while (pendingReads.size > MAX_PENDING_READS) {
-    const oldest = pendingReads.keys().next().value
-    if (oldest === undefined) {
-      break
-    }
-    pendingReads.delete(oldest)
-  }
-  return token
-}
-
-function acceptRead(token: number): void {
-  if (!pendingReads.has(token)) {
-    return
-  }
-  const state = pendingReads.get(token)
-  pendingReads.delete(token)
-  // A write of our own since that read is the newer base.
-  if (typeof lastKnownSyncRevision === 'number' && token < lastKnownSyncRevision) {
-    return
-  }
-  setLastKnownSyncRevision(token)
-  setLastKnownSyncState(state)
-}
-
-/** Test seam: forget the base and pending reads. */
-export function resetBrowserPersistenceSyncBase(): void {
-  lastKnownSyncRevision = null
-  lastKnownSyncState = null
-  pendingReads.clear()
-}
-
 export function createBrowserPersistenceApi(): PersistenceApi {
+  const cache = new RevisionedSnapshotCache<BrowserPersistedAppState>()
   return {
     readWorkspaceStateRaw: async () =>
       await invokeBrowserControlSurface<string | null>({
@@ -93,122 +37,62 @@ export function createBrowserPersistenceApi(): PersistenceApi {
         id: 'sync.state',
         payload: null,
       })
-      const syncToken = rememberRead(value.revision, value.state)
-      return {
-        state: value.state,
-        recovery: null,
-        ...(syncToken === undefined ? {} : { syncToken }),
-      }
-    },
-    acceptAppState: payload => {
-      if (typeof payload?.syncToken === 'number' && Number.isFinite(payload.syncToken)) {
-        acceptRead(Math.floor(payload.syncToken))
-      }
+      cache.set(value.revision, normalizePersistedAppStateForMerge(value.state))
+      return { state: value.state, recovery: null, revision: value.revision }
     },
     writeAppState: async payload => {
-      const attemptWrite = async (
-        state: unknown,
-        baseRevision: number | null,
-        options?: { allowEmptyWorkspaceOverwrite?: boolean; adoptAsBase?: boolean },
-      ): Promise<number> => {
-        const response = await invokeBrowserControlSurface<{ revision: number }>({
-          kind: 'command',
-          id: 'sync.writeState',
-          payload: {
-            state,
-            ...(typeof baseRevision === 'number' ? { baseRevision } : {}),
-            ...(options?.allowEmptyWorkspaceOverwrite === true
-              ? { allowEmptyWorkspaceOverwrite: true }
-              : {}),
+      try {
+        const result = await writeRevisionedSnapshot({
+          cache,
+          preflight: false,
+          baseRevision: payload.baseRevision,
+          state: payload.state,
+          read: async () => {
+            const value = await invokeBrowserControlSurface<{ revision: number; state: unknown }>({
+              kind: 'query',
+              id: 'sync.state',
+              payload: null,
+            })
+            const state = normalizePersistedAppStateForMerge(value.state)
+            if (value.state !== null && !state) {
+              throw new Error('Malformed sync state.')
+            }
+            return { revision: value.revision, state }
+          },
+          write: async (state, baseRevision) => {
+            const written = await invokeBrowserControlSurface<{ revision: number }>({
+              kind: 'command',
+              id: 'sync.writeState',
+              payload: {
+                state,
+                ...(baseRevision === null ? {} : { baseRevision }),
+                allowEmptyWorkspaceOverwrite: payload.allowEmptyWorkspaceOverwrite === true,
+              },
+            })
+            return written.revision
+          },
+          normalize: normalizeCanonicalPersistedAppStateForMerge,
+          merge: mergePersistedAppStates,
+          isConflict: error => {
+            const descriptor = toAppErrorDescriptor(error, 'persistence.invalid_state')
+            return (
+              descriptor.code === 'persistence.invalid_state' &&
+              (descriptor.debugMessage ?? '').includes('revision conflict')
+            )
           },
         })
-        if (options?.adoptAsBase !== false) {
-          setLastKnownSyncRevision(response.revision)
-          setLastKnownSyncState(state)
-        }
-        return response.revision
-      }
-
-      const state = payload.state
-
-      const baseSnapshot = lastKnownSyncState
-
-      try {
-        const baseRevision =
-          typeof lastKnownSyncRevision === 'number' ? lastKnownSyncRevision : null
-        const revision = await attemptWrite(state, baseRevision, {
-          allowEmptyWorkspaceOverwrite: payload.allowEmptyWorkspaceOverwrite === true,
-        })
-
         return {
           ok: true,
           level: 'full',
-          bytes: JSON.stringify(state).length,
-          revision,
-        } as const
-      } catch (error) {
-        const descriptor = toAppErrorDescriptor(error, 'persistence.invalid_state')
-        const debugMessage = descriptor.debugMessage ?? ''
-        const isRevisionConflict =
-          descriptor.code === 'persistence.invalid_state' &&
-          debugMessage.includes('revision conflict')
-
-        if (!isRevisionConflict) {
-          return { ok: false, reason: 'unknown', error: descriptor } as const
+          bytes: JSON.stringify(result.state).length,
+          revision: result.revision,
+          merged: result.merged,
         }
-
-        try {
-          const latest = await invokeBrowserControlSurface<{
-            revision: number
-            state: unknown | null
-          }>({
-            kind: 'query',
-            id: 'sync.state',
-            payload: null,
-          })
-          // `latest` is not the base: the renderer has not taken it in. Nor is a merge that
-          // brought in something the renderer lacks. Either would let the next save, still
-          // without it, pass at the new revision and delete it. The base stays where it was
-          // until the renderer accepts a read, so such saves keep conflicting and merging.
-          const latestState =
-            latest.state === null ? null : normalizePersistedAppStateForMerge(latest.state)
-          if (latest.state !== null && !latestState) {
-            throw new Error('sync.state returned a malformed persisted state.', { cause: error })
-          }
-          const localState = normalizeCanonicalPersistedAppStateForMerge(state)
-          if (!localState) {
-            throw new Error('Local persistence state was not canonical.', { cause: error })
-          }
-          const merged = latestState
-            ? mergePersistedAppStates(latestState, localState, baseSnapshot)
-            : localState
-
-          const broughtInRemote = JSON.stringify(merged) !== JSON.stringify(localState)
-          const revision = await attemptWrite(merged, latest.revision, {
-            allowEmptyWorkspaceOverwrite: payload.allowEmptyWorkspaceOverwrite === true,
-            adoptAsBase: !broughtInRemote,
-          })
-          if (broughtInRemote) {
-            // The revision stays stale so the next save merges again, but the snapshot
-            // follows what the renderer itself has now written: a window it created and
-            // then closes before a refresh is a deletion, not something a remote added.
-            lastKnownSyncState = localState
-          }
-
-          return {
-            ok: true,
-            level: 'full',
-            bytes: JSON.stringify(merged).length,
-            // Without a revision the write is not counted as the renderer's own, so its
-            // sync event makes the renderer refresh and take the merged state in.
-            ...(broughtInRemote ? {} : { revision }),
-          } as const
-        } catch (retryError) {
-          return {
-            ok: false,
-            reason: 'unknown',
-            error: toAppErrorDescriptor(retryError, 'persistence.invalid_state'),
-          } as const
+      } catch (error) {
+        return {
+          ok: false,
+          reason: 'unknown',
+          error: toAppErrorDescriptor(error, 'persistence.invalid_state'),
         }
       }
     },

@@ -65,7 +65,7 @@ function labelColor(value: unknown): LabelColor | null | undefined {
 }
 
 function normalizeCreatePayload(payload: unknown): CreateSpaceInput {
-  const input = record(payload, 'space.create', [
+  const input = record(payload, 'space.createEmpty', [
     'projectId',
     'name',
     'labelColor',
@@ -83,7 +83,7 @@ function normalizeCreatePayload(payload: unknown): CreateSpaceInput {
 }
 
 function normalizeUpdatePayload(payload: unknown): UpdateSpaceInput {
-  const input = record(payload, 'space.update', ['spaceId', 'name', 'labelColor'])
+  const input = record(payload, 'space.setAttributes', ['spaceId', 'name', 'labelColor'])
   const next: UpdateSpaceInput = { spaceId: text(input.spaceId, 'spaceId', 200) }
   if (input.name !== undefined) {
     next.name = text(input.name, 'name', 120)
@@ -92,7 +92,7 @@ function normalizeUpdatePayload(payload: unknown): UpdateSpaceInput {
     next.labelColor = labelColor(input.labelColor)
   }
   if (next.name === undefined && next.labelColor === undefined) {
-    invalid('space.update needs a name or a labelColor.')
+    invalid('space.setAttributes needs a name or a labelColor.')
   }
   return next
 }
@@ -175,7 +175,7 @@ export function registerSpaceMutationHandlers(
   const announce = (revision: number, operationId: string) =>
     deps.publishSyncEvent?.({ type: 'app_state.updated', revision, operationId })
 
-  controlSurface.register('space.create', {
+  controlSurface.register('space.createEmpty', {
     kind: 'command',
     validate: normalizeCreatePayload,
     handle: async (ctx, input): Promise<CreateSpaceResult> => {
@@ -230,13 +230,13 @@ export function registerSpaceMutationHandlers(
           result: { projectId: workspace.id, space: planned.space },
         }
       })
-      announce(revision, 'space.create')
+      announce(revision, 'space.createEmpty')
       return { revision, projectId: result.projectId, space: toSpaceAttributes(result.space) }
     },
     defaultErrorCode: 'common.unexpected',
   })
 
-  controlSurface.register('space.update', {
+  controlSurface.register('space.setAttributes', {
     kind: 'command',
     validate: normalizeUpdatePayload,
     handle: async (ctx, input): Promise<UpdateSpaceResult> => {
@@ -247,19 +247,19 @@ export function registerSpaceMutationHandlers(
         )
         if (!workspace) {
           throw createAppError('space.not_found', {
-            debugMessage: `space.update: unknown space id: ${input.spaceId}`,
+            debugMessage: `space.setAttributes: unknown space id: ${input.spaceId}`,
           })
         }
         const updated = updateSpaceAttributes(workspace.spaces, input)
         if (!updated.ok) {
-          invalid(`space.update: ${FAILURES[updated.code] ?? updated.code}`)
+          invalid(`space.setAttributes: ${FAILURES[updated.code] ?? updated.code}`)
         }
         return {
           workspace: { ...workspace, spaces: updated.nextSpaces },
           result: { projectId: workspace.id, space: updated.space },
         }
       })
-      announce(revision, 'space.update')
+      announce(revision, 'space.setAttributes')
       return { revision, projectId: result.projectId, space: toSpaceAttributes(result.space) }
     },
     defaultErrorCode: 'common.unexpected',

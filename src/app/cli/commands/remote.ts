@@ -1,6 +1,8 @@
 import { remoteOutputs } from './outputContracts'
+import { readFinalMessage } from '../core/finalMessage'
 import { defineCommand, type Command, type OptionSpec, type OperationId } from '../core/command'
 import { usage } from '../core/errors'
+import { AGENT_PROVIDER_IDS } from '../../../shared/contracts/dto'
 
 export function option(
   description: string,
@@ -23,7 +25,9 @@ export function mapped(
     summary,
     render: remoteOutputs[operation],
     connect: true,
-    options: Object.fromEntries(Object.entries(fields).map(([flag, [, spec]]) => [flag, spec])),
+    options: Object.fromEntries(
+      Object.entries(fields).map(([flag, [inputPath, spec]]) => [flag, { ...spec, inputPath }]),
+    ),
     buildInput: ({ options }) => {
       const payload = Object.fromEntries(
         Object.entries(fields)
@@ -85,7 +89,14 @@ export const remoteCommands: Command[] = [
   mapped('session run-agent', 'session.launchAgent', 'Launch an agent in a space', {
     space: ['spaceId', id('space')],
     prompt: ['prompt', { ...option('Give the agent its task', 'text', true), fileVariant: true }],
-    provider: ['provider', option('Select the agent provider', 'provider')],
+    provider: [
+      'provider',
+      {
+        ...option('Select the agent provider', 'provider'),
+        choices: [...AGENT_PROVIDER_IDS, ''],
+        normalize: value => value.trim(),
+      },
+    ],
     model: ['model', option('Select the agent model', 'model')],
   }),
   ...(
@@ -94,9 +105,17 @@ export const remoteCommands: Command[] = [
       ['final', 'session.finalMessage', 'Read the final agent message'],
       ['kill', 'session.kill', 'Stop an agent session'],
     ] as const
-  ).map(([name, operation, summary]) =>
-    mapped(`session ${name}`, operation, summary, { session: ['sessionId', id('session')] }),
-  ),
+  ).map(([name, operation, summary]) => {
+    const command = mapped(`session ${name}`, operation, summary, {
+      session: ['sessionId', id('session')],
+    })
+    if (name === 'final') {
+      command.execute = readFinalMessage
+      command.description =
+        'Returns the final message as JSON. A null, empty or whitespace-only message is no readable final message: exits 1 with session.transcript_not_ready, the same state-aware recovery as agent read, and empty stdout. The server does not distinguish a genuine empty reply. Inspect agent read --screen if the provider has not written a readable transcript.'
+    }
+    return command
+  }),
   mapped('pty spawn-in-mount', 'pty.spawnInMount', 'Start a terminal in a mount', {
     mount: ['mountId', id('mount')],
     'cwd-uri': ['cwdUri', option('Start in this directory URI', 'uri')],

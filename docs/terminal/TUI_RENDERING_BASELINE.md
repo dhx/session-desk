@@ -74,20 +74,17 @@ Current tactical baseline:
 
 Xterm owns terminal input modes. Display snapshots and output deduplication must preserve
 application-selected mouse tracking **and encoding**, focus reports and bracketed paste.
-The xterm serializer includes mouse tracking but does not include DEC 1006/1016 encoding;
-`TerminalPresentationSession` appends a bounded input-mode replay checkpoint from committed
-PTY output to its existing serialized snapshot. No new snapshot fields are required.
+The worker snapshot (`serializeTerminalState`) carries the active buffer, input modes, mouse
+encoding, cursor visibility, scroll margins and origin; hydration restores them and replays
+mode changes that arrived while the snapshot was in flight (upstream #579).
 
-Hydration tracks complete input controls across PTY chunk boundaries, including controls
-embedded in visible output. An accepted snapshot supersedes earlier controls; later sequenced
-PTY controls supersede the snapshot. Parsing snapshot controls must not disturb a partial live
-CSI. Synthetic full resets restore the latest checkpoint, while application resets and later
-disables remain effective. Control-string contents and terminal queries must not be replayed
-as mode operations. Mouse reports and user text must never be stripped as a workaround.
+Session Desk adds one thing on the worker: `TerminalPresentationSession` appends a bounded
+input-mode replay (`terminalInputModeReplay`) to every engine's snapshot, in the order the PTY
+set the modes. Tracking and encoding modes are mutually exclusive in xterm, so the last one
+set wins; the libghostty-vt formatter emits modes in a fixed order and would lose that order.
 
-Regression coverage uses real xterm mouse reports for mixed/fragmented output, baseline
-sequence cutoffs, deferred placeholder replacement and subsequent disables. The Web Canvas
-mouse-encoding test exercises actual motion and wheel input before and after live reattach.
+Regression coverage: upstream's terminal state restore and hydration specs, and the Web Canvas
+mouse-encoding test, which exercises motion and wheel input before and after live reattach.
 
 ## Constraints To Preserve
 

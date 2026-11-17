@@ -1,3 +1,6 @@
+import type { ClaudeTranscriptPort } from './claudeTranscript'
+import { setPromptSubmissionEvidence, type PromptSubmissionEvidence } from './claudePromptEvidence'
+import { parseHookEmittedAt } from './hookEmittedAt'
 import { randomBytes } from 'node:crypto'
 import { createServer, type IncomingMessage, type Server } from 'node:http'
 import type {
@@ -12,7 +15,11 @@ import type { AgentSessionIdentityObservation } from '../../contracts/dto/agentS
 
 const MAX_HOOK_BODY_BYTES = 256 * 1024
 
-export interface AgentHookEnvelope {
+export interface AgentHookEnvelope extends PromptSubmissionEvidence {
+  claudeSessionId?: string
+  emittedAtMs?: number
+  hookEventName?: string
+  tool?: { name: string }
   state: 'working' | 'waiting' | 'standby' | 'done' | null
 }
 
@@ -29,13 +36,13 @@ export interface AgentHookSpawnReservation {
   dispose: () => Promise<void>
 }
 
-export interface AgentHookChannel {
+export interface AgentHookChannel extends ClaudeTranscriptPort {
   start: () => Promise<void>
-  reserveSpawn: () => Promise<AgentHookSpawnReservation>
+  reserveSpawn: (options?: {
+    environment?: Readonly<NodeJS.ProcessEnv>
+  }) => Promise<AgentHookSpawnReservation>
   onState: (listener: (event: TerminalSessionStateEvent) => void) => () => void
   onMetadata: (listener: (event: TerminalSessionMetadataEvent) => void) => () => void
-  /** The agent's last reply as its own turn-end hook reported it, for agents whose hook carries one. */
-  getFinalMessage: (sessionId: string) => string | null
   disposeSession: (sessionId: string) => void
   getInstallState: () => AgentHookInstallState
   getEndpoint: () => string | null
@@ -65,7 +72,18 @@ export interface AgentHookObservationOwner<TEnvelope extends AgentHookEnvelope> 
   dispose: () => void
 }
 
+export interface PrivateHookContext {
+  incarnation: string
+  isCurrent: () => boolean
+}
+export interface PrivateHookObserver<TEnvelope> {
+  observe(sessionId: string, envelope: TEnvelope, context: PrivateHookContext): boolean
+  dispose(): void
+}
+
 interface CredentialRecord<TEnvelope extends AgentHookEnvelope> {
+  token: string
+  privateObserver: PrivateHookObserver<TEnvelope> | null
   observationOwner: AgentHookObservationOwner<TEnvelope> | null
   sessionId: string | null
   pending: {
@@ -110,8 +128,9 @@ export function createAgentHookChannel<TEnvelope extends AgentHookEnvelope>(opti
     envelope: TEnvelope,
   ) => { hookEventName: string; providerSessionId: string } | null
   publishManagedSessionIdentity?: boolean
-  /** The reply text a turn-end (`done`) envelope carries, when the provider includes it. */
-  resolveFinalMessage?: (envelope: TEnvelope) => string | null
+  createPrivateObserver?: (
+    environment: Readonly<NodeJS.ProcessEnv>,
+  ) => PrivateHookObserver<TEnvelope>
   createObservationOwner?: () => AgentHookObservationOwner<TEnvelope>
   prepare?: () => Promise<AgentHookInstallResult>
   port?: number
@@ -119,7 +138,6 @@ export function createAgentHookChannel<TEnvelope extends AgentHookEnvelope>(opti
 }): AgentHookChannel {
   const credentials = new Map<string, CredentialRecord<TEnvelope>>()
   const tokenBySessionId = new Map<string, string>()
-  const finalMessageBySessionId = new Map<string, string>()
   const listeners = new Set<(event: TerminalSessionStateEvent) => void>()
   const metadataListeners = new Set<(event: TerminalSessionMetadataEvent) => void>()
   const createHttpServer = options.createHttpServer ?? createServer
@@ -151,6 +169,20 @@ export function createAgentHookChannel<TEnvelope extends AgentHookEnvelope>(opti
     if (terminalActivity && !terminalActivity.isCurrent()) {
       return
     }
+    const observerAccepted = credential.privateObserver?.observe(sessionId, envelope, {
+      incarnation: terminalActivity?.invocationId ?? sessionId,
+      isCurrent: () =>
+        !disposed &&
+        credentials.get(credential.token) === credential &&
+        (terminalActivity?.isCurrent() ?? true),
+    })
+    if (
+      observerAccepted !== false &&
+      options.source === 'claude_hook' &&
+      envelope.hookEventName === 'SessionEnd'
+    ) {
+      credential.providerSessionId = null
+    }
     if (credential.observationOwner) {
       if (!observation) {
         return
@@ -170,25 +202,43 @@ export function createAgentHookChannel<TEnvelope extends AgentHookEnvelope>(opti
       metadataListeners.forEach(listener => listener({ sessionId, ...observation.metadata }))
     }
     const state = observation ? observation.state : envelope.state
-    const finalMessage = state === 'done' ? (options.resolveFinalMessage?.(envelope) ?? null) : null
-    if (finalMessage !== null) {
-      // Stored before the standby event goes out, so a reader reacting to standby finds it.
-      finalMessageBySessionId.set(sessionId, finalMessage)
-    }
     if (state !== null) {
       const event: TerminalSessionStateEvent = {
         sessionId,
         state: state === 'done' ? 'standby' : state,
         source: options.source,
+        hookEventName: envelope.hookEventName,
+        emittedAtMs: envelope.emittedAtMs,
+        ...(envelope.hookEventName === 'PermissionRequest'
+          ? { blockedReason: 'permission' as const }
+          : envelope.tool?.name === 'AskUserQuestion'
+            ? { blockedReason: 'question' as const }
+            : envelope.tool?.name === 'ExitPlanMode'
+              ? { blockedReason: 'plan' as const }
+              : {}),
         hookInstallState: installState,
         ...observation?.stateMetadata,
+      }
+      if (options.source === 'claude_hook') {
+        setPromptSubmissionEvidence(event, {
+          promptId: envelope.promptId,
+          promptDigest: envelope.promptDigest,
+          providerSessionId: envelope.claudeSessionId,
+          finalMessage: envelope.finalMessage,
+        })
+      } else if (options.source === 'codex_hook') {
+        setPromptSubmissionEvidence(event, {
+          providerTurnId: envelope.providerTurnId,
+          providerSessionId: options.resolveSessionIdentity?.(envelope)?.providerSessionId,
+        })
       }
       listeners.forEach(listener => listener(event))
     }
     const identity = options.resolveSessionIdentity?.(envelope) ?? null
     if (
       (terminalActivity || options.publishManagedSessionIdentity) &&
-      identity?.hookEventName === 'SessionStart'
+      identity?.hookEventName === 'SessionStart' &&
+      observerAccepted !== false
     ) {
       if (credential.providerSessionId !== null) {
         return
@@ -285,6 +335,12 @@ export function createAgentHookChannel<TEnvelope extends AgentHookEnvelope>(opti
                 response.end()
                 return
               }
+              if (options.source === 'claude_hook' || options.source === 'codex_hook') {
+                envelope.emittedAtMs = parseHookEmittedAt(
+                  request.headers['x-opencove-hook-emitted-at'],
+                  Date.now(),
+                )
+              }
               if (!handleEnvelope(token, envelope)) {
                 response.statusCode = 401
                 response.end()
@@ -339,7 +395,7 @@ export function createAgentHookChannel<TEnvelope extends AgentHookEnvelope>(opti
 
   return {
     start,
-    reserveSpawn: async () => {
+    reserveSpawn: async input => {
       await start()
       if (disposed || installState !== 'installed' || !endpoint) {
         return {
@@ -353,7 +409,10 @@ export function createAgentHookChannel<TEnvelope extends AgentHookEnvelope>(opti
 
       const token = randomBytes(32).toString('base64url')
       const credential: CredentialRecord<TEnvelope> = {
+        token,
         observationOwner: options.createObservationOwner?.() ?? null,
+        privateObserver:
+          options.createPrivateObserver?.({ ...(input?.environment ?? process.env) }) ?? null,
         sessionId: null,
         pending: [],
         providerSessionId: null,
@@ -370,6 +429,7 @@ export function createAgentHookChannel<TEnvelope extends AgentHookEnvelope>(opti
           tokenBySessionId.delete(credential.sessionId)
         }
         credentials.delete(token)
+        credential.privateObserver?.dispose()
         credential.observationOwner?.dispose()
         credential.pending.length = 0
       }
@@ -402,14 +462,13 @@ export function createAgentHookChannel<TEnvelope extends AgentHookEnvelope>(opti
       metadataListeners.add(listener)
       return () => metadataListeners.delete(listener)
     },
-    getFinalMessage: sessionId => finalMessageBySessionId.get(sessionId) ?? null,
     disposeSession: sessionId => {
-      finalMessageBySessionId.delete(sessionId)
       const token = tokenBySessionId.get(sessionId)
       if (!token) {
         return
       }
       tokenBySessionId.delete(sessionId)
+      credentials.get(token)?.privateObserver?.dispose()
       credentials.get(token)?.observationOwner?.dispose()
       credentials.delete(token)
     },
@@ -420,10 +479,12 @@ export function createAgentHookChannel<TEnvelope extends AgentHookEnvelope>(opti
         return
       }
       disposed = true
-      credentials.forEach(credential => credential.observationOwner?.dispose())
+      credentials.forEach(credential => {
+        credential.privateObserver?.dispose()
+        credential.observationOwner?.dispose()
+      })
       credentials.clear()
       tokenBySessionId.clear()
-      finalMessageBySessionId.clear()
       listeners.clear()
       metadataListeners.clear()
       endpoint = null

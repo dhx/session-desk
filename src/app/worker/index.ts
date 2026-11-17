@@ -29,6 +29,9 @@ import { createWorkerShutdown } from './workerShutdown'
 import { getRuntimeBuildIdentity } from '../../shared/runtime/runtimeBuildIdentity'
 import { formatWorkerReadyLine, resolveWorkerSecrets, scrubWorkerSecretEnv } from './workerSecrets'
 import { resolveWorkerBindRefusal } from './workerBindPolicy'
+import { configureWorkerEnvironment } from './environment'
+
+configureWorkerEnvironment()
 
 const parentShutdown = createWorkerParentShutdown()
 
@@ -231,6 +234,7 @@ async function main(): Promise<void> {
     appVersion,
     deploymentId: readWorkerFlagValue(argv, '--deployment-id'),
     strictPersistence: hasFlag(argv, '--managed-runtime'),
+    enableAgentTurnArchive: true,
     activationId: readWorkerFlagValue(argv, '--activation-id'),
     requestManagedShutdown: () => {
       void disposeAndExit(0)

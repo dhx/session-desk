@@ -1,4 +1,5 @@
 import type { IncomingMessage } from 'node:http'
+import type { SessionGrant, SessionGrantRegistry } from './sessionGrantRegistry'
 import { timingSafeEqual } from 'node:crypto'
 import type { WebSessionManager } from './webSessionManager'
 
@@ -137,12 +138,15 @@ function isSameOriginRequest(req: IncomingMessage): boolean {
 }
 
 export type RequestAuth =
+  | { kind: 'session-grant'; grant: SessionGrant }
   | {
       kind: 'bearer'
     }
   | {
       kind: 'cookie'
       webSessionGeneration: number
+      /** Internal credential reference; never returned or logged. */
+      webSessionCookie?: string
     }
   | {
       kind: 'query_token'
@@ -152,6 +156,7 @@ export function resolveRequestAuth(options: {
   req: IncomingMessage
   url: URL
   token: string
+  sessionGrants?: Pick<SessionGrantRegistry, 'verify'>
   webSessions: WebSessionManager
   allowQueryToken: boolean
   now: Date
@@ -159,6 +164,15 @@ export function resolveRequestAuth(options: {
   const bearer = normalizeBearerToken(options.req.headers.authorization)
   if (bearer && tokensEqual(bearer, options.token)) {
     return isOriginAllowedForTokenAuth(options.req) ? { kind: 'bearer' } : null
+  }
+
+  if (bearer) {
+    const grant = options.sessionGrants?.verify(bearer)
+    if (grant) {
+      return { kind: 'session-grant', grant }
+    }
+    // An invalid bearer must not fall through to a more privileged cookie.
+    return null
   }
 
   const cookies = parseCookies(
@@ -173,7 +187,11 @@ export function resolveRequestAuth(options: {
       return null
     }
 
-    return { kind: 'cookie', webSessionGeneration }
+    return Object.defineProperty(
+      { kind: 'cookie' as const, webSessionGeneration },
+      'webSessionCookie',
+      { value: sessionCookie },
+    )
   }
 
   if (options.allowQueryToken) {

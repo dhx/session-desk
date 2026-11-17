@@ -78,6 +78,7 @@ export async function launchAgentRuntime({
   executionDirectory,
   resumeSessionId,
   agentFullAccess,
+  codexReuseRunningAppServer,
   defaultTerminalProfileId,
   executablePathOverride,
   terminalFontSize,
@@ -90,6 +91,7 @@ export async function launchAgentRuntime({
   executionDirectory: string
   resumeSessionId: string | null
   agentFullAccess: boolean
+  codexReuseRunningAppServer: boolean
   defaultTerminalProfileId: string | null
   executablePathOverride: string | null
   terminalFontSize: number
@@ -120,6 +122,7 @@ export async function launchAgentRuntime({
       kind: 'command',
       id: 'session.launchAgentInMount',
       payload: {
+        canvasNodeId: node.id,
         mountId,
         cwdUri,
         prompt: node.data.agent.prompt,
@@ -130,6 +133,7 @@ export async function launchAgentRuntime({
         ...(executablePathOverride ? { executablePathOverride } : {}),
         ...(Object.keys(mergedEnv).length > 0 ? { env: mergedEnv } : {}),
         agentFullAccess,
+        codexReuseRunningAppServer,
         cols: launchGeometry.terminalGeometry.cols,
         rows: launchGeometry.terminalGeometry.rows,
       },
@@ -153,6 +157,7 @@ export async function launchAgentRuntime({
   }
 
   const launched = await window.opencoveApi.agent.launch({
+    canvasNodeId: node.id,
     provider: node.data.agent.provider,
     cwd: executionDirectory,
     profileId: node.data.profileId ?? defaultTerminalProfileId,
@@ -163,6 +168,7 @@ export async function launchAgentRuntime({
     ...(executablePathOverride ? { executablePathOverride } : {}),
     ...(Object.keys(mergedEnv).length > 0 ? { env: mergedEnv } : {}),
     agentFullAccess,
+    codexReuseRunningAppServer,
     cols: launchGeometry.terminalGeometry.cols,
     rows: launchGeometry.terminalGeometry.rows,
   })

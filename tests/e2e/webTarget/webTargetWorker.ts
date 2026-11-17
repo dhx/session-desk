@@ -183,6 +183,7 @@ export async function startWebTargetWorker(options: {
   child.stderr?.on('data', remember)
   const logTail = () => logLines.join('\n')
 
+  let ownerPid: number | null = null
   const ready = await new Promise<{ hostname: string; port: number }>((resolve, reject) => {
     if (!child.stdout) {
       reject(new Error('[e2e-web] Worker stdout not available'))
@@ -197,11 +198,12 @@ export async function startWebTargetWorker(options: {
 
     rl.on('line', line => {
       try {
-        const info = JSON.parse(line) as { hostname?: unknown; port?: unknown }
+        const info = JSON.parse(line) as { hostname?: unknown; port?: unknown; pid?: unknown }
         if (typeof info.hostname === 'string' && typeof info.port === 'number') {
           clearTimeout(timer)
           rl.close()
           child.stdout?.on('data', remember)
+          ownerPid = typeof info.pid === 'number' ? info.pid : null
           resolve({ hostname: info.hostname, port: info.port })
         }
       } catch {
@@ -224,6 +226,20 @@ export async function startWebTargetWorker(options: {
     await waitForExit(child, WORKER_STOP_TIMEOUT_MS)
     throw error
   })
+
+  // A worker that finds another one owning this user data prints that one's address (and pid) and
+  // exits (one owner per profile, upstream #523). Our token is not that one's: use its connection.
+  if (ownerPid !== null && ownerPid !== child.pid) {
+    for (let attempt = 0; attempt < 30; attempt += 1) {
+      // eslint-disable-next-line no-await-in-loop -- polls the owner's connection file.
+      const owner = await findRunningWorker(options.userDataDir)
+      if (owner) {
+        return { ...owner, process: null, stop: async () => undefined, logTail }
+      }
+      // eslint-disable-next-line no-await-in-loop -- polls the owner's connection file.
+      await new Promise(resolveDelay => setTimeout(resolveDelay, 100))
+    }
+  }
 
   let stopPromise: Promise<void> | null = null
   const stop = async () => {

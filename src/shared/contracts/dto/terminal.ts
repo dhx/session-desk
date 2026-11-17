@@ -23,8 +23,10 @@ export interface ListTerminalProfilesResult {
 }
 
 export interface SpawnTerminalInput {
-  cwd: string
+  canvasNodeId?: string
   workspaceId?: string
+  spaceId?: string
+  cwd: string
   profileId?: string
   shell?: string
   command?: string | null
@@ -35,6 +37,9 @@ export interface SpawnTerminalInput {
 }
 
 export interface SpawnTerminalInMountInput {
+  canvasNodeId?: string
+  workspaceId?: string
+  spaceId?: string
   mountId: string
   cwdUri?: string | null
   profileId?: string | null
@@ -200,6 +205,12 @@ export type AgentHookStateSource = 'claude_hook' | 'codex_hook' | 'pi_hook'
 
 export type TerminalSessionStateSource = 'launch' | 'session_file' | AgentHookStateSource
 
+/** Actual telemetry configured for one invocation; never inferred from observations. */
+export type AgentHookCoverage = 'lifecycle' | 'notify_only' | 'none' | 'unverified_executable'
+
+/** Runtime provenance, supplied by PTY spawn or the terminal invocation owner. */
+export type AgentLaunchKind = 'managed' | 'terminal'
+
 export type AgentHookInstallState =
   | 'installed'
   | 'partial'
@@ -209,6 +220,15 @@ export type AgentHookInstallState =
   | 'not_required'
 
 export interface TerminalSessionStateEvent {
+  /** Present only on Worker-decided projections. */
+  agentRunState?: import('./agentRunState').AgentRunSnapshot
+  agentProvider?: AgentProviderId
+  remote?: boolean
+  remoteAgentRun?: import('./agentRunState').RemoteAgentRunUpdate
+  emittedAtMs?: number
+  hookEventName?: string
+  blockedReason?: 'permission' | 'question' | 'plan' | null
+
   piConversation?: { pid: number; revision: number }
   observationUnavailable?: boolean
   sessionId: string
@@ -267,6 +287,10 @@ export interface TerminalAgentReexecResult {
 }
 
 export interface TerminalSessionMetadataEvent {
+  agentLaunchKind?: AgentLaunchKind
+  hookCoverage?: AgentHookCoverage
+  hookInstallState?: AgentHookInstallState
+  remote?: boolean
   /** Validated, launch-scoped native Pi observation; runtime-only, not workspace persistence. */
   piSnapshot?: import('./piAgentSnapshot').PiAgentSnapshot
   sessionId: string

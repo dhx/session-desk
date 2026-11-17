@@ -2,7 +2,7 @@ import type { ManagedSshEndpointRuntimeAccess } from './topologyEndpointAccess'
 import {
   findManagedSshHostProblem,
   findManagedSshUsernameProblem,
-} from '../../../../contexts/topology/domain/managedSshDestination'
+} from '../../../../shared/contracts/managedSshDestination'
 
 function destination(access: ManagedSshEndpointRuntimeAccess): string {
   const username = access.ssh.username?.trim() || null

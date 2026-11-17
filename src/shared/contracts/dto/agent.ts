@@ -110,6 +110,9 @@ export interface ListAgentSessionsResult {
 }
 
 export interface LaunchAgentInput {
+  canvasNodeId?: string
+  workspaceId?: string
+  spaceId?: string
   provider: AgentProviderId
   cwd: string
   profileId?: string | null
@@ -120,6 +123,7 @@ export interface LaunchAgentInput {
   env?: Record<string, string> | null
   executablePathOverride?: string | null
   agentFullAccess?: boolean
+  codexReuseRunningAppServer?: boolean | null
   cols?: number
   rows?: number
 }

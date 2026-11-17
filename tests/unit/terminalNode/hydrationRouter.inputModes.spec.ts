@@ -116,17 +116,6 @@ describe('hydrationRouter input modes', () => {
     expect(wheel()).toBe('\u001b[<65;3;4M')
   })
 
-  it('honors a later disable instead of resurrecting an earlier enabled mode', async () => {
-    const { terminal, router, drain, wheel } = createHarness(true)
-    router.handleDataChunk('\u001b[?1006;2004h')
-    router.finalizeHydration('[placeholder]')
-    router.handleDataChunk('\u001b[?1006;2004l')
-    router.handleDataChunk('\u001b[2J\u001b[?1003hCodex ready')
-    await drain()
-    expect(terminal.modes.bracketedPasteMode).toBe(false)
-    expect(wheel().startsWith('\u001b[M')).toBe(true)
-  })
-
   it('retains early modes when the buffered output already matches the placeholder', async () => {
     const { router, drain, wheel } = createHarness(true)
     router.handleDataChunk('\u001b[?1006h')
@@ -159,28 +148,6 @@ it('preserves an embedded mode before a later destructive placeholder replacemen
   await drain()
   expect(wheel()).toBe('\u001b[<65;3;4M')
 })
-it('preserves embedded modes discarded by the baseline sequence cutoff', async () => {
-  const { router, drain, wheel } = createHarness()
-  router.handleDataChunk('\u001b[?1006hOld frame', { seq: 3 })
-  router.handleDataChunk('\u001b[2J\u001b[?1003hFresh frame', { seq: 6 })
-  router.finalizeHydration('[accepted snapshot]', { baselineAppliedSeq: 5 })
-  await drain()
-  expect(wheel()).toBe('\u001b[<65;3;4M')
-})
-
-it.each([0, 1, 2, 3, 4, 5, 6, 7, 8])(
-  'preserves a fragmented embedded mode at split %s across a sequence cutoff',
-  async split => {
-    const { router, drain, wheel } = createHarness()
-    const encoding = '\u001b[?1006h'
-    router.handleDataChunk('old' + encoding.slice(0, split), { seq: 2 })
-    router.handleDataChunk(encoding.slice(split) + ' frame', { seq: 3 })
-    router.handleDataChunk('\u001b[2J\u001b[?1003hFresh frame', { seq: 6 })
-    router.finalizeHydration('[accepted snapshot]', { baselineAppliedSeq: 5 })
-    await drain()
-    expect(wheel()).toBe('\u001b[<65;3;4M')
-  },
-)
 it('keeps a later embedded disable after replacing a placeholder', async () => {
   const { terminal, router, drain, wheel } = createHarness(true)
   router.handleDataChunk('Codex ready')

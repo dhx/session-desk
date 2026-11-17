@@ -24,6 +24,19 @@ export async function writeBossInput(
 }
 
 export async function readFinalMessage(sessionId: string): Promise<string | null> {
+  // The Worker keeps the reply a turn-end hook reported (Claude's Stop hook); prefer it.
+  const fromTurn = await window.opencoveApi.controlSurface
+    .invoke<{ message: string }>({
+      kind: 'query',
+      id: 'agent.finalMessage',
+      payload: { sessionId },
+    })
+    .then(result => result.message)
+    .catch(() => null)
+  if (fromTurn !== null) {
+    return fromTurn
+  }
+  // Providers without such a hook: read the reply from the session file.
   const result = await window.opencoveApi.controlSurface.invoke<GetSessionFinalMessageResult>({
     kind: 'query',
     id: 'session.finalMessage',

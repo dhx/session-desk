@@ -1,4 +1,4 @@
-import { isSafeManagedSshDestination } from '../../../../contexts/topology/domain/managedSshDestination'
+import { isSafeManagedSshDestination } from '../../../../shared/contracts/managedSshDestination'
 import type {
   MountDto,
   WorkerEndpointDto,

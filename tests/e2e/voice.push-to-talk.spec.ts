@@ -40,6 +40,9 @@ async function seedClaudeTask(window: Page): Promise<void> {
         customModelEnabledByProvider: { 'claude-code': false },
         customModelByProvider: { 'claude-code': '' },
         customModelOptionsByProvider: { 'claude-code': [] },
+        // The WebGL pixel wall keeps headless Chromium's software renderer so busy that a 50 ms tap
+        // is seen as a 1 s hold; this test is about voice, not the canvas background.
+        canvasBackgroundStyle: 'off',
       },
     },
   )

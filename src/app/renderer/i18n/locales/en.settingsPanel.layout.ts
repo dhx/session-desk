@@ -44,7 +44,7 @@ export const enSettingsPanelLayout = {
     terminal: 'Fonts, shell profiles, and display calibration.',
     general: 'Language, updates, and everyday preferences.',
     appearance: 'Themes, interface text, and pixel effects.',
-    notifications: 'Manage system alerts and standby context.',
+    notifications: 'Choose how an Agent that needs you is announced.',
     canvasWindows: 'Adjust canvas navigation and window behavior.',
     agent: 'Choose and configure AI assistants.',
     plugins: 'Manage installed plugins and find development guides.',
@@ -65,7 +65,7 @@ export const enSettingsPanelLayout = {
     },
     notifications: {
       system: 'Notification Delivery',
-      standby: 'Standby Banner',
+      standby: 'Notification Card',
     },
     canvasWindows: {
       canvasInput: 'Canvas Input',
@@ -80,7 +80,7 @@ export const enSettingsPanelLayout = {
     tasksShortcuts: {
       taskTitles: 'Task Titles',
       taskTags: 'Task Tags',
-      quickActions: 'Quick Actions',
+      contextMenu: 'Context Menu',
       keyboard: 'Keyboard Shortcuts',
     },
     worker: {

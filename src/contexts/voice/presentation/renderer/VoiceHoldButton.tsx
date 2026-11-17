@@ -1,5 +1,6 @@
 import React, { useRef } from 'react'
-import { Mic } from 'lucide-react'
+// The pixel icon set has no microphone; its audio glyph stands for speech input.
+import { AudioIcon } from '@app/renderer/components/ui/pixelIcons'
 import { IconButton } from '@app/renderer/components/ui/IconButton'
 import { useTranslation } from '@app/renderer/i18n'
 import type { VoiceTurnState } from '../../domain/voiceTurn'
@@ -76,7 +77,7 @@ export function VoiceHoldButton({
       onBlur={() => end(false)}
       onContextMenu={event => event.preventDefault()}
     >
-      <Mic aria-hidden="true" size={24} />
+      <AudioIcon aria-hidden="true" size={24} />
     </IconButton>
   )
 }

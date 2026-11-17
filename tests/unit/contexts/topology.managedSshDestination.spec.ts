@@ -2,11 +2,11 @@ import { describe, expect, it } from 'vitest'
 import {
   findManagedSshHostProblem,
   findManagedSshUsernameProblem,
-} from '../../../src/contexts/topology/domain/managedSshDestination'
+} from '../../../src/shared/contracts/managedSshDestination'
 import {
   normalizeRegisterManagedSshEndpointPayload,
   normalizeUpdateManagedSshEndpointPayload,
-} from '../../../src/app/main/controlSurface/handlers/topologyHandlerPayloads'
+} from '../../../src/shared/contracts/controlSurface/operations/managedSshNormalize'
 import { normalizeTopologyFile } from '../../../src/app/main/controlSurface/topology/topologyFileV1'
 
 describe('managed SSH destination validation', () => {

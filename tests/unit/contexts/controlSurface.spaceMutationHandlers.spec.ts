@@ -114,10 +114,10 @@ function setup(options: { conflicts?: number; mountRoot?: string } = {}) {
   return { run, state, events }
 }
 
-describe('space.create', () => {
+describe('space.createEmpty', () => {
   it('adds a top-level Space beside the canvas content and tells open windows', async () => {
     const { run, state, events } = setup()
-    const result = await run('space.create', {
+    const result = await run('space.createEmpty', {
       projectId: 'workspace-1',
       name: 'Client portal',
       labelColor: 'blue',
@@ -142,20 +142,20 @@ describe('space.create', () => {
     const created = spaces[1] as { rect: { x: number } }
     expect(created.rect.x).toBeGreaterThanOrEqual(1300)
     expect(events).toEqual([
-      { type: 'app_state.updated', revision: 2, operationId: 'space.create' },
+      { type: 'app_state.updated', revision: 2, operationId: 'space.createEmpty' },
     ])
   })
 
   it('uses a directory inside the project mount and refuses one outside it', async () => {
     const { run } = setup()
-    const inside = await run('space.create', {
+    const inside = await run('space.createEmpty', {
       projectId: 'workspace-1',
       name: 'Docs',
       directoryPath: '/repo/docs',
     })
     expect(inside).toMatchObject({ ok: true, value: { space: { directoryPath: '/repo/docs' } } })
 
-    const outside = await run('space.create', {
+    const outside = await run('space.createEmpty', {
       projectId: 'workspace-1',
       name: 'Elsewhere',
       directoryPath: '/etc',
@@ -171,7 +171,7 @@ describe('space.create', () => {
         { projectId: 'missing', name: 'New' },
         { projectId: 'workspace-1', name: 'New', labelColor: 'magenta' },
         { projectId: 'workspace-1', name: 'New', extra: true },
-      ].map(payload => run('space.create', payload)),
+      ].map(payload => run('space.createEmpty', payload)),
     )
     expect(results.map(result => result.ok)).toEqual([false, false, false, false])
     expect(state().workspaces[0].spaces).toHaveLength(1)
@@ -180,16 +180,16 @@ describe('space.create', () => {
 
   it('plans again on a fresh snapshot when another writer got in first', async () => {
     const { run, state } = setup({ conflicts: 1 })
-    const result = await run('space.create', { projectId: 'workspace-1', name: 'Retry' })
+    const result = await run('space.createEmpty', { projectId: 'workspace-1', name: 'Retry' })
     expect(result.ok).toBe(true)
     expect(state().workspaces[0].spaces.map(space => space.name)).toEqual(['Existing', 'Retry'])
   })
 })
 
-describe('space.update', () => {
+describe('space.setAttributes', () => {
   it('renames and recolours a Space and tells open windows', async () => {
     const { run, state, events } = setup()
-    const result = await run('space.update', {
+    const result = await run('space.setAttributes', {
       spaceId: 'space-1',
       name: 'Renamed',
       labelColor: 'green',
@@ -207,11 +207,11 @@ describe('space.update', () => {
 
   it('refuses an unknown Space and an update that changes nothing', async () => {
     const { run, events } = setup()
-    expect(await run('space.update', { spaceId: 'missing', name: 'X' })).toMatchObject({
+    expect(await run('space.setAttributes', { spaceId: 'missing', name: 'X' })).toMatchObject({
       ok: false,
       error: { code: 'space.not_found' },
     })
-    expect(await run('space.update', { spaceId: 'space-1' })).toMatchObject({ ok: false })
+    expect(await run('space.setAttributes', { spaceId: 'space-1' })).toMatchObject({ ok: false })
     expect(events).toEqual([])
   })
 })

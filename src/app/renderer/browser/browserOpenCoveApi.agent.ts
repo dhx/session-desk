@@ -183,6 +183,9 @@ export function createBrowserAgentApi(): AgentApi {
         kind: 'command',
         id: 'session.launchAgent',
         payload: {
+          canvasNodeId: payload.canvasNodeId,
+          workspaceId: payload.workspaceId,
+          spaceId: payload.spaceId,
           cwd,
           prompt: payload.prompt,
           provider: payload.provider,
@@ -191,6 +194,7 @@ export function createBrowserAgentApi(): AgentApi {
           resumeSessionId,
           env: payload.env ?? null,
           agentFullAccess: payload.agentFullAccess ?? null,
+          codexReuseRunningAppServer: payload.codexReuseRunningAppServer ?? null,
         },
       })
 

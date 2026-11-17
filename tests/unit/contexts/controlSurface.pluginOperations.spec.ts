@@ -76,7 +76,8 @@ const edges = [
   'x'.repeat(5000),
 ]
 for (const op of pluginOperations) {
-  if (op.contract !== 'schema') {
+  // View, preference, host, and Sidebar payloads have a separate session and plugin parity suite.
+  if (op.contract !== 'schema' || !(op.id in valid)) {
     continue
   }
   it(`${op.id}: strict JSON Schema export`, () => {
@@ -129,7 +130,7 @@ for (const op of pluginOperations) {
 }
 
 for (const op of pluginOperations) {
-  if (op.contract !== 'schema' || op.id === 'plugin.list') {
+  if (op.contract !== 'schema' || op.id === 'plugin.list' || !(op.id in valid)) {
     continue
   }
   it(`${op.id}: wire schema enforces object fields and exports their constraints`, () => {

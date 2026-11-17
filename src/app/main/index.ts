@@ -11,6 +11,7 @@ import {
   resolveE2EWindowMode,
 } from './appRuntimeConfig'
 import { setRuntimeIconTestState } from './iconTestHarness'
+import { installSystemNotificationTestHarness } from '../../contexts/system/presentation/main-ipc/systemNotifications'
 import { resolveRuntimeIconPath } from './runtimeIcon'
 import { resolveTitleBarOverlay } from './ipc/registerWindowChromeIpcHandlers'
 import { createApprovedWorkspaceStore } from '../../contexts/workspace/infrastructure/approval/ApprovedWorkspaceStore'
@@ -25,12 +26,17 @@ import { createMainRuntimeDiagnosticsLogger } from './runtimeDiagnostics'
 import { registerQuickPhrasesContextMenu } from './contextMenu/registerQuickPhrasesContextMenu'
 import { registerQuitCoordinator } from './quitCoordinator'
 import { registerApplicationShortcuts } from './applicationShortcuts'
+import { broadcastWindowFullScreen } from './ipc/windowFullScreen'
+import { broadcastWindowFocus } from './ipc/windowFocus'
 import {
   isAllowedNavigationTarget,
   resolveDevRendererOrigin,
   shouldOpenUrlExternally,
 } from './navigationGuards'
 import { requestRendererPersistFlush } from './rendererPersistFlush'
+import { stripParentAgentSessionEnv } from '../../shared/runtime/stripParentAgentSessionEnv'
+
+stripParentAgentSessionEnv(process.env)
 
 let ipcDisposable: ReturnType<typeof registerIpcHandlers> | null = null
 
@@ -86,6 +92,7 @@ function createWindow(): void {
   const runtimeIconPath = resolveRuntimeIconPath()
   if (isTestEnv) {
     setRuntimeIconTestState(runtimeIconPath)
+    installSystemNotificationTestHarness()
   }
   const initialWidth = isTestEnv ? 1440 : 1200
   const initialHeight = isTestEnv ? 900 : 800
@@ -129,6 +136,8 @@ function createWindow(): void {
   })
 
   const disposeApplicationShortcuts = registerApplicationShortcuts(mainWindow)
+  broadcastWindowFullScreen(mainWindow)
+  broadcastWindowFocus(mainWindow)
   const quickPhrasesContextMenuDisposable = registerQuickPhrasesContextMenu({
     window: mainWindow,
     userDataPath: app.getPath('userData'),

@@ -8,7 +8,10 @@ import {
   resolveAgentExecutablePathOverride,
   resolveAgentLaunchEnv,
 } from '../../../../contexts/settings/domain/agentSettings'
-import type { NormalizedPersistedAppState } from '../../../../platform/persistence/sqlite/normalize'
+import {
+  normalizePersistedAppState,
+  type NormalizedPersistedAppState,
+} from '../../../../platform/persistence/sqlite/normalize'
 import {
   AGENT_PROVIDER_IDS,
   type AgentLaunchMode,
@@ -102,6 +105,7 @@ export function resolveLocalAgentLaunchSecurity(input: {
     agentFullAccess?: boolean | null
     executablePathOverride?: string | null
     env?: Record<string, string> | null
+    codexReuseRunningAppServer?: boolean | null
   }
   agentSettings: ReturnType<typeof normalizeAgentSettings>
   state: NormalizedPersistedAppState | null
@@ -111,6 +115,7 @@ export function resolveLocalAgentLaunchSecurity(input: {
   agentFullAccess: boolean
   executablePathOverride: string | null
   env: Record<string, string> | null
+  codexReuseRunningAppServer: boolean
   diagnostics: { ignoredExecutablePathOverride: boolean; ignoredEnvKeyCount: number }
 } {
   const policyEnv = input.policyEnv ?? process.env
@@ -130,6 +135,8 @@ export function resolveLocalAgentLaunchSecurity(input: {
       overrides.executablePathOverride ??
       resolveAgentExecutablePathOverride(input.agentSettings, input.provider),
     env: overrides.env,
+    codexReuseRunningAppServer:
+      input.payload.codexReuseRunningAppServer ?? input.agentSettings.codexReuseRunningAppServer,
     diagnostics: {
       ignoredExecutablePathOverride: overrides.ignoredExecutablePathOverride,
       ignoredEnvKeyCount: overrides.ignoredEnvKeys.length,
@@ -166,7 +173,19 @@ export function buildForwardedLaunchAgentPayload(input: {
     env: overrides.env,
     executablePathOverride: overrides.executablePathOverride,
     agentFullAccess: payload.agentFullAccess ?? null,
+    codexReuseRunningAppServer: payload.codexReuseRunningAppServer ?? null,
     cols: payload.cols,
     rows: payload.rows,
   }
+}
+
+/** buildForwardedLaunchAgentPayload against the saved state (trusted per-project envs). */
+export async function forwardLaunchAgentPayload(
+  input: Omit<Parameters<typeof buildForwardedLaunchAgentPayload>[0], 'state'> & {
+    getPersistenceStore: () => Promise<{ readAppState: () => Promise<unknown> }>
+  },
+): Promise<LaunchAgentSessionInput> {
+  const { getPersistenceStore, ...rest } = input
+  const state = normalizePersistedAppState(await (await getPersistenceStore()).readAppState())
+  return buildForwardedLaunchAgentPayload({ ...rest, state })
 }

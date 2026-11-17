@@ -1,9 +1,13 @@
+import { invokeCallerLifetime } from './http/invokeCallerLifetime'
+import type { AgentRunStateRegistry } from '../../../contexts/agent/application/AgentRunStateRegistry'
+import { isAgentRuntimeStream, serveAgentRuntimeEvents } from './http/agentRuntimeSse'
+import type { SessionGrantRegistry } from './http/sessionGrantRegistry'
+import { sessionGrantAllowsOperation } from './http/sessionGrantAuthorization'
 import { CONTROL_SURFACE_PROTOCOL_VERSION } from '../../../shared/contracts/controlSurface'
 import type { PluginInstallationManager } from '../../../contexts/plugins/application/PluginInstallationManager'
 import { tryHandlePluginAssetRoute } from './pluginAssetRoutes'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { createAppErrorDescriptor } from '../../../shared/errors/appError'
-import type { ApprovedWorkspaceStore } from '../../../contexts/workspace/infrastructure/approval/ApprovedWorkspaceStore'
 import type { PersistenceStore } from '../../../platform/persistence/sqlite/PersistenceStore'
 import type { ControlSurface } from './controlSurface'
 import type { ControlSurfaceContext } from './types'
@@ -25,23 +29,12 @@ import { gateWebUiEntrypoint } from './http/webUiEntryGate'
 import { publishSyncEvent } from './http/publishSyncEvent'
 import { shouldAllowDevWebUiOrigin } from './http/devWebUiOrigin'
 import { buildUnauthorizedResult } from './http/unauthorizedResult'
+import { tryHandleSessionDeskRoute, type SessionDeskRouteDeps } from './http/sessionDeskRoutes'
 import {
   applyWebUiAssetSecurityHeaders,
   applyWebUiHtmlSecurityHeaders,
   isHtmlContentType,
 } from './http/webUiSecurityHeaders'
-import { FILE_DROP_PATH, handleFileDropRoute } from './http/fileDropRoute'
-import type { WorkerVoiceRuntime } from '../../../contexts/voice/presentation/worker/createWorkerVoiceRuntime'
-import {
-  handleVoiceRoute,
-  hasVoiceCsrfHeader,
-  isVoiceRoutePath,
-} from '../../../contexts/voice/presentation/worker/voiceRoutes'
-import {
-  handleCanvasImageRoute,
-  isCanvasImageMutation,
-  isCanvasImageRoute,
-} from './http/canvasImageRoutes'
 import type {
   ControlSurfaceHttpListenerOptions,
   ControlSurfaceHttpListenerRequestContext,
@@ -50,13 +43,16 @@ import type {
 
 const MAX_SYNC_EVENT_BUFFER = 256
 
-export interface ControlSurfaceHttpRequestHandlerDeps {
+export interface ControlSurfaceHttpRequestHandlerDeps extends SessionDeskRouteDeps {
   plugins: PluginInstallationManager
   ctx: ControlSurfaceContext
   token: string
+  sessionGrants?: SessionGrantRegistry
   webSessions: WebSessionManager
   controlSurface: ControlSurface
   getPersistenceStore: () => Promise<PersistenceStore>
+  agentRuns?: AgentRunStateRegistry
+  agentClients?: Set<ServerResponse>
   syncClients: Set<ServerResponse>
   syncEventBuffer: SyncEventPayload[]
   desktopSyncEventSink?: (payload: SyncEventPayload) => number
@@ -67,14 +63,6 @@ export interface ControlSurfaceHttpRequestHandlerDeps {
   /** Serve the `/debug/shell` page. Off by default. */
   enableDebugRoutes?: boolean
   maxInvokeBodyBytes?: number
-  /** Where files dropped onto a terminal in the Web UI are kept; unset turns the route off. */
-  dropsDirectory?: string
-  /** Where canvas images are kept (`<userData>/canvas-images`); unset turns the routes off. */
-  canvasImagesDirectory?: string
-  /** Decides where a file dropped onto the canvas may go (`x-drop-directory`); unset refuses. */
-  approvedWorkspaces?: ApprovedWorkspaceStore
-  /** Speech in and out (`/voice/*`); unset leaves those paths unknown. */
-  voice?: WorkerVoiceRuntime
 }
 
 function listenerAllowsAuth(
@@ -82,7 +70,7 @@ function listenerAllowsAuth(
   auth: RequestAuth,
 ): boolean {
   if (role === 'private') {
-    return auth.kind === 'bearer' || auth.kind === 'query_token'
+    return auth.kind === 'bearer' || auth.kind === 'query_token' || auth.kind === 'session-grant'
   }
 
   return true
@@ -181,32 +169,17 @@ export function createControlSurfaceHttpRequestHandler(
       return
     }
 
-    if (deps.canvasImagesDirectory && isCanvasImageRoute(url.pathname)) {
-      if (
-        !isAuthorizedFileRequest({
-          deps,
-          req,
-          url,
-          listener,
-          requireCustomHeader: isCanvasImageMutation(req.method),
-        })
-      ) {
-        req.resume()
-        sendJson(res, 401, buildUnauthorizedResult())
-        return
-      }
-      try {
-        await handleCanvasImageRoute({
-          req,
-          res,
-          pathname: url.pathname,
-          storeDirectory: deps.canvasImagesDirectory,
-        })
-      } catch {
-        if (!res.headersSent) {
-          sendJson(res, 500, { ok: false, error: 'The canvas image request failed.' })
-        }
-      }
+    if (
+      await tryHandleSessionDeskRoute({
+        deps,
+        req,
+        res,
+        url,
+        now: deps.ctx.now,
+        isAuthorized: requireCustomHeader =>
+          isAuthorizedFileRequest({ deps, req, url, listener, requireCustomHeader }),
+      })
+    ) {
       return
     }
 
@@ -270,6 +243,7 @@ export function createControlSurfaceHttpRequestHandler(
           req,
           url,
           token: deps.token,
+          sessionGrants: deps.sessionGrants,
           webSessions: deps.webSessions,
           allowQueryToken: deps.allowQueryToken === true,
           now: deps.ctx.now(),
@@ -279,6 +253,39 @@ export function createControlSurfaceHttpRequestHandler(
           return
         }
 
+        let streamRevoked = false
+        const unsubscribeGrant =
+          auth.kind === 'session-grant'
+            ? deps.sessionGrants?.onRevoke(auth.grant.grantId, () => {
+                streamRevoked = true
+                deps.syncClients.delete(res)
+                deps.agentClients?.delete(res)
+                listenerSyncClients.delete(res)
+                res.end()
+              })
+            : undefined
+        res.once('close', () => unsubscribeGrant?.())
+        if (streamRevoked) {
+          return
+        }
+
+        // A revoked session grant ends the agent runtime stream too (subscription above).
+        if (isAgentRuntimeStream(url)) {
+          if (!deps.agentRuns || !deps.agentClients) {
+            res.statusCode = 503
+            res.end()
+            return
+          }
+          serveAgentRuntimeEvents({
+            req,
+            res,
+            url,
+            registry: deps.agentRuns,
+            clients: deps.agentClients,
+            listenerClients: listenerSyncClients,
+          })
+          return
+        }
         const afterRevisionRaw =
           url.searchParams.get('afterRevision') ??
           (req.headers['last-event-id'] as string | undefined)
@@ -303,10 +310,11 @@ export function createControlSurfaceHttpRequestHandler(
         ) {
           try {
             const store = await deps.getPersistenceStore()
-            writeSseEvent(res, {
-              type: 'resync_required',
-              revision: await store.readAppStateRevision(),
-            })
+            const revision = await store.readAppStateRevision()
+            if (streamRevoked) {
+              return
+            }
+            writeSseEvent(res, { type: 'resync_required', revision })
           } catch {
             // ignore
           }
@@ -323,52 +331,18 @@ export function createControlSurfaceHttpRequestHandler(
           }
         }
 
+        if (streamRevoked) {
+          return
+        }
         deps.syncClients.add(res)
         listenerSyncClients.add(res)
         req.on('close', () => {
+          unsubscribeGrant?.()
           deps.syncClients.delete(res)
           listenerSyncClients.delete(res)
         })
         return
       }
-    }
-
-    if (req.method === 'POST' && url.pathname === FILE_DROP_PATH && deps.dropsDirectory) {
-      if (!isAuthorizedFileRequest({ deps, req, url, listener, requireCustomHeader: true })) {
-        req.resume()
-        sendJson(res, 401, buildUnauthorizedResult())
-        return
-      }
-      await handleFileDropRoute({
-        req,
-        res,
-        dropsDirectory: deps.dropsDirectory,
-        now: deps.ctx.now(),
-        approvedWorkspaces: deps.approvedWorkspaces,
-      })
-      return
-    }
-
-    if (req.method === 'POST' && deps.voice && isVoiceRoutePath(url.pathname)) {
-      if (!isAuthorizedFileRequest({ deps, req, url, listener, requireCustomHeader: false })) {
-        req.resume()
-        sendJson(res, 401, buildUnauthorizedResult())
-        return
-      }
-      // Authenticated, but not from the Web UI's own code: a cross-site post cannot set it.
-      if (!hasVoiceCsrfHeader(req)) {
-        req.resume()
-        sendJson(res, 403, buildUnauthorizedResult())
-        return
-      }
-      await handleVoiceRoute({
-        req,
-        res,
-        pathname: url.pathname,
-        service: deps.voice.service,
-        gate: deps.voice.gate,
-      })
-      return
     }
 
     if (req.method !== 'POST' || req.url !== '/invoke') {
@@ -381,6 +355,7 @@ export function createControlSurfaceHttpRequestHandler(
       req,
       url,
       token: deps.token,
+      sessionGrants: deps.sessionGrants,
       webSessions: deps.webSessions,
       allowQueryToken: false,
       now: deps.ctx.now(),
@@ -434,6 +409,21 @@ export function createControlSurfaceHttpRequestHandler(
 
     try {
       const request = normalizeInvokeRequest(body)
+      if (auth.kind === 'session-grant' && !deps.sessionGrants?.isActive(auth.grant.grantId)) {
+        sendJson(res, 401, buildUnauthorizedResult())
+        return
+      }
+      if (
+        auth.kind === 'session-grant' &&
+        !sessionGrantAllowsOperation(request.id, auth.grant.tier)
+      ) {
+        sendJson(res, 403, {
+          __opencoveControlEnvelope: true,
+          ok: false,
+          error: createAppErrorDescriptor('common.forbidden'),
+        })
+        return
+      }
       if (
         requiresPrivateBearer(request.id) &&
         (listener.role === 'web' || auth.kind !== 'bearer')
@@ -454,7 +444,25 @@ export function createControlSurfaceHttpRequestHandler(
       const revisionBefore = shouldCheckRevision
         ? await (await deps.getPersistenceStore()).readAppStateRevision()
         : null
-      const result = await deps.controlSurface.invoke(deps.ctx, request)
+      if (auth.kind === 'session-grant' && !deps.sessionGrants?.isActive(auth.grant.grantId)) {
+        sendJson(res, 401, buildUnauthorizedResult())
+        return
+      }
+      const caller = invokeCallerLifetime(deps.ctx, res, auth, deps.sessionGrants, deps.webSessions)
+      let result
+      try {
+        result = await deps.controlSurface.invoke(
+          {
+            ...deps.ctx,
+            requestAuth: auth,
+            signal: caller.signal,
+            assertActive: caller.assertActive,
+          },
+          request,
+        )
+      } finally {
+        caller.dispose()
+      }
       if (shouldCheckRevision) {
         try {
           const revisionAfter = await (await deps.getPersistenceStore()).readAppStateRevision()

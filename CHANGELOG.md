@@ -12,6 +12,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Terminals: an optional libghostty-vt engine for the screen state that restores terminals after a reload or reconnect, chosen with `SESSION_DESK_TERMINAL_ENGINE=libghostty`; xterm stays the default.
 - Terminals: the worker logs which terminal engine it runs and warns about an unknown `SESSION_DESK_TERMINAL_ENGINE` value; a libghostty-vt module that fails to load, or a terminal it cannot create, falls back to xterm instead of leaving the terminal closed.
 - Plugin themes: a theme can declare four inputs (light or dark, a base tint, an accent colour and contrast) instead of individual colours, and OpenCove generates the whole palette with the same checked contrast as its built-in Cove themes. (#477)
+- CLI: `opencove` is rebuilt for AI agents and scripts: grouped help with examples, compact JSON on stdout with `--fields` selection that keeps the response shape, optional table output, `--limit` for lists, `--<option>-file <path|->` for long values, actionable errors on stderr with typo and close-name suggestions, and stable exit codes. `opencove api ops`, `api schema` and `api call` discover and call every Control Surface operation, most of them with a described input schema. (#521, #524, #525, #529, #532, #538, #551)
+- Agents and terminals started on the canvas know which node, Space and project they belong to and get `opencove` on their PATH with a token limited to their own session; inside such a terminal `opencove whoami`, `opencove context` and `@self`, name and ID-prefix selectors let an agent orient itself. (#528, #540)
+- Agents can hand work to each other: `opencove agent prompt` pastes a prompt into an agent window OpenCove launched (Claude Code, and Codex with lifecycle hooks), confirms that the agent received it and says whether the submitted text matches what was sent. A prompt to an agent that is working steers it within the current turn (`--expect-turn` targets one running turn); it refuses without sending anything while the agent waits for an answer to a dialog. `opencove agent delivery <id> --wait` follows each delivery and nothing is ever sent twice. `agent wait --turn` waits for that prompt's turn and `agent read --turn` returns its reply, also after OpenCove restarts (the last 60 turns per agent are kept for 30 days; `opencove agent history clear` deletes them without deleting the agent, and deleting the node removes them too); `agent list`, `agent get` and `agent read --screen` complete the loop, and `opencove skill` prints a usage guide matching the CLI version. (#544, #549, #550, #553, #554, #556, #563, #566, #570)
+- CLI: `agent read` and `agent wait --turn` list the deliveries and provider prompt IDs that belong to the turn; `node list` and `context` show whether an agent is working separately from whether its session runs, and which task it belongs to (`taskNodeId`); prompt, wait and read help is shorter, with the details in `opencove skill`; creating a task with a frame below the minimum size reports the size used. (#572)
+- Control Surface: create projects and Spaces, so a headless Worker can be set up from the CLI. (#526)
+- Control Surface: address agent and terminal sessions by canvas node, including sessions opened from the UI or restored after a restart. (#527)
+- Control Surface: read an agent's run state (`agent.get`, `agent.list`) and subscribe to state changes and completed turns, decided once by the Worker that runs the agent. (#533)
 
 ### 💅 Changed
 
@@ -63,19 +70,28 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Canvas: a small HUD shows the zoom at the top right, and a Far / Near switch at the top left fits every window in far view or returns to 100%. (#500)
 - Canvas: below 25% zoom each window turns into a tile in its kind colour, with its icon, title, agent status and label, and comes back above 28%. Terminals, editors and pages keep running. Click a tile to fly to its window, drag it to move the window, or right-click it for the window menu. Settings → Appearance → Far View turns it off. (#481)
 - Windows: the header's icon tile shows what a window is in its kind colour (agents purple, terminals green, tasks orange, notes and documents blue, websites and images pink), with a light tint on Cove headers, and the canvas minimap uses the same colours; colour labels now draw only the window frame and a short flag, and unlabeled Cove windows keep a neutral frame. Settings → Appearance → Window Kind Colours turns the kind colours off, and plugin windows can choose a kind with `view.kind`. (#478)
+- CLI: ships as one built file inside the app; launchers installed by earlier versions keep working. (#522)
 
 ### 🐛 Fixed
 
 - Terminals: links that Codex, `gh --web`, `xdg-open` and other programs open on a headless worker open in the viewer's browser instead of failing with "No valid browsers detected"; `BROWSER` points at a bridge script that hands the URL to the terminal.
 - Terminal: keep mouse encoding through mixed or split startup output and live reconnect snapshots, preventing mouse movement and scrolling from producing stray characters after hydration or reattach. (#42)
-
 - Terminal: copying from Claude Code, Codex and other programs that capture the mouse now reaches the clipboard. They copy through OSC 52, which the terminal ignored; it now accepts such a copy right after you used that terminal. Option+drag on macOS (Shift+drag elsewhere) still selects terminal text directly.
 - Agent terminals: preserve mouse encoding and paste modes across startup screen replacement, preventing split startup output from turning Codex mouse movement and scrolling into stray input characters. (#33)
+- Agent windows: after a workspace switch, reload, reopen, restart or font change, an agent window keeps the terminal state Claude Code set up (alternate screen, bracketed paste, mouse tracking), so multi-line pastes stay one message and the mouse wheel keeps working; a spinner redraw during restore no longer resets the terminal. (#579)
+- Agent: Codex windows get OpenCove's lifecycle hooks even when the shared Codex app-server daemon is running, so their working/idle state is reliable and `opencove agent prompt` can reach them; they used to skip hooks to reuse the daemon. Settings → Agent → Codex → Reuse a running Codex app-server restores the old behavior. (#574)
 - Website windows: a frozen website window now always gets its snapshot; a snapshot requested before the page's first frame was presented used to be dropped. (#474)
 - Agent: give each managed Claude launch its own conversation ID and preserve it across recovery, preventing same-directory nodes from binding to the newest unrelated transcript. (#425)
 - Terminal: probe WebGL support once and release the probe, so workspaces with many terminals no longer evict active terminal renderers. (#428)
 - Canvas: keep zooming smooth in large workspaces by no longer restyling every window on each zoom step. (#429)
 - Terminal: when a terminal is restored or redrawn, questions programs asked the terminal earlier (such as its background colour) are no longer answered again into the shell, which could show errors like "command not found: 11". (#455)
+- Sync: changes made through the CLI, agents, plugins or the Web UI are no longer reverted by the desktop window a moment later. (#530)
+- Worker: only one Worker can own a profile at a time, so Desktop can no longer start a second Worker that writes the same database. (#523)
+- Agents: when OpenCove is started from inside a Claude Code session, its terminals and agents no longer inherit that session's markers and messaging credentials, which had turned off transcript saving for canvas Claude Code agents. (#547)
+- Agents: Claude Code transcripts are found under `CLAUDE_CONFIG_DIR` when it is set, so session observation, resume and final messages work with a custom Claude config directory. (#548)
+- Agents: a message typed while Claude Code is working stays in the current turn, so the agent no longer shows as idle and ready while Claude answers it in a follow-up, and `agent read --turn` returns the answer that includes it. (#562)
+- Agents: a Codex agent no longer shows as idle while it works on a prompt sent right after its previous turn. (#559)
+- Agents: an agent started inside a canvas terminal keeps `opencove` on its PATH even when the shell's startup files replace PATH, and `agent get` and `agent read` work on terminal nodes. (#560)
 
 ## [0.4.0] - 2026-10-12
 

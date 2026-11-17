@@ -1,5 +1,4 @@
 import type { Terminal } from '@xterm/xterm'
-import { createTerminalInputModeReplay } from '../../../../../../shared/terminal/terminalInputModeReplay'
 import { finalizeTerminalHydration } from './finalizeHydration'
 import {
   extractAutomaticTerminalQuerySequences,
@@ -8,6 +7,7 @@ import {
 import { replayBufferedHydrationOutput } from './replayBufferedHydrationOutput'
 import {
   containsDestructiveTerminalDisplayControlSequence,
+  shouldReplaceAuthoritativeHydrationBaseline,
   containsMeaningfulTerminalDisplayContent,
   endsWithIncompleteTerminalControlSequence,
   shouldDeferHydratedTerminalRedrawChunk,
@@ -15,7 +15,11 @@ import {
   stripEchoedTerminalControlSequences,
 } from './hydrationReplacement'
 import { resolveSuffixPrefixOverlap } from './overlap'
-import { isInputSemanticTerminalControlChunk } from './terminalInputSemanticControls'
+import {
+  isInputSemanticTerminalControlChunk,
+  isTerminalModeControlChunk,
+} from './terminalInputSemanticControls'
+import { stripAutomaticTerminalQueriesFromOutput } from '@shared/terminal/automaticTerminalSequences'
 
 export interface TerminalHydrationRouter {
   handleDataChunk: (data: string, options?: { seq?: number | null }) => void
@@ -27,8 +31,7 @@ export interface TerminalHydrationRouter {
 interface BufferedHydrationChunk {
   data: string
   seq: number | null
-  deliveredDuringHydration: boolean
-  inputModeControls: string
+  queriesAnsweredDuringHydration: boolean
 }
 
 function normalizeTerminalDataSeq(seq: number | null | undefined): number | null {
@@ -88,7 +91,6 @@ export function createTerminalHydrationRouter({
   onRevealed: () => void
   isDisposed: () => boolean
 }): TerminalHydrationRouter {
-  const inputModes = createTerminalInputModeReplay()
   let isHydrating = true
   const hydrationBuffer = {
     dataChunks: [] as BufferedHydrationChunk[],
@@ -130,7 +132,6 @@ export function createTerminalHydrationRouter({
       bufferedData: data,
       bufferedExitCode: exitCode,
       resetTerminalBeforeFirstWrite: true,
-      inputModeReplay: inputModes.snapshot(),
       scrollbackBuffer,
       committedScrollbackBuffer,
       onCommittedScreenState: recordCommittedScreenState,
@@ -240,10 +241,8 @@ export function createTerminalHydrationRouter({
         return
       }
 
-      const inputModeControls = inputModes.record(displayData)
-      const isInputModeChunk = isInputSemanticTerminalControlChunk(displayData)
       const shouldWriteThroughGeometryGate =
-        isAutomaticTerminalQuery(displayData) || isInputModeChunk
+        isAutomaticTerminalQuery(displayData) || isInputSemanticTerminalControlChunk(displayData)
       const writeThroughGeometryGateOptions = shouldWriteThroughGeometryGate
         ? { allowDuringPendingGeometry: true }
         : undefined
@@ -255,19 +254,13 @@ export function createTerminalHydrationRouter({
 
         hydrationBuffer.dataChunks.push({
           data: displayData,
-          inputModeControls,
           seq: normalizeTerminalDataSeq(options?.seq),
-          deliveredDuringHydration: shouldWriteThroughGeometryGate,
+          queriesAnsweredDuringHydration: isAutomaticTerminalQuery(displayData),
         })
         return
       }
 
       if (shouldWriteThroughGeometryGate) {
-        // Deferred display writes may contain older modes. Keep write-through
-        // mode changes in their stream order when that buffer is flushed.
-        if (isInputModeChunk && deferredHydratedRedrawBuffer.dataChunks.length > 0) {
-          deferredHydratedRedrawBuffer.dataChunks.push(displayData)
-        }
         outputScheduler.handleChunk(displayData, writeThroughGeometryGateOptions)
         return
       }
@@ -374,11 +367,9 @@ export function createTerminalHydrationRouter({
     finalizeHydration: (rawSnapshot, options) => {
       isHydrating = false
       const baselineAppliedSeq = normalizeTerminalDataSeq(options?.baselineAppliedSeq)
-      inputModes.acceptSnapshot(rawSnapshot, baselineAppliedSeq, hydrationBuffer.dataChunks)
       const bufferedHydrationChunks = hydrationBuffer.dataChunks.flatMap(chunk => {
-        if (chunk.deliveredDuringHydration) {
-          // Input modes survive only if replayed after a synthetic full reset.
-          return isInputSemanticTerminalControlChunk(chunk.data) ? [chunk.data] : []
+        if (chunk.queriesAnsweredDuringHydration) {
+          return []
         }
 
         if (baselineAppliedSeq === null) {
@@ -414,7 +405,7 @@ export function createTerminalHydrationRouter({
         shouldReplaceAuthoritativeBaselineWithBufferedOutput() &&
         rawSnapshot.trim().length > 0 &&
         bufferedData.length > 0 &&
-        containsDestructiveTerminalDisplayControlSequence(bufferedData) &&
+        shouldReplaceAuthoritativeHydrationBaseline(bufferedData) &&
         containsMeaningfulTerminalDisplayContent(bufferedData)
       const shouldReplaceBufferedPlaceholder =
         shouldReplacePlaceholder &&
@@ -424,11 +415,16 @@ export function createTerminalHydrationRouter({
         })
       const shouldDeferBufferedReplay =
         shouldReplacePlaceholder && !shouldReplaceBufferedPlaceholder
+      const bufferedModesOnly =
+        isTerminalModeControlChunk(
+          stripAutomaticTerminalQueriesFromOutput(bufferedData).visibleData,
+        ) && !shouldDeferHydratedTerminalRedrawChunk(bufferedData)
       const shouldDeferBufferedHydratedRedraw =
         !shouldReplacePlaceholder &&
         shouldProtectRestoredBaseline &&
         bufferedData.length > 0 &&
         !isAutomaticTerminalQuery(bufferedData) &&
+        !bufferedModesOnly &&
         isControlOnlyTerminalChunk(bufferedData)
       const bufferedOutputAlreadyMatchesPlaceholder =
         shouldReplaceBufferedPlaceholder &&
@@ -454,7 +450,6 @@ export function createTerminalHydrationRouter({
         bufferedDataChunks: [...bufferedDataChunksForFinalize],
         bufferedExitCode: bufferedExitCodeForFinalize,
         terminal,
-        inputModeReplay: inputModes.snapshot(),
         committedScrollbackBuffer,
         onCommittedScreenState: recordCommittedScreenState,
         markScrollbackDirty,
@@ -471,9 +466,6 @@ export function createTerminalHydrationRouter({
       if (shouldReplacePlaceholder && !didReplaceBaseline) {
         if (bufferedOutputAlreadyMatchesPlaceholder) {
           shouldReplaceAgentPlaceholderOnNextDestructiveChunk = true
-          deferredPlaceholderBuffer.dataChunks.push(
-            ...bufferedHydrationChunks.filter(isInputSemanticTerminalControlChunk),
-          )
         } else {
           deferredPlaceholderBuffer.dataChunks.push(...bufferedHydrationChunks)
           deferredPlaceholderBuffer.exitCode = hydrationBuffer.exitCode

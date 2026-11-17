@@ -80,7 +80,7 @@ export function createPluginSpaceHost(
     if (operation === 'spaces.create') {
       const input = fields(payload, ['projectId', 'name', 'labelColor', 'directoryPath'])
       await requireProject(authority, pluginString(input.projectId, 'projectId', 200))
-      return invoke(authority, 'space.create', 'command', input)
+      return invoke(authority, 'space.createEmpty', 'command', input)
     }
     if (operation === 'spaces.update') {
       const input = fields(payload, ['spaceId', 'name', 'labelColor'])
@@ -89,7 +89,7 @@ export function createPluginSpaceHost(
         spaceId,
       })
       await requireProject(authority, projectId)
-      return invoke(authority, 'space.update', 'command', input)
+      return invoke(authority, 'space.setAttributes', 'command', input)
     }
     throw new Error('Unsupported plugin Space operation.')
   }

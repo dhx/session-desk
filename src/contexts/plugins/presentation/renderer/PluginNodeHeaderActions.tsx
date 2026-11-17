@@ -55,7 +55,7 @@ function PluginNodeHeaderButton({
         }
       }}
     >
-      <PluginIcon pluginId={plugin.id} className="terminal-node__action-icon" size={14} />
+      <PluginIcon pluginId={plugin.id} className="terminal-node__action-icon" size={12} />
     </IconButton>
   )
 }

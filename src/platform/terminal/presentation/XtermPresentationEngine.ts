@@ -1,5 +1,6 @@
 import { SerializeAddon } from '@xterm/addon-serialize'
 import { Terminal } from '@xterm/xterm'
+import { serializeTerminalState } from './serializeTerminalState'
 import type {
   TerminalPresentationBufferKind,
   TerminalPresentationEngine,
@@ -50,7 +51,8 @@ export class XtermPresentationEngine implements TerminalPresentationEngine {
   }
 
   public serialize(): string {
-    return this.serializeAddon.serialize()
+    // Cells of both buffers plus mouse encoding, cursor visibility, scroll margins and origin.
+    return serializeTerminalState(this.terminal, this.serializeAddon)
   }
 
   public onTitleChange(listener: (title: string) => void): void {

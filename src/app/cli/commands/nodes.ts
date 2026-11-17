@@ -1,10 +1,40 @@
+import { nodeAgentMetadata } from '../core/agentMetadata'
+import type {
+  ListNodesResult,
+  CreateNodeResult,
+  CanvasNodeFrameDto,
+} from '../../../shared/contracts/dto/nodeControl'
 import { nodeDeleteOutput, canvasFocusOutput } from './outputContracts'
 import { nodeListOutput, nodeGetOutput, nodeKindOutput } from './outputContracts'
 import { defineCommand, type CommandArgs, type OptionSpec } from '../core/command'
 import { CliError, usage } from '../core/errors'
+import { AGENT_PROVIDER_IDS } from '../../../shared/contracts/dto'
+const nodeContentHelp =
+  'Content by kind: note → data.text; task → data.requirement, data.status, data.priority, data.tags; website → data.url; agent/terminal → status, sessionId. node list returns summaries: use node get for full note text and other content. A requested field absent on a returned kind produces one stderr notice; stdout remains projected JSON.'
+const optionChoices: Record<string, readonly string[]> = {
+  'Node kind': [
+    'note',
+    'task',
+    'website',
+    'agent',
+    'terminal',
+    'plugin',
+    'document',
+    'folder',
+    'image',
+    'role',
+  ],
+  Priority: ['low', 'medium', 'high', 'urgent'],
+  Status: ['todo', 'doing', 'ai_done', 'done'],
+  'Session mode': ['shared', 'incognito', 'profile'],
+  Provider: [...AGENT_PROVIDER_IDS, ''],
+}
 const optionText: Record<string, [string, string]> = {
   'Node ID': ['id', 'Select a canvas node by its ID'],
-  'Node kind': ['kind', 'Filter by note, task, website, agent or terminal'],
+  'Node kind': [
+    'kind',
+    'Filter by note, task, website, agent, terminal, plugin, document, folder, image or role',
+  ],
   'Note text': ['text', 'Set the note contents'],
   Requirement: ['text', 'Describe the task requirement'],
   Priority: ['low|medium|high|urgent', 'Set the task priority'],
@@ -27,6 +57,7 @@ export const stringOption = (description: string, required = false): OptionSpec 
   description: optionText[description]?.[1] ?? description,
   valueName: optionText[description]?.[0] ?? description.toLowerCase().replaceAll(' ', '-'),
   required,
+  choices: optionChoices[description],
 })
 const locatorOptions: Record<string, OptionSpec> = {
   space: { ...stringOption('Space ID') },
@@ -94,9 +125,6 @@ function data(kind: string, o: Record<string, unknown>, create: boolean) {
   if (kind === 'terminal') {
     return { shell: o.shell, command: o.command, profileId: o.profile }
   }
-  if (!create && o.pinned !== undefined && !['true', 'false'].includes(String(o.pinned))) {
-    usage('--pinned must be true or false')
-  }
   return {
     url: o.url,
     pinned: create ? !!o.pinned : o.pinned === undefined ? undefined : o.pinned === 'true',
@@ -110,13 +138,19 @@ export const nodeCommands = [
     path: ['node', 'list'],
     summary: 'List canvas nodes',
     description:
-      'data.status is task status. Top-level status is the runtime status of agent and terminal sessions. STATE shows the applicable status.',
+      nodeContentHelp +
+      '\n\n' +
+      'Lists per-kind summaries: data carries kind plus requirement, status, priority and tags for tasks, or url for websites; data carries only kind for notes, agents and terminals. Read full content, such as note text, with "opencove node get --node <id>".\n\ndata.status is task status. Top-level status is session lifecycle (for example running or exited) for agents and terminals, not whether an agent is idle or working. STATE shows task status or session lifecycle; agentState is the separate work-state field. sessionStatus aliases lifecycle status. agentState {state, quality, turnId} reports work for agents and observed agents in terminals; state working means the agent is working. Missing observations are unknown/degraded. context keeps its legacy state field.',
     targetSpace: 'optional',
     connect: true,
     operation: 'node.list',
-    options: { ...locatorOptions, kind: stringOption('Node kind') },
+    options: { ...locatorOptions, kind: { ...stringOption('Node kind'), inputPath: 'kind' } },
     buildInput: ({ options: o }) => ({ space: locator(o), projectId: o.project, kind: o.kind }),
     render: nodeListOutput,
+    async execute(ctx) {
+      const result = (await ctx.invoke('node.list', ctx.input)) as ListNodesResult
+      return { ...result, nodes: await nodeAgentMetadata(result.nodes, ctx, result) }
+    },
   }),
   ...(['get', 'delete'] as const).map(action =>
     defineCommand({
@@ -125,10 +159,7 @@ export const nodeCommands = [
       connect: true,
       operation: `node.${action}`,
       render: action === 'get' ? nodeGetOutput : nodeDeleteOutput,
-      description:
-        action === 'get'
-          ? 'data.status is task status; top-level status is agent or terminal runtime status.'
-          : undefined,
+      description: action === 'get' ? nodeContentHelp : undefined,
       options: { node: stringOption('Node ID', true) },
       buildInput: ({ options: o }) => ({ nodeId: o.node }),
     }),
@@ -168,6 +199,7 @@ export const nodeCommands = [
                     type: create ? 'boolean' : 'string',
                     description: 'Keep the website pinned',
                     valueName: 'true|false',
+                    ...(!create ? { choices: ['true', 'false'] } : {}),
                   },
                   'session-mode': stringOption('Session mode'),
                   profile: stringOption('Profile'),
@@ -197,7 +229,11 @@ export const nodeCommands = [
           title: stringOption('Title'),
           frame: {
             type: 'json',
-            description: 'Set x, y, width and height as a JSON object',
+            description:
+              'Set x, y, width and height as a JSON object' +
+              (kind === 'task'
+                ? '; task minimum: width 220, height 260; adjusted sizes are reported'
+                : ''),
             valueName: 'json',
           },
           ...(create
@@ -233,7 +269,22 @@ export const nodeCommands = [
         ...(create
           ? {
               async execute(ctx) {
-                const value = await ctx.invoke('node.create', ctx.input)
+                let value = await ctx.invoke('node.create', ctx.input)
+                if (kind === 'task') {
+                  const appliedFrame = (value as CreateNodeResult).node.frame
+                  const requested = ctx.options.frame as Partial<CanvasNodeFrameDto> | undefined
+                  const frameAdjusted =
+                    !!requested &&
+                    (['x', 'y', 'width', 'height'] as const).some(
+                      key => requested[key] !== undefined && requested[key] !== appliedFrame[key],
+                    )
+                  value = { ...(value as object), appliedFrame, frameAdjusted }
+                  if (frameAdjusted) {
+                    ctx.io.stderr.write(
+                      `Notice: task frame adjusted; applied frame: ${JSON.stringify(appliedFrame)}.\n`,
+                    )
+                  }
+                }
                 if (!ctx.options.focus) {
                   return value
                 }

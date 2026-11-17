@@ -121,13 +121,17 @@ export function stripEchoedTerminalControlSequences(data: string): string {
   return result
 }
 
-const DESTRUCTIVE_TERMINAL_DISPLAY_CONTROL_SEQUENCES = [
+const ALTERNATE_BUFFER_CONTROL_SEQUENCES = [
   '\u001b[?1049h',
   '\u001b[?1049l',
   '\u001b[?1047h',
   '\u001b[?1047l',
   '\u001b[?47h',
   '\u001b[?47l',
+] as const
+
+const DESTRUCTIVE_TERMINAL_DISPLAY_CONTROL_SEQUENCES = [
+  ...ALTERNATE_BUFFER_CONTROL_SEQUENCES,
   '\u001b[J',
   '\u001b[0J',
   '\u001b[1J',
@@ -140,17 +144,8 @@ const DESTRUCTIVE_TERMINAL_DISPLAY_CONTROL_SEQUENCES = [
 ] as const
 
 const FULL_SCREEN_TERMINAL_DISPLAY_CONTROL_SEQUENCES = [
-  '\u001b[?1049h',
-  '\u001b[?1049l',
-  '\u001b[?1047h',
-  '\u001b[?1047l',
-  '\u001b[?47h',
-  '\u001b[?47l',
-  '\u001b[J',
-  '\u001b[0J',
-  '\u001b[1J',
+  ...ALTERNATE_BUFFER_CONTROL_SEQUENCES,
   '\u001b[2J',
-  '\u001b[3J',
 ] as const
 
 function resolveLastDestructiveTerminalDisplayControlSequenceEnd(data: string): number {
@@ -179,6 +174,15 @@ function containsFullScreenTerminalDisplayControlSequence(data: string): boolean
   return (
     data.includes('\u001bc') ||
     FULL_SCREEN_TERMINAL_DISPLAY_CONTROL_SEQUENCES.some(sequence => data.includes(sequence))
+  )
+}
+
+export function shouldReplaceAuthoritativeHydrationBaseline(data: string): boolean {
+  // ED0/1 erase only part of the display; ED3 erases only scrollback. Buffer
+  // transitions must replay naturally so the inactive normal buffer survives.
+  return (
+    containsFullScreenTerminalDisplayControlSequence(data) &&
+    !ALTERNATE_BUFFER_CONTROL_SEQUENCES.some(sequence => data.includes(sequence))
   )
 }
 
@@ -253,11 +257,10 @@ export function containsMeaningfulTerminalDisplayContentAfterLastDestructiveSequ
   return containsMeaningfulTerminalDisplayContent(visibleRegion)
 }
 
-export function findIncompleteTerminalControlSequenceStart(data: string): number {
+export function endsWithIncompleteTerminalControlSequence(data: string): boolean {
   let index = 0
 
   while (index < data.length) {
-    const start = index
     const code = data.charCodeAt(index)
 
     if (code !== 0x1b) {
@@ -267,7 +270,7 @@ export function findIncompleteTerminalControlSequenceStart(data: string): number
 
     const next = data.charCodeAt(index + 1)
     if (Number.isNaN(next)) {
-      return start
+      return true
     }
 
     if (next === 0x5b) {
@@ -282,7 +285,7 @@ export function findIncompleteTerminalControlSequenceStart(data: string): number
         }
       }
       if (!foundFinalByte) {
-        return start
+        return true
       }
       continue
     }
@@ -305,7 +308,7 @@ export function findIncompleteTerminalControlSequenceStart(data: string): number
         cursor += 1
       }
       if (!foundTerminator) {
-        return start
+        return true
       }
       index = cursor
       continue
@@ -323,7 +326,7 @@ export function findIncompleteTerminalControlSequenceStart(data: string): number
         cursor += 1
       }
       if (!foundTerminator) {
-        return start
+        return true
       }
       index = cursor
       continue
@@ -332,11 +335,7 @@ export function findIncompleteTerminalControlSequenceStart(data: string): number
     index += 2
   }
 
-  return -1
-}
-
-export function endsWithIncompleteTerminalControlSequence(data: string): boolean {
-  return findIncompleteTerminalControlSequenceStart(data) !== -1
+  return false
 }
 
 export function shouldReplacePlaceholderWithBufferedOutput({
@@ -353,7 +352,10 @@ export function shouldReplacePlaceholderWithBufferedOutput({
 
 export function shouldDeferHydratedTerminalRedrawChunk(data: string): boolean {
   return (
-    containsFullScreenTerminalDisplayControlSequence(data) &&
+    (containsFullScreenTerminalDisplayControlSequence(data) ||
+      ['\u001b[J', '\u001b[0J', '\u001b[1J', '\u001b[3J'].some(sequence =>
+        data.includes(sequence),
+      )) &&
     !containsMeaningfulTerminalDisplayContent(data)
   )
 }
