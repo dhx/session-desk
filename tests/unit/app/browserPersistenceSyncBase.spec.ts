@@ -111,6 +111,54 @@ describe('Web UI persistence base', () => {
     expect(saved.workspaces[0]?.nodes.find(node => node.id === 'mine')?.title).toBe('moved')
   })
 
+  it('keeps that node across a second save, before any refresh was accepted', async () => {
+    const api = createBrowserPersistenceApi()
+    const first = await api.readAppState()
+    api.acceptAppState?.({ syncToken: first.syncToken! })
+    server.state = state([note('mine'), note('plugin-window')])
+    server.revision += 1
+
+    // The first save conflicts and merges the node in; the canvas still lacks it.
+    expect((await api.writeAppState({ state: state([note('mine', 'moved')]) })).ok).toBe(true)
+    expect((await api.writeAppState({ state: state([note('mine', 'moved again')]) })).ok).toBe(true)
+
+    const saved = server.state as PersistedAppState
+    expect(saved.workspaces[0]?.nodes.map(node => node.id).sort()).toEqual([
+      'mine',
+      'plugin-window',
+    ])
+    expect(saved.workspaces[0]?.nodes.find(node => node.id === 'mine')?.title).toBe('moved again')
+
+    // Once the renderer takes the merged state in, saves stop conflicting, and closing the
+    // window then deletes it.
+    const refreshed = await api.readAppState()
+    api.acceptAppState?.({ syncToken: refreshed.syncToken! })
+    const before = server.writes.length
+    expect((await api.writeAppState({ state: state([note('mine', 'moved again')]) })).ok).toBe(true)
+    expect(server.writes.length).toBe(before + 1)
+    expect((server.state as PersistedAppState).workspaces[0]?.nodes.map(node => node.id)).toEqual([
+      'mine',
+    ])
+  })
+
+  it('closes a window the user made and closed while a remote node was not yet taken in', async () => {
+    const api = createBrowserPersistenceApi()
+    const first = await api.readAppState()
+    api.acceptAppState?.({ syncToken: first.syncToken! })
+    server.state = state([note('mine'), note('plugin-window')])
+    server.revision += 1
+
+    const created = await api.writeAppState({ state: state([note('mine'), note('made-here')]) })
+    // Not reported as the renderer's own write: its sync event must trigger a refresh.
+    expect(created).toMatchObject({ ok: true })
+    expect(created.ok && created.revision).toBeUndefined()
+    expect((await api.writeAppState({ state: state([note('mine')]) })).ok).toBe(true)
+
+    expect(
+      (server.state as PersistedAppState).workspaces[0]?.nodes.map(node => node.id).sort(),
+    ).toEqual(['mine', 'plugin-window'])
+  })
+
   it('bases the next write on an accepted read, so a node the user closed stays closed', async () => {
     const api = createBrowserPersistenceApi()
     server.state = state([note('mine'), note('plugin-window')])

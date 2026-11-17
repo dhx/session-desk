@@ -109,7 +109,7 @@ export function createBrowserPersistenceApi(): PersistenceApi {
       const attemptWrite = async (
         state: unknown,
         baseRevision: number | null,
-        options?: { allowEmptyWorkspaceOverwrite?: boolean },
+        options?: { allowEmptyWorkspaceOverwrite?: boolean; adoptAsBase?: boolean },
       ): Promise<number> => {
         const response = await invokeBrowserControlSurface<{ revision: number }>({
           kind: 'command',
@@ -122,8 +122,10 @@ export function createBrowserPersistenceApi(): PersistenceApi {
               : {}),
           },
         })
-        setLastKnownSyncRevision(response.revision)
-        setLastKnownSyncState(state)
+        if (options?.adoptAsBase !== false) {
+          setLastKnownSyncRevision(response.revision)
+          setLastKnownSyncState(state)
+        }
         return response.revision
       }
 
@@ -164,9 +166,10 @@ export function createBrowserPersistenceApi(): PersistenceApi {
             id: 'sync.state',
             payload: null,
           })
-          setLastKnownSyncRevision(latest.revision)
-          setLastKnownSyncState(latest.state)
-
+          // `latest` is not the base: the renderer has not taken it in. Nor is a merge that
+          // brought in something the renderer lacks. Either would let the next save, still
+          // without it, pass at the new revision and delete it. The base stays where it was
+          // until the renderer accepts a read, so such saves keep conflicting and merging.
           const latestState =
             latest.state === null ? null : normalizePersistedAppStateForMerge(latest.state)
           if (latest.state !== null && !latestState) {
@@ -180,15 +183,25 @@ export function createBrowserPersistenceApi(): PersistenceApi {
             ? mergePersistedAppStates(latestState, localState, baseSnapshot)
             : localState
 
+          const broughtInRemote = JSON.stringify(merged) !== JSON.stringify(localState)
           const revision = await attemptWrite(merged, latest.revision, {
             allowEmptyWorkspaceOverwrite: payload.allowEmptyWorkspaceOverwrite === true,
+            adoptAsBase: !broughtInRemote,
           })
+          if (broughtInRemote) {
+            // The revision stays stale so the next save merges again, but the snapshot
+            // follows what the renderer itself has now written: a window it created and
+            // then closes before a refresh is a deletion, not something a remote added.
+            lastKnownSyncState = localState
+          }
 
           return {
             ok: true,
             level: 'full',
             bytes: JSON.stringify(merged).length,
-            revision,
+            // Without a revision the write is not counted as the renderer's own, so its
+            // sync event makes the renderer refresh and take the merged state in.
+            ...(broughtInRemote ? {} : { revision }),
           } as const
         } catch (retryError) {
           return {
