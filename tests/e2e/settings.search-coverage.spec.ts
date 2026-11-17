@@ -2,6 +2,10 @@ import { expect, test } from '@playwright/test'
 import { launchApp, seedWorkspaceState, testWorkspacePath } from './workspace-canvas.helpers'
 import { CANONICAL_SETTINGS_PAGE_DEFINITIONS } from '../../src/contexts/settings/presentation/renderer/settingsPanel/settingsPageRegistry'
 
+// A failed action shows its message as an "Error" row. It is a status, not a setting: the Web UI's
+// Worker page shows one because the browser cannot read or change the worker's own configuration.
+const ERROR_ROW_LABEL = { en: 'Error', 'zh-CN': '错误' } as const
+
 // Every row on every settings page must be reachable from the settings search: a new row that
 // forgets its search entry fails here.
 for (const language of ['en', 'zh-CN'] as const) {
@@ -32,7 +36,10 @@ for (const language of ['en', 'zh-CN'] as const) {
             '.settings-panel__row .settings-panel__row-label > :first-child, .cove-setting-row__label',
           )
           .allTextContents()
-        for (const label of labels.map(text => text.trim()).filter(Boolean)) {
+        for (const label of labels
+          .map(text => text.trim())
+          .filter(Boolean)
+          .filter(text => text !== ERROR_ROW_LABEL[language])) {
           rows.push({ page: page.canonicalPageId, label })
         }
       }

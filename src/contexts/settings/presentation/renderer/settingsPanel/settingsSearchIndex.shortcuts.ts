@@ -1,5 +1,6 @@
 import {
   APP_COMMAND_IDS,
+  VOICE_COMMAND_IDS,
   WORKSPACE_CANVAS_COMMAND_IDS,
 } from '@contexts/settings/domain/keybindings'
 import { isSpatialNavigationCommandId } from './shortcuts/ShortcutKeycaps'
@@ -9,6 +10,8 @@ import type { CoreSettingsSearchEntryDefinition } from './settingsSearchTypes'
 /** One entry per keybinding row, built from the same command lists the Shortcuts page shows. */
 export const SHORTCUT_SEARCH_ENTRY_DEFINITIONS: CoreSettingsSearchEntryDefinition[] = [
   ...APP_COMMAND_IDS,
+  // This fork's push-to-talk binding (docs/voice) is on the Shortcuts page too.
+  ...VOICE_COMMAND_IDS,
   ...WORKSPACE_CANVAS_COMMAND_IDS.filter(commandId => !isSpatialNavigationCommandId(commandId)),
 ].map(commandId => ({
   id: `shortcuts.${commandId}`,
