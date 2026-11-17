@@ -13,6 +13,8 @@ import { enWorkspaceCanvas } from './en.workspaceCanvas'
 import { enSidebarView } from './en.sidebarView'
 import { enSidebarRail } from './en.sidebarRail'
 import { enCanvasCollapse } from './en.canvasCollapse'
+import { enEdgeBeacons } from './en.edgeBeacons'
+import { enCanvasHud } from './en.canvasHud'
 import { enControlCenter } from './en.controlCenter'
 import { enCommandCenter } from './en.commandCenter'
 import { enSpaceCollapse } from './en.spaceCollapse'
@@ -34,11 +36,17 @@ export const en = {
       'This theme is unavailable. The default theme is shown until it is enabled again.',
   },
   ...enCanvasCollapse,
+  ...enEdgeBeacons,
+  ...enCanvasHud,
   ...enControlCenter,
   ...enCommandCenter,
   ...enSpaceCollapse,
   ...enVoice,
   common: {
+    workerStopNotOwned:
+      'This Worker was started outside OpenCove Desktop. Stop it where it was started, for example with opencove worker stop.',
+    workerExternalOwnerUnreachable:
+      'Another Worker owns this data directory but is unreachable or incompatible. Stop it explicitly before retrying.',
     actions: 'Actions',
     back: 'Back',
     closeShortcutSelectWindow: 'Select the window you want to close.',

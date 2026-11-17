@@ -22,6 +22,29 @@ Control Surface 是 OpenCove 对外能力入口。Desktop、CLI、Web UI 和 rem
 
 Transport 只做鉴权、校验、mapping 和连接生命周期；业务 owner 仍在 context application/usecase、runtime manager 或 topology store。
 
+### Protocol Header And Operation Introspection
+
+Authenticated HTTP `/invoke` callers may send `x-opencove-protocol` equal to the decimal
+`CONTROL_SURFACE_PROTOCOL_VERSION`. A present, unequal value returns the normal HTTP 200
+error envelope with `common.protocol_incompatible` and params `{ client, server }` (the
+received header string and server version number), before operation dispatch or persistence
+access. Missing headers retain existing behavior. Desktop IPC is unaffected.
+
+`system.capabilities.features.operationRegistry` is `true`. The read-scope schema query
+`system.operations` accepts `{}` and returns `{ protocolVersion, operations }`, sorted by id.
+Each entry contains `id`, `kind`, `scope`, `availability`, `contract` and `summary`. Only
+operations actually registered in this runtime are listed, including conditional
+Desktop-managed Worker, managed-runtime and debug registrations when present. Metadata is
+not authorization; existing transport and handler authority checks remain in force.
+
+The read-scope schema query `system.operation.describe` accepts `{ id: string }` and returns
+that metadata plus `inputSchema` and `errors`. Schema inputs use
+`z.toJSONSchema(op.input, { io: 'input', unrepresentable: 'throw' })`, computed lazily and
+cached by id within the runtime. Legacy operations return `inputSchema: null` and `errors: []`;
+schema errors are the registry's declared non-common codes, not an exhaustive transport-error
+catalog. Unknown or unregistered ids return `common.invalid_input` with a diagnostic message.
+The actual handler map owns availability; the schema cache is derived, non-durable state.
+
 ### Runtime And Listener Lifecycle
 
 Desktop 管理的本机 Worker 把长期运行的 `ControlSurfaceRuntime` 与 HTTP listen socket 分开：
@@ -55,6 +78,9 @@ Worker private listener 始终绑定 loopback；只有 Web listener 可以显式
 
 Core system:
 
+- `system.capabilities`
+- `system.operations`
+- `system.operation.describe`
 - `system.ping`
 - `system.homeDirectory`
 
@@ -208,11 +234,22 @@ Current code has some handlers that directly orchestrate persistence/topology be
 
 ## Adding A Capability
 
-1. Identify the owner and durable truth.
-2. Implement the domain/application usecase or boundary owner method.
-3. Register a command or query with runtime validation.
-4. Add contract tests for payload validation, success shape and stable error semantics.
-5. Add CLI/IPC/Web mapping only after the Control Surface contract exists.
+1. Identify the state owner and durable truth; implement side effects in the existing usecase/owner.
+2. Add one definition in `shared/contracts/controlSurface/operations/domains/<prefix>.ts` and include
+   it in `registry.ts`. Declare `id`, `kind`, `scope`, `availability`, a short summary and non-common
+   error codes. Unmigrated operations explicitly use `defineLegacyOperation`.
+3. Use two stages: `input` describes only wire shape and must pass
+   `z.toJSONSchema(input, { io: 'input', unrepresentable: 'throw' })`. Do not use refine, transform,
+   superRefine, preprocess or custom types. Pure `normalize` owns trimming, defaults, truncation,
+   cross-field rules, enum fallbacks and URI checks; reject with `common.invalid_input`.
+   Preserve the legacy accept-domain, including permissive fields, until a versioned change.
+4. Register schema operations through Main's `registerOperation`; retain handler authorization,
+   lifecycle fences and default error codes. Registry metadata does not grant authorization.
+5. Add strict export, frozen-oracle parity and real composition registration tests before adding
+   CLI/IPC/Web mappings. Output schemas are outside this migration.
+
+Renderer / Preload layers may only `import type` from operations and must not import `zod` at
+runtime. `architecture.rendererNoOperationRuntime` enforces this boundary, including subpaths.
 
 ## Verification Anchors
 

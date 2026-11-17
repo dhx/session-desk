@@ -1,3 +1,4 @@
+import { createWorkerParentShutdown } from '../../shared/runtime/workerParentShutdown'
 import { createPiHookChannel } from '../main/controlSurface/agentHook/piHookChannel'
 import { resolve } from 'node:path'
 import { registerControlSurfaceHttpServer } from '../main/controlSurface/controlSurfaceHttpServer'
@@ -24,10 +25,12 @@ import { createCodexHookChannel } from '../main/controlSurface/agentHook/codexHo
 import { AgentProviderRegistry } from '../../contexts/agent/application/services/AgentProviderRegistry'
 import { createBuiltinAgentProviderContributions } from '../../contexts/agent/infrastructure/providers/catalog/BuiltinAgentProviderCatalog'
 import { readRepeatedWorkerFlagValues, readWorkerFlagValue } from './workerCliArguments'
-import { CONTROL_SURFACE_SHUTDOWN_WATCHDOG_MS } from '../../shared/runtime/controlSurfaceShutdown'
+import { createWorkerShutdown } from './workerShutdown'
 import { getRuntimeBuildIdentity } from '../../shared/runtime/runtimeBuildIdentity'
 import { formatWorkerReadyLine, resolveWorkerSecrets, scrubWorkerSecretEnv } from './workerSecrets'
 import { resolveWorkerBindRefusal } from './workerBindPolicy'
+
+const parentShutdown = createWorkerParentShutdown()
 
 function resolvePort(argv: string[]): number | null {
   const raw = readWorkerFlagValue(argv, '--port')
@@ -152,7 +155,7 @@ async function main(): Promise<void> {
     }
 
     process.stderr.write(
-      '[opencove-worker] Worker lock exists but its connection is not reachable; launcher must repair stale worker state.\n',
+      '[opencove-worker] Worker owner is busy but its connection is not reachable; refusing replacement.\n',
     )
     process.exit(1)
   }
@@ -296,35 +299,14 @@ async function main(): Promise<void> {
     `[opencove-worker] auth required (use Authorization: Bearer <token>${passwordRequired ? ' or /auth/login password' : ' or a Desktop-issued /auth/claim ticket'})\n`,
   )
 
-  let shutdownRequested = false
-  const disposeAndExit = async (code: number): Promise<void> => {
-    if (shutdownRequested) {
-      return
-    }
+  const disposeAndExit = createWorkerShutdown(
+    () => server.dispose(),
+    () => lock.release(),
+  )
 
-    shutdownRequested = true
-
-    const forceExitTimer = setTimeout(() => {
-      process.exit(code)
-    }, CONTROL_SURFACE_SHUTDOWN_WATCHDOG_MS)
-    forceExitTimer.unref()
-
-    try {
-      await server.dispose()
-    } catch {
-      // ignore
-    }
-
-    try {
-      await lock.release()
-    } catch {
-      // ignore
-    } finally {
-      clearTimeout(forceExitTimer)
-    }
-
-    process.exit(code)
-  }
+  parentShutdown.activate(() => {
+    void disposeAndExit(0)
+  })
 
   process.once('SIGINT', () => {
     void disposeAndExit(0)

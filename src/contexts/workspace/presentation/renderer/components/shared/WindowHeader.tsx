@@ -5,6 +5,7 @@ import type { LabelColor } from '@shared/types/labelColor'
 import type { WindowKindFamily } from '../../utils/windowKindFamily'
 import { WindowCloseButton } from './WindowCloseButton'
 import { WindowCollapseButton } from './WindowCollapseButton'
+import { useWindowCommitProbe } from './windowCommitProbe'
 
 export interface WindowHeaderClose {
   /** What closing does: close, delete note, delete task. */
@@ -49,8 +50,10 @@ export function WindowHeader({
   close: WindowHeaderClose
   onPointerDownCapture?: (event: React.PointerEvent<HTMLElement>) => void
 }): React.JSX.Element {
+  const commitProbeRef = useWindowCommitProbe(kind)
   return (
     <header
+      ref={commitProbeRef}
       className={classNames('cove-window-header', className)}
       data-cove-part="window-header"
       data-cove-kind={kind}

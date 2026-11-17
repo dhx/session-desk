@@ -1,3 +1,4 @@
+import { repairLegacyCliLaunchers } from './cli/cliPathInstaller'
 import { app, shell, BrowserWindow, nativeImage, Menu } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
@@ -258,6 +259,8 @@ function resolveAppUserModelId(): string {
 
 // Electron ready: create browser windows & IPC.
 app.whenReady().then(async () => {
+  // Best effort and non-blocking: launcher migration must never delay or break startup.
+  void repairLegacyCliLaunchers().catch(() => undefined)
   await hydrateCliEnvironmentForAppLaunch(app.isPackaged === true)
 
   // Set app user model id for windows

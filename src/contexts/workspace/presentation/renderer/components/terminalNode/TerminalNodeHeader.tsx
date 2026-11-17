@@ -1,6 +1,5 @@
 import { useCallback, useState, type JSX, type PointerEvent, type ReactNode } from 'react'
 import { useTranslation } from '@app/renderer/i18n'
-import { AgentProviderIcon } from '@app/renderer/components/AgentProviderIcon'
 import type { AgentProvider } from '@contexts/settings/domain/agentSettings'
 import type { AgentSessionSummary } from '@shared/contracts/dto'
 import { Copy, LoaderCircle } from 'lucide-react'
@@ -40,7 +39,6 @@ export function TerminalNodeHeader({
   title,
   fixedTitlePrefix = null,
   kind,
-  agentProvider,
   status,
   agentStateDegraded = false,
   labelColor,
@@ -113,13 +111,7 @@ export function TerminalNodeHeader({
       kind={isAgentNode ? 'ai' : 'shell'}
       labelColor={labelColor}
       onPointerDownCapture={onHeaderPointerDownCapture}
-      icon={
-        isAgentNode && agentProvider ? (
-          <AgentProviderIcon provider={agentProvider} className="cove-node-provider-icon" />
-        ) : (
-          <NodeKindIcon kind={kind} />
-        )
-      }
+      icon={<NodeKindIcon kind={isAgentNode ? 'agent' : kind} />}
       title={
         isTitleEditable ? (
           <InlineNodeTitleEditor

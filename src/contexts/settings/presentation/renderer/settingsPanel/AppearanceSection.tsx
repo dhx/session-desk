@@ -6,7 +6,9 @@ import {
   MAX_UI_FONT_SIZE,
   MIN_UI_FONT_SIZE,
   type AgentSettings,
+  type CanvasBackgroundStyle,
   type PixelEffectSettings,
+  type PixelEffectToggle,
   type UiTheme,
 } from '@contexts/settings/domain/agentSettings'
 import { SettingsGroup, SettingsGroupBody } from './SettingsGroup'
@@ -18,6 +20,7 @@ export function AppearanceSection({
   uiTheme,
   pixelEffects,
   onChangePixelEffect,
+  onChangeCanvasBackgroundStyle,
   uiFontSize,
   windowKindColorsEnabled,
   windowMaterial,
@@ -25,10 +28,13 @@ export function AppearanceSection({
   onChangeUiFontSize,
   onChangeWindowKindColors,
   onChangeWindowMaterial,
+  canvasFarViewEnabled,
+  onChangeCanvasFarView,
 }: {
   uiTheme: UiTheme
   pixelEffects: PixelEffectSettings
-  onChangePixelEffect: (key: keyof PixelEffectSettings, enabled: boolean) => void
+  onChangePixelEffect: (key: PixelEffectToggle, enabled: boolean) => void
+  onChangeCanvasBackgroundStyle: (style: CanvasBackgroundStyle) => void
   uiFontSize: number
   onChangeUiTheme: (theme: UiTheme) => void
   onChangeUiFontSize: (size: number) => void
@@ -36,6 +42,8 @@ export function AppearanceSection({
   onChangeWindowKindColors: (enabled: boolean) => void
   windowMaterial: AgentSettings['windowMaterial']
   onChangeWindowMaterial: (material: AgentSettings['windowMaterial']) => void
+  canvasFarViewEnabled: boolean
+  onChangeCanvasFarView: (enabled: boolean) => void
 }): React.JSX.Element {
   const { t } = useTranslation()
   return (
@@ -51,8 +59,14 @@ export function AppearanceSection({
         windowMaterial={windowMaterial}
         onChangeWindowKindColors={onChangeWindowKindColors}
         onChangeWindowMaterial={onChangeWindowMaterial}
+        canvasFarViewEnabled={canvasFarViewEnabled}
+        onChangeCanvasFarView={onChangeCanvasFarView}
       />
-      <PixelEffectsSection effects={pixelEffects} onChange={onChangePixelEffect} />
+      <PixelEffectsSection
+        effects={pixelEffects}
+        onChange={onChangePixelEffect}
+        onChangeBackgroundStyle={onChangeCanvasBackgroundStyle}
+      />
       <SettingsGroup
         id="settings-section-interface-text"
         title={t('settingsPanel.appearanceNext.interfaceText')}

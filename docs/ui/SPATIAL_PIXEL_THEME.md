@@ -89,15 +89,22 @@ context menus, branch actions and title editing retain their original behavior a
 
 ## Effect preferences
 
-Appearance exposes three independent, persisted boolean preferences:
+Appearance (and the Control Center) expose these persisted preferences:
 
-- `canvasPixelBackgroundEnabled`: animated field and brief received-output edge activity. Off uses
-  the standard canvas dot grid.
+- `canvasBackgroundStyle`: `pixel` (the pixel wall, the default), `minimal` (「简约」: the neutral
+  dot grid, still until an event, with output ripples through its dots) or `off` (「关闭」: the dot
+  grid with no background effects). It replaces the old `canvasPixelBackgroundEnabled` switch,
+  read once at load: on becomes `pixel`, off becomes `off`. A theme whose background effect is not
+  `pixel` keeps its own background (or none) under `pixel`; its custom background never runs
+  under `minimal`.
+- `canvasBackgroundTwinkleEnabled` (「背景闪烁」, default on): twinkle and cloud drift on the wall.
+  Off, the wall holds still and paints only when the view or a window changes. Only applies to
+  `pixel`.
 - `nodeCreationPixelEffectEnabled`: transparent assembly, converging fragments and virtual pixel rim.
 - `nodeClosePixelEffectEnabled`: square fragments scattering from a successfully closed window.
 
-The settings owner normalizes missing preferences to on for Pixel-family settings and off for other
-legacy themes. Explicit choices survive theme changes and reload. Theme switching changes colors,
+The settings owner normalizes missing preferences to on (and `pixel`) for Pixel-family settings and
+off (and `off`) for other legacy themes. Explicit choices survive theme changes and reload. Theme switching changes colors,
 not preferences, and never replays creation or closing. Turning off an effect clears only its own
 visual state immediately. With all three off the effect layer is unmounted; with only creation/close
 enabled it schedules frames only while those effects are active. Pixel Space zoom detail is material
@@ -108,10 +115,136 @@ blue, accent cyan and shell green, with the cyan one step darker in light mode t
 surfaces. Pixel retains its original ice-blue/cyan/mint palette. System follows the resolved light/dark palette. No pixel color encodes
 selection, Agent status or success.
 
+## Pixel wall
+
+The wall is the canvas background (Tide phase 5.2): a grid of cells with seams, anchored to the
+world, under every window and the effects layer.
+
+- Cells stay 13–26 screen px: the 24 world px cell doubles or halves as the zoom crosses a step.
+  The step does not jump: each new cell flips from the old grid's colour at its centre to its own
+  at its own moment within 120ms (5.3d); reduced motion switches at once.
+- Colours come from `--cove-pixel-cell`, `--cove-pixel-gap`, `--cove-pixel-cloud-1…4` and
+  `--cove-pixel-spark-1…4` (generated for Cove, hand-set for Pixel; plugin themes inherit them
+  from their base). Soft clouds drift with the world; their hue blends continuously between
+  neighbouring cloud colours (never a hard edge between two clouds) and drifts slowly. Bright
+  patches wander across the open wall (shimmer, `PIXEL_WALL.shimmerA`); about one cell in six
+  twinkles, more of them near working or waiting windows. Shimmer and twinkle never enter
+  glass. The wall does not follow the pointer: no spotlight (owner, 2026-11-06).
+- Zoomed out, clouds, hue and shimmer grow with the cell size (from the 24px base cell) so they
+  stay about as broad on screen as in near view, and twinkle thins out in proportion: the far
+  wall stays calm. Within one cell size everything stays anchored to the world.
+- Behind a window's glass, including a two-cell ring around its frame, a cell moves at most the
+  generator's `PIXEL_WALL.cap` toward any colour (I6), the bound the theme contrast checks assume.
+- Work light (5.3b): the cells around each window take its kind colour (`--cove-wall-light-*`:
+  the kind solids in Cove, label colours in hand-written themes, neutral with window kind colours
+  off). Dark themes spread the light out from the window; light themes cast it to the lower right,
+  as daylight through coloured glass. Strength follows the window: idle 0.46 (not an agent),
+  standby 0.6, working breathing between 0.64 and 0.92, a flash on received output, a flare to
+  full when a run finishes (seen live; a reload never flares), waiting yellow and failure red.
+  It is derived per frame and never stored (I7). It keeps breathing with twinkle off; reduced
+  motion holds it at a fixed level. The glass cap applies after it.
+- Frosted glass (5.3c): behind every window the cells are not drawn sharp. WebGL samples the same
+  cell texture with linear filtering (about half resolution, smoothly scaled) inside each
+  window's rounded frame, with a very faint grid on top, in one instanced pass; Canvas 2D draws
+  the same with a smoothed, clipped image. Twinkle only happens in blank space and never enters
+  the glass.
+- The CPU computes one colour per visible cell; WebGL2 draws cells and seams in one pass. When
+  WebGL2 is unavailable or software-only (`failIfMajorPerformanceCaveat`) Canvas 2D draws the
+  same cells. When the context is lost, the 2D canvas shows a still wall until the browser restores
+  the context, then WebGL takes over again. The wall uses one WebGL context and releases it on
+  unmount.
+- Ambient motion follows the decorative scheduler: 30fps focused, 10fps in the background, none
+  while hidden or with reduced motion (a still wall). A pan, zoom or window move repaints on the
+  next display frame so the wall never trails the windows.
+- First frame (5.5): the wall host itself paints a static CSS grid of the theme's cells and seams,
+  aligned with the cells of the view it mounts in, so the first paint already shows cells and the
+  first WebGL frame continues the same grid instead of replacing a flat colour.
+- The wall fills the app window and the shell floats on it (Tide 应用外壳). The app shell owns an
+  empty layer (`.app-shell__wall`, `ShellWallLayerContext`); the canvas's wall portals its host
+  there and stays the only writer of what it paints. The flow transform is measured from the
+  canvas, so the wall adds the canvas's offset in the window (`placeWallViewport`); a world point
+  stays under its window while the sidebar opens, closes or turns into the rail. Everything outside
+  the canvas is chrome (`resolveWallChrome`: the top bar and the sidebar, in any layout): the wall
+  frosts it square-cornered, caps its cells like those behind windows and keeps twinkle and the
+  shockwave crest out of it. With a wall in the layer the top bar, sidebar and project rail are
+  `--cove-surface` (the generator's `--cove-glass-chrome` tint, contrast-checked against the
+  capped wall) with no backdrop-filter; the peeking sidebar keeps its own surface. Without a wall
+  (「简约」, 「关闭」, a theme's own background, no project) the layer is empty and the shell keeps
+  its usual surfaces. The layout never changes. Outside the app shell (no layer) a wall stays inside
+  its canvas.
+- The settings page is one sheet of glass over the wall: `--cove-surface-strong` (the generator's
+  `--cove-glass-sheet`, 72% dark, 80% light, contrast-checked against the capped wall) with its tab
+  strip, panel, navigation and content transparent. While it covers the canvas it tells the shell
+  (`useCoverShellWall`), and the wall frosts and caps all of itself and draws no window glass; the
+  focus-zoom preview uncovers the canvas and keeps its own transparent look.
+- E2E reads `window.__opencovePixelWallTestApi` (frame counts, a cell checksum, mean colour, the
+  glass and chrome rects) and the host's `data-cove-wall-renderer` / `data-cove-wall-state` /
+  `data-cove-wall-cell`.
+
+## Showcase mode
+
+For screen recordings and demos (Tide 6.1): the command center's "Enter Showcase Mode" or the
+control center's switch hides the top bar, sidebar, canvas HUD, zoom controls and minimap, and the
+canvas fills the window. The canvas shows the pixel wall whatever the saved background, the wall
+keeps moving at the decorative frame rate even with twinkle off, and its clouds drift four times
+faster; reduced motion still holds it still. Esc (when nothing open uses it first) or the same
+command leaves. It is session state with one owner (`showcase/showcaseMode.ts`, which marks the
+document with `data-cove-showcase`): nothing is saved, the layout returns exactly, and a restart
+starts without it. A short hint says how to leave, then fades.
+
+## Output ripples
+
+Received output (the PTY event hub) sends a ripple out from the window's centre (Tide phase 5.4a):
+a true circle whose wavefront brightens the wall cells it passes, or the dots of the 「简约」 grid,
+in the window's kind colour, for about a second. Each window starts at most one ripple per 700ms
+and the canvas carries at most 24. A ripple only means output arrived, never a tool call, success
+or completion. It is cut to the visible grid and visits only the cells in its band, so its cost
+follows the ring, not the window count. Behind glass the cap still applies. Reduced motion shows
+none; 「关闭」 has none. The effects layer no longer draws output sparkles along window edges; it
+keeps the status corner marks. E2E reads `getRippleCount()` from the wall probe.
+
+## Waiting for you
+
+A window whose agent waits for you (`resolveAgentPresentation` status `waiting`) sends a yellow
+pulse ring across the wall every 1.8s, on top of its steady yellow light; reduced motion keeps
+only the light. When the window is entirely out of view, an edge beacon (`WorkspaceEdgeBeacons`)
+sits where the line from the view's centre to the window crosses a frame inset from the canvas
+edges: a titled pill with an arrow, five at most (nearest first) and the rest as one "+N" pill.
+A click flies to the window at the current zoom, or 0.6 if further out. Beacons are derived from
+agent state and the viewport only; with no waiting windows the component does not follow the
+view. The pill pulses gently and holds still with reduced motion.
+
+## Working patrol
+
+While an agent works (`resolveAgentPresentation`), two strings of pixels travel around the
+outside of its frame on opposite sides (Tide 5.4b), replacing the old side streams; only pixels in
+view are drawn. Every 2.4s it also sends a low sonar wave across the wall, or through the 「简约」
+dots. Both follow the Agent working effect switch; 「关闭」 has no sonar. Reduced motion keeps a
+still dotted outline round the frame and no waves.
+
+## Finished and failed runs
+
+`WorkspaceWindowSignals` is the one owner of these signals (Tide 5.4d). It watches
+`resolveAgentPresentation` and only counts transitions seen live (a reload never signals):
+
+- A run finishing (working → standby), at most once per window per 3s: the window's frame flashes
+  in its kind colour and pixel sparks leave its corners; the wall sends a strong shockwave whose
+  white crest stays in blank space (behind glass only the kind colour shows, within the cap). As
+  the shockwave passes another window, that window's 1px edge glows in the sender's colour for
+  half a second.
+- A change into failed: the frame jolts sideways in a 280ms glitch with red fragments, and the
+  wall sends a small red ripple.
+
+Frame signals write one attribute (`data-cove-signal`) and one colour variable on the window, only
+while they last, and never touch the fill behind its text. They follow the Agent working effect
+switch. Reduced motion: the frame's colour flashes once and a failure keeps a still red outline;
+no waves, sparks or glitch.
+
 ## Canvas effects
 
-The pixel canvas is a viewport-sized, read-only visual layer. It draws a continuously moving theme-colored gradient
-matrix and briefly highlights visible node edges when the existing PTY event hub delivers output.
+The effects canvas is a viewport-sized, read-only visual layer above the wall. It draws creation,
+closing and working effects, status corner marks, and the 「简约」 dot ripples. It paints no ambient
+background (the older ridge and scan-line field is retired) and requests no frames while idle.
 It retains only bounded session/timestamp observations, not output text or persisted application state.
 
 Agent identity and status use `resolveAgentPresentation`, including normal terminal nodes with an
@@ -123,11 +256,11 @@ The layer must:
 - Be `aria-hidden` and `pointer-events: none`; never enter keyboard focus order.
 - Read existing viewport, node geometry and session references; never write them.
 - Stay outside the terminal body and never resize or remount xterm/Monaco.
-- Coalesce output bursts into a bounded visual scheduler, capped at 25 frames per second and DPR 2.
-- Keep the visible gradient field moving at the same capped frame rate even when output is idle;
-  received-output activity still decays independently after 1050ms.
+- Coalesce output bursts into the decorative scheduler (30fps focused, 10fps in the background) at
+  DPR 2.
+- Received output sends a ripple (below); an idle layer requests no frames.
 - Stop drawing when hidden/offscreen without pausing Agent execution or dropping runtime output.
-- Render a static field with reduced motion and disable activity particles.
+- Disable activity particles with reduced motion.
 - Discard stale activity on node/session changes and dispose all subscriptions and animation frames.
 - Skip filtered-out and offscreen nodes and allocate buffers for the viewport, not the infinite world.
 
@@ -238,8 +371,8 @@ Space binding, asynchronous busy state and session recovery keep their existing 
 
 ## Validation
 
-The visible field must change between frames without requiring PTY output. Reduced-motion frames
-remain deterministic. E2E evidence includes transparent first paint, real node creation, comparable
+The wall must change between frames without requiring PTY output. Reduced-motion frames remain
+deterministic, and terminal output never moves a still wall. E2E evidence includes transparent first paint, real node creation, comparable
 visible reveal times at different node widths, input inside the unrevealed area and natural completion,
 plus reload without replaying old-node assembly. Native website host clipping must preserve page size.
 Close E2E evidence checks that the original node is absent while pixels are painted, surviving nodes
