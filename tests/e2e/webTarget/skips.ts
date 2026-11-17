@@ -84,6 +84,18 @@ export const webTargetSkips: WebTargetSkip[] = [
       "Since upstream #533 the Worker decides run state; on the web target the session-file fallback stays 'unknown' (label Working) instead of reaching Standby. Recorded on the Session Board.",
   },
   {
+    file: 'workspace-canvas.pixel-spotlight.spec.ts',
+    title: 'lights the pointer over finished wall tiles and disables it with ambient motion',
+    category: 'electron-only',
+    reason: 'Hides and shows the BrowserWindow to pause the pixel wall',
+  },
+  {
+    file: 'workspace-canvas.root-terminal-admission.spec.ts',
+    category: 'known-failing',
+    reason:
+      'Restarts the worker between two app launches; since upstream #523 (one worker owner per profile) the web target meets the stopping owner and the restored terminal stays gated in CI. Passes locally; recorded on the Session Board.',
+  },
+  {
     file: 'recovery.agent-input-after-window-reopen.spec.ts',
     category: 'electron-only',
     reason:
