@@ -22,5 +22,9 @@ export const enSettingsPanelAgent = {
   moveDown: 'Move down',
   fullAccessLabel: 'Full Access Mode',
   fullAccessHelp:
-    'Disable sandbox and manual approvals for agents. Off by default. The server can block it with OPENCOVE_AGENT_FULL_ACCESS=deny.',
+    'Let agents leave their sandbox and act without asking for approval. Off by default. The server can block it with OPENCOVE_AGENT_FULL_ACCESS=deny.',
+  fullAccessOffHelp:
+    'Off: agents stay in their sandbox and ask before running commands or changing files.',
+  fullAccessOnHelp:
+    'On: agents run commands and change files without asking. Turn this on only for projects you trust.',
 } as const

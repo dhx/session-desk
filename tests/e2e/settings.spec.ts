@@ -90,10 +90,11 @@ test.describe('Settings', () => {
       const uiThemeGallery = window.getByTestId('settings-ui-theme')
       await expect(uiThemeGallery).toBeVisible()
       await selectCoveOption(window, 'settings-ui-theme', 'light')
-      await expect(window.getByTestId('settings-ui-theme-light')).toHaveAttribute(
+      await expect(window.getByTestId('settings-ui-theme-family-cove')).toHaveAttribute(
         'aria-pressed',
         'true',
       )
+      await expect(window.getByTestId('settings-ui-theme-mode-light')).toBeChecked()
       await expect
         .poll(() =>
           window.evaluate(() => {
@@ -163,7 +164,7 @@ test.describe('Settings', () => {
       await expect(window.locator('.settings-panel__sidebar')).toBeHidden()
       await expect(window.locator('.settings-panel__header')).toBeHidden()
       await expect(
-        window.locator('.settings-panel__row--focus-target-zoom .settings-panel__row-label'),
+        window.locator('.settings-panel__row--focus-target-zoom .cove-setting-row__copy'),
       ).toBeHidden()
 
       await window.mouse.up()
@@ -171,7 +172,7 @@ test.describe('Settings', () => {
       await expect(window.locator('.settings-panel__sidebar')).toBeVisible()
       await expect(window.locator('.settings-panel__header')).toBeVisible()
       await expect(
-        window.locator('.settings-panel__row--focus-target-zoom .settings-panel__row-label'),
+        window.locator('.settings-panel__row--focus-target-zoom .cove-setting-row__copy'),
       ).toBeVisible()
 
       await focusTargetZoom.evaluate((element, value) => {
@@ -262,7 +263,7 @@ test.describe('Settings', () => {
       })
 
       await agentNav.click()
-      await window.getByTestId('settings-agent-tab-tasks').click()
+      await window.getByTestId('settings-agent-tab-tasks').check()
 
       const addTaskTagInput = window.locator('[data-testid="settings-task-tag-add-input"]')
       await addTaskTagInput.fill('ops')

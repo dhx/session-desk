@@ -16,6 +16,7 @@ import { normalizeFocusNodeTargetZoom } from './focusNodeTargetZoom'
 import { normalizeSidebarCollapsedIds } from './sidebarTreeSettings'
 import { normalizeSidebarViewSettings } from './sidebarViewSettings'
 import { normalizePixelEffectSettings } from './pixelEffectSettings'
+import { normalizeWindowAppearanceSettings } from './windowAppearanceSettings'
 import { normalizeDisabledPluginIds, normalizePluginContributions } from './pluginSettings'
 import { isValidUiLanguage, normalizeUiTheme } from './uiSettings'
 import {
@@ -184,6 +185,8 @@ export function normalizeAgentSettings(value: unknown): AgentSettings {
     defaultProvider,
   )
 
+  // Upstream turns Full Access on for saved settings without the key (installs from before the
+  // setting). This fork has defaulted to off since its agent policy; a missing key stays off.
   const agentFullAccess =
     normalizeBoolean(value.agentFullAccess) ?? DEFAULT_AGENT_SETTINGS.agentFullAccess
   const defaultTerminalProfileId = normalizeTextValue(value.defaultTerminalProfileId)
@@ -465,6 +468,7 @@ export function normalizeAgentSettings(value: unknown): AgentSettings {
     terminalFontSize,
     terminalFontFamily,
     terminalBackground,
+    ...normalizeWindowAppearanceSettings(value),
     terminalDisplayAutoReferenceEnabled,
     terminalDisplayCalibrationCompensationEnabled,
     terminalDisplayReference,

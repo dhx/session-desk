@@ -22,6 +22,7 @@ import { WorkspaceMain } from './components/WorkspaceMain'
 import { WorkspaceSearchOverlay } from './components/WorkspaceSearchOverlay'
 import { useHydrateAppState } from './hooks/useHydrateAppState'
 import { useApplyUiFontScale } from './hooks/useApplyUiFontScale'
+import { useApplyWindowAppearance } from './hooks/useApplyWindowAppearance'
 import { useApplyUiTheme } from './hooks/useApplyUiTheme'
 import { useApplyUiLanguage } from './hooks/useApplyUiLanguage'
 import { useAppDocumentChrome } from './hooks/useAppDocumentChrome'
@@ -100,6 +101,7 @@ export default function App(): React.JSX.Element {
   })
 
   useApplyUiFontScale(agentSettings.uiFontSize)
+  useApplyWindowAppearance(agentSettings)
   useApplyUiTheme(agentSettings.uiTheme)
   useApplyUiLanguage(agentSettings.language)
 
@@ -461,6 +463,7 @@ export default function App(): React.JSX.Element {
             handleCloseSettings()
             handleWorkspaceActiveSpaceChange(spaceId)
           }}
+          onSelectNode={handleSelectAgentNode}
           isSpaceArchivesOpen={isSpaceArchivesOpen}
           canvasInputModeSetting={agentSettings.canvasInputMode}
           canvasWheelBehaviorSetting={agentSettings.canvasWheelBehavior}

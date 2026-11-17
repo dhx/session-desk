@@ -7,12 +7,15 @@ import {
   enableWebsiteWindowPolicy,
 } from './workspace-canvas.website-window.shared'
 
+import { prepareIdleWebsiteSnapshot } from './workspace-canvas.website-window.freeze.helpers'
+
 const WEBSITE_MIN_LIVE_CANVAS_ZOOM = 0.25
 
 interface WebsiteRuntimeState {
   lifecycle: string
   snapshotDocumentReady: boolean
   hasSnapshot: boolean
+  snapshotCaptureInFlight: boolean
 }
 
 async function readWebsiteRuntimeState(
@@ -32,6 +35,7 @@ async function readWebsiteRuntimeState(
       snapshotDocumentReady: runtime.snapshotDocumentReady,
       hasSnapshot:
         typeof runtime.snapshotDataUrl === 'string' && runtime.snapshotDataUrl.length > 0,
+      snapshotCaptureInFlight: runtime.snapshotCaptureInFlight,
     }
   }, nodeId)
 }
@@ -54,7 +58,7 @@ test.describe('Workspace Canvas - Website Window', () => {
     }
 
     const websiteUrl = `http://127.0.0.1:${address.port}`
-    const { electronApp, window } = await launchApp({ windowMode: 'offscreen' })
+    const { electronApp, window } = await launchApp()
 
     try {
       await clearAndSeedWorkspace(
@@ -93,7 +97,11 @@ test.describe('Workspace Canvas - Website Window', () => {
         .toMatchObject({
           lifecycle: 'active',
           snapshotDocumentReady: true,
+          hasSnapshot: true,
+          snapshotCaptureInFlight: false,
         })
+
+      await prepareIdleWebsiteSnapshot(electronApp)
 
       await window.evaluate(() => {
         window.opencoveApi.websiteWindow.captureSnapshot({
