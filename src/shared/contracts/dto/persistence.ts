@@ -31,6 +31,16 @@ export type PersistenceRecoveryReason = 'corrupt_db' | 'migration_failed'
 export interface ReadAppStateResult {
   state: unknown | null
   recovery: PersistenceRecoveryReason | null
+  /**
+   * Set by a persistence that writes against a revision (the Web UI): hand it back to
+   * acceptAppState once the renderer has taken this state in, so the next write is based on
+   * it. A read the renderer discards must not become the base of its next write.
+   */
+  syncToken?: number
+}
+
+export interface AcceptAppStateInput {
+  syncToken: number
 }
 
 export interface WriteAppStateInput {

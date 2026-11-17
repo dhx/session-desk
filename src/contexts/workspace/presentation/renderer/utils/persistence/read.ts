@@ -83,6 +83,8 @@ export interface PersistedStateReadResult {
   hasStandardWindowSizeBucket: boolean
   /** False when legacy data can be restored but its durable migration failed. */
   isPersisted: boolean
+  /** Hand back through acceptPersistedStateSnapshot once this state is taken in. */
+  syncToken?: number
 }
 
 export async function readPersistedStateWithMeta(): Promise<PersistedStateReadResult> {
@@ -93,6 +95,7 @@ export async function readPersistedStateWithMeta(): Promise<PersistedStateReadRe
 
   const primary = await port.readAppState()
   const recovery = primary?.recovery ?? null
+  const token = typeof primary?.syncToken === 'number' ? { syncToken: primary.syncToken } : {}
 
   if (primary?.state) {
     const parsed = parsePersistedStateValue(primary.state)
@@ -103,6 +106,7 @@ export async function readPersistedStateWithMeta(): Promise<PersistedStateReadRe
         recovery,
         hasStandardWindowSizeBucket: parsed.hasStandardWindowSizeBucket,
         isPersisted: true,
+        ...token,
       }
     }
   }
@@ -113,7 +117,13 @@ export async function readPersistedStateWithMeta(): Promise<PersistedStateReadRe
 
   const legacyRaw = readLegacyLocalStorageRaw()
   if (!legacyRaw) {
-    return { state: null, recovery, hasStandardWindowSizeBucket: false, isPersisted: false }
+    return {
+      state: null,
+      recovery,
+      hasStandardWindowSizeBucket: false,
+      isPersisted: false,
+      ...token,
+    }
   }
 
   const legacyParsed = parseRawPersistedState(legacyRaw)
