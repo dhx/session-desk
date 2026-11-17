@@ -44,6 +44,12 @@ export const enVoice = {
       speakRepliesHelp: 'Read a short summary of the reply out loud when the boss finishes.',
       shortcutHelp: 'Push-to-talk key: {{shortcut}}. Change it in Settings > Quick Actions.',
     },
+    target: {
+      choose: 'Choose agent',
+      chooseLabel: 'Choose the agent voice goes to',
+      buttonLabel: 'Voice goes to {{boss}}. Choose another agent',
+      menuLabel: 'Talk to',
+    },
     holdButton: {
       label: 'Hold to talk to {{boss}}',
     },

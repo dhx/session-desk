@@ -85,6 +85,7 @@ The route file is new and registered once in the request handler. Nothing is add
 ### 4. Push-to-talk control
 
 - **A floating hold-button** on touch devices, and wherever voice is enabled. It is visible only when voice is on and a boss is chosen.
+- **The boss beside it**: a small button right of the hold-button names the boss; tapping it lists the agent windows and picks another, writing the same `voice.bossNodeId` as the settings page. With no boss chosen it stands alone and reads "Choose agent". Both are translucent at rest, like the canvas zoom controls.
 - `voice.pushToTalk` keybinding, default `Alt+X`, on desktop. MaxAI's own keydown/keyup tracking comes along.
 - Blur and `visibilitychange` cancel listening.
 

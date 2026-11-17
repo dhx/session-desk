@@ -41,6 +41,12 @@ export const zhCNVoice = {
       speakRepliesHelp: '主控 Agent 完成后，朗读回复的简短摘要。',
       shortcutHelp: '按住说话键：{{shortcut}}。可在 设置 > 快捷操作 中修改。',
     },
+    target: {
+      choose: '选择 Agent',
+      chooseLabel: '选择接收语音的 Agent',
+      buttonLabel: '语音发送给 {{boss}}，选择其他 Agent',
+      menuLabel: '对谁说',
+    },
     holdButton: {
       label: '按住对 {{boss}} 说话',
     },
