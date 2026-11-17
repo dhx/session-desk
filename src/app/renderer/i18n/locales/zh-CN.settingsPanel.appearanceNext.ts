@@ -2,7 +2,8 @@ export const zhCNSettingsPanelAppearanceNext = {
   themes: '主题',
   light: '浅色',
   dark: '深色',
-  systemHelp: '或让 Cove 跟随系统的浅深色外观。',
+  mode: '外观',
+  modeHelp: '跟随系统时随系统的浅色和深色切换；Pixel 只有浅色和深色。',
   system: '跟随系统',
   interfaceText: '界面文字',
   preview: '画布预览',
@@ -19,10 +20,20 @@ export const zhCNSettingsPanelAppearanceNext = {
   terminalShell: 'Shell',
   terminalBackground: '终端背景',
   terminalBackgroundHelp:
-    '透明时，终端文字直接显示在窗口的阅读底板上。自动：macOS 透明，Windows 和 Linux 不透明。系统开启「减少透明度」或主题的窗口是实色时，终端总是不透明。',
+    '透明时，终端文字直接显示在窗口的阅读底板上。自动：macOS 透明，Windows 和 Linux 不透明。窗口是实色时，终端总是不透明。',
   terminalBackgroundAuto: '自动',
   terminalBackgroundTransparent: '透明',
   terminalBackgroundOpaque: '不透明',
   calibration: '显示校准',
   calibrationHelp: '让终端文字测量与当前显示器匹配。',
+  windows: '窗口',
+  windowKindColors: '窗口类别色',
+  windowKindColorsHelp:
+    '按窗口的类别给图标方块和标题栏着色：Agent、终端、任务、笔记与文档、网页与图片。无论开关，你设置的颜色标记都显示在窗口外框上。',
+  windowMaterial: '窗口材质',
+  windowMaterialHelp:
+    '玻璃让画布透过窗口、菜单和面板；实色使用不透明的颜色、不做模糊。系统开启「减少透明度」时窗口总是实色。',
+  windowMaterialSystemHelp: '系统已开启减少透明度，窗口使用实色。',
+  windowMaterial_glass: '玻璃',
+  windowMaterial_solid: '实色',
 }

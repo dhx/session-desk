@@ -95,6 +95,11 @@
 - 深色终端窗口会重新声明一组 token（`terminal-node.theme-opencode.css`）。主题族为它生成一份已解析的
   深色调色板（`terminalScopeTokens`），浅色外壳里被强制为深色的终端也使用它；单测检查这组 token 全部被覆盖。
 - 生成器只把依赖运行时 token 的混色（如玻璃透明度）写成 `color-mix()`，常量混色直接输出计算结果。
+- 插件主题可以只声明生成器输入（主题 API v2 的 `palette`，见 [插件主题契约](../plugins/THEMES.md)）：
+  `useApplyUiTheme` 在运行时用同一条管线（`renderPaletteStylesheet`）生成样式，作用域是
+  `:root[data-cove-family='cove'][data-cove-theme-id="<id>"]`，放在 `opencove` 层里，所以比主题族更具体，
+  又仍然低于作者样式表和 manifest token。`tests/unit/shared/design/themePalette.spec.ts` 在 manifest
+  允许的输入范围内逐一断言对比度规则。
 
 ---
 
@@ -113,9 +118,14 @@
   检查的正是这个叠加结果；手写主题回退到自己的窗口底色和细边框。内容自身不要再铺一层不透明底色，
   终端除外（透明终端在第 2.3 步）。
 - 亚克力的底色由生成器给出（`--cove-acrylic-surface`），对比度矩阵检查它压在纯黑、纯白和像素墙上的
-  最坏情况；手写主题沿用自己的 `--cove-menu-surface`。系统开启「减少透明度」时，玻璃和亚克力改为
-  `--cove-window-surface` 实色并去掉模糊（`tests/unit/app/uiSurfaceStylesheet.spec.ts`、
-  `ui-gallery.probes.spec.ts` 用 CDP 模拟验证）。
+  最坏情况；手写主题沿用自己的 `--cove-menu-surface`。
+- 窗口材质：设置 → 外观 → 窗口 →「窗口材质」或控制中心选「实色」，或系统开启降低透明度时（实时跟随，不用重启），
+  `useApplyWindowAppearance` 在根节点写 `data-cove-transparency="reduced"`；样式只读这个属性，不再各自
+  读媒体查询。此时生成的玻璃参数（`--cove-glass-*`）都变成 100%，窗口外框、底板、标题栏和面板变成
+  不透明的同色，Surface 的玻璃和亚克力改为 `--cove-window-surface`，所有元素去掉 `backdrop-filter`
+  （`themes/reduced-transparency.css`），透明终端露出终端底色。系统开启时「实色」被选中，「玻璃」不可选。
+  验证：`tests/unit/app/uiSurfaceStylesheet.spec.ts`；`ui-gallery.probes.spec.ts` 和
+  `workspace-canvas.window-material.spec.ts` 用 CDP 模拟系统设置。
 
 ### 3.2 文本系统
 
@@ -164,10 +174,20 @@
 - 带标签的文本输入用 `TextField` / `TextAreaField`：标签通过 `htmlFor` 命名输入框，补充说明放在
   `description`，校验错误放在 `error`（同时设置 `aria-invalid`、`aria-errormessage` 并加入描述）。
   标签行右侧的操作（例如提示词模板按钮）放在 `labelAccessory`。输入框本身仍是 `.cove-field`。
+- 设置页的每一行用 `SettingRow`：一个表单控件放在 `control`，行标签就是它的 `<label>`，说明通过
+  `aria-describedby` 提供；只读的值或一组操作按钮放在 `value`，整行成为以标签命名的 `group`。
+  行里的控件只用 `Toggle`、`SegmentedControl`、`CoveSelect`、`NumberInput`（带单位的数字框，
+  单位也加入描述）。`CoveSelect` 在行里的名称是「行标签 + 当前值」（例如「显示语言 English」）。
+  设置页里 `SettingRow` 与旧的 `.settings-panel__row` 版式一致，迁移不改变像素。
 - 窗口标题栏用 `WindowHeader`（`workspace/.../components/shared/`），顺序固定：标记圆点、类别图块、
   标题（13px / 500）、状态、拖动空白、本类操作、折叠、关闭。各窗口只填这些位置，不自己排版。
-  类别图块随主题的图标尺寸缩放（默认 20px 图块、12px 图标）；第 3 期接入类别色之前保持中性。
+  类别图块随主题的图标尺寸缩放（默认 20px 图块、12px 图标）。
   右端的操作、折叠、关闭之间统一用 `--cove-control-gap`（插件主题的 `controlGap`）。
+- 类别色与标记色是两个通道（`window-kind-identity.css`）。类别（这个窗口是什么，由 `resolveWindowKindFamily`
+  推导：Agent 与角色 AI、终端、任务计划、笔记与文档知识、网页与图片媒体）只画标题栏的 `KindTile` 和 9% 的
+  标题栏色调；标记（你怎么归类它）只画窗口外框和标题栏左上角的短旗标。类别色从不画外框，标记色从不画图块。
+  未标记的窗口外框是中性色，没有旗标。生成的主题族（Cove）使用两个通道；手写主题（Pixel）保留自己的装饰。
+  设置 → 外观 →「窗口类别色」关闭后，图块、标题栏色调和侧栏 Space 小地图都变成中性，标记色不受影响。
 - 折叠和关闭由 `WindowHeader` 渲染（`WindowCollapseButton`、`WindowCloseButton`），都是 24px 的
   `IconButton`，名称即提示文字。关闭按钮按实际效果命名（关闭、删除便签、删除任务），关闭前的确认仍由
   各窗口自己的 `onClose` 负责；两个按钮都在按下时阻止冒泡，不会开始拖动窗口。
@@ -205,8 +225,8 @@
 - 终端背景（设置「终端背景」：自动 / 透明 / 不透明）决定 xterm 是否以 `allowTransparency` 打开，
   背景为底板等效色的零透明度（OSC 11 报告的就是文字所在的颜色）。这个值只取决于设置和平台
   （自动 = 仅 macOS 透明），改变时重建 xterm 实例、保留 PTY 与屏幕。文字背后显示什么由 CSS 决定：
-  生成的主题用 `--cove-terminal-plate-backdrop: transparent` 露出阅读底板，手写主题和系统
-  「减少透明度」保留终端底色，二者都不重建 xterm。回放历史输出前去掉其中的终端查询，避免新实例
+  生成的主题用 `--cove-terminal-plate-backdrop: transparent` 露出阅读底板，手写主题和降低透明度
+  （`data-cove-transparency="reduced"`）保留终端底色，二者都不重建 xterm。回放历史输出前去掉其中的终端查询，避免新实例
   把旧问题的回答写进 shell。
 - Terminal appearance 只有一个 final-wins apply owner；新 revision 仅在实际 apply/refresh 完成后
   成为 applied state。任何真实 presentation change 都必须标记 durable dirty；退出前需 drain
@@ -238,10 +258,13 @@
   Sidebar 导航保留目标焦点。弹层交接取消旧 Dialog 的延迟焦点恢复，嵌套菜单/弹窗先处理 Escape。
   所有交互保留清晰的 :focus-visible，响应式布局根据设置内容区域宽度切换。
 - 搜索支持方向键选择结果、`Enter` 跳转和 `Escape` 退出；查询非空时首次 `Escape` 先清空查询，再次 `Escape` 关闭面板。关闭按钮必须有可访问名称。
+- 设置页的每一行都能被搜索到：搜索行的名称时，结果里有一条标题就是这个名称。新加的行要在
+  `settingsSearchIndex.*` 里加条目（同一组的行用 `rowsIn` 指向组的锚点；快捷键行由命令列表生成），
+  `settings.search-coverage` E2E 会在中英文下逐页逐行检查。
 
 - 外观点阵预览必须消费现有画布绘制、mask、assembly、burst 与调度器。它使用独立 DOM 类和局部时钟，不创建真实 React Flow 节点、不启动 PTY、不发运行时创建/关闭事件；离屏、减少动态效果与关闭开关均需停止不必要的循环。
 
-- 默认主题为 Pixel；显式保存的其他主题与各项像素开关不因升级或切换主题被覆盖。
+- 新安装默认 Cove 深色；显式保存的主题与各项像素开关不因升级或切换主题被覆盖。
   Agent 两侧流光只消费 `resolveAgentPresentation` 的 Working 状态（含终端中的 Agent）；
   PTY 输出不能作为 Working 的判据，恢复中或降级观测不显示流光。流光复用画布级调度器、
   主题色与可见窗口投影，不改变节点布局、焦点或运行状态。独立开关关闭、非 Working、
@@ -272,7 +295,15 @@
   推导，只用标签色里的蓝、紫、绿、橙（黄、红留给等待与失败，灰是中性），重排不改变颜色，不另存。
   瓦片右上角是等待你的 Agent 数，底部三个像素点表示有 Agent 在工作；屏幕阅读器从项目名称里
   读到这两个数。当前项目用项目栏边缘的竖条标出，悬停预览显示短竖条。
+- 导航面板顶部是跨所有项目的「需要你」收件箱：每个等你的 Agent 一行，显示项目瓦片、标题、
+  「项目 · Space」与等了多久；一次点击切到那个项目并聚焦该 Agent（移动端只定位）。没有等你的
+  Agent 时整块不显示；隐藏的 Agent 也会出现，因为它仍在等你。收件箱、项目角标与顶栏摘要来自同一份
+  Agent 数据，同一次渲染更新。
+- 「等了多久」只来自本窗口亲眼看到的状态变化：Agent 先被看到在做别的、之后进入等待才开始计时；
+  启动时恢复出来、或第一次出现就在等待的 Agent 只显示「等待你」，不编造时长。计时是不保存的界面状态，
+  由外壳常驻记录，侧栏收起时也继续。
 - 悬停项目只产生临时导航预览，不写 active workspace、active Space、viewport 或执行目录。
+  预览跟随指针移动：指针不动时收到的进入事件（例如拖动浮层从指针下消失）不切换预览。
   点击项目沿用该项目保存的画布视野；点击 Space / Agent 才发送定位意图。
 - 固定偏好、分组折叠、条目隐藏与筛选由设置 owner 保存；悬停、拖动锁定与移动抽屉属于
   renderer 临时状态。Sidebar 的可见性独立于画布中 Space / 窗口的收起状态。
@@ -282,8 +313,11 @@
   Space / Agent 导航关闭抽屉。移动 Agent 导航只定位，不请求输入焦点；桌面导航可聚焦输入。
 - Remote 标记只来自项目唯一 Mount 的远端 endpoint，不来自浏览器运行模式。多目录或混合
   Mount 不显示整项目 remote；位置详情在标记或项目目录管理中查看，不常驻项目路径。
-- Space 使用四角框图标，折叠控制置于行右侧。标记通过淡标题底色与贯穿分组的侧线展示，
-  Agent 自有标记通过短侧线与淡底色展示。Agent 不继承 Space 标记，品牌图标保持原样；
+- 每个 Space 是一张卡片：左边是实时像素小地图，窗口按类别色画在 Space 自己的框里（Agent 工作时闪烁，
+  等你变黄，失败变红），点方块飞到那个窗口，点空白处飞到 Space；小地图只服务指针，键盘与屏幕阅读器
+  走 Space 名称和 Agent 行。右边是名称与「N 个工作中 · N 个等你 · N 个窗口」；更多操作在悬停或
+  键盘焦点时出现，折叠控制常驻右侧。Space 标记是卡片左缘的短色条。
+- Agent 自有标记通过短侧线与淡底色展示。Agent 不继承 Space 标记，品牌图标保持原样；
   Space / Agent 导航不显示选中描边或定位箭头；导航意图、运行状态符号及
   标签色是三个独立语义。项目角标仅汇总待用户处理的 Agent 数量。
 - 项目、Space、同组 Agent 的手动排序保留，不因输出活动自动重排。触控行与操作至少 44px。
@@ -302,8 +336,12 @@
 
 ### 搜索与快捷控制契约
 
-- 命令中心负责命令、项目和 Space 导航；项目搜索负责当前项目的 Space、任务与笔记。
+- 命令中心负责窗口、Space、项目和命令导航；项目搜索负责当前项目的 Space、任务与笔记。
   入口与显示方式可变化，筛选、定位和设置写入仍由原有 owner 负责。
+- 命令中心的结果依次是：「需要你」（所有项目里等你的 Agent，带「项目 · Space」和等了多久，搜索时
+  只要匹配就排在最前）、当前项目的窗口（带所在 Space）、Space、项目、命令（带当前快捷键，与菜单的快捷键列
+  一致）和插件命令。没有输入时按这个顺序；输入后除「需要你」外按各组最佳匹配排序，输入 Space 名称
+  时 Space 组在前。选中窗口和侧栏一样定位并聚焦它，所以只用键盘就能找到窗口并飞过去。
 - 命令中心与项目搜索共用 Sidebar 的项目图标、Space 四角框和标签侧线语义。
 - 顶栏中间的命令入口显示「项目 / 当前 Space」：当前 Space 是画布视口中心所在的最内层 Space
   （`viewportSpace.ts`，只在中心跨进另一个 Space 时更新），平移和导航都会改变它。右侧的 Agent 活动摘要

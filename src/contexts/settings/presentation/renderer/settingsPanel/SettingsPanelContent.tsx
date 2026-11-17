@@ -1,4 +1,5 @@
 import React from 'react'
+import { SegmentedControl } from '@app/renderer/components/ui/SegmentedControl'
 import { useTranslation } from '@app/renderer/i18n'
 import type { AgentProviderRequest } from '../useSettingsSearchNavigation'
 import { AI_NAMING_FEATURES } from '@shared/featureFlags/aiNaming'
@@ -93,6 +94,8 @@ export function SettingsPanelContent({
     updateAgentProviderOrder,
     updateLanguage,
     updateUiTheme,
+    updateWindowKindColors,
+    updateWindowMaterial,
     updatePixelEffect,
     updatePluginEnabled,
     updatePluginContributionEnabled,
@@ -172,6 +175,10 @@ export function SettingsPanelContent({
           uiTheme={settings.uiTheme}
           pixelEffects={settings}
           uiFontSize={settings.uiFontSize}
+          windowKindColorsEnabled={settings.windowKindColorsEnabled}
+          onChangeWindowKindColors={updateWindowKindColors}
+          windowMaterial={settings.windowMaterial}
+          onChangeWindowMaterial={updateWindowMaterial}
           onChangeUiTheme={updateUiTheme}
           onChangePixelEffect={updatePixelEffect}
           onChangeUiFontSize={updateUiFontSize}
@@ -212,23 +219,18 @@ export function SettingsPanelContent({
 
       {canonicalPageId === 'agent' ? (
         <>
-          <nav className="settings-panel__tabs" aria-label={t('settingsPanel.nav.agent')}>
-            {AGENT_PAGE_TABS.map(tab => (
-              <button
-                key={tab.pageId}
-                type="button"
-                data-testid={tab.testId}
-                aria-current={
-                  (AGENT_SUB_PAGE_IDS.has(activePageId) ? activePageId : 'agent') === tab.pageId
-                    ? 'page'
-                    : undefined
-                }
-                onClick={() => onSelectPage(tab.pageId)}
-              >
-                {t(tab.labelKey)}
-              </button>
-            ))}
-          </nav>
+          {/* Settings switch views with a segmented control, never a tab bar (Tide settings). */}
+          <SegmentedControl
+            className="settings-panel__view-switch"
+            label={t('settingsPanel.nav.agent')}
+            value={AGENT_SUB_PAGE_IDS.has(activePageId) ? activePageId : 'agent'}
+            onValueChange={onSelectPage}
+            options={AGENT_PAGE_TABS.map(tab => ({
+              value: tab.pageId,
+              label: t(tab.labelKey),
+              testId: tab.testId,
+            }))}
+          />
           {activePageId === 'voice' ? (
             <VoiceSection
               voice={settings.voice}

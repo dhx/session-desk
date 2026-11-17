@@ -1,5 +1,7 @@
 import type { CoreSettingsSearchEntryDefinition } from './settingsSearchTypes'
 import { AGENT_SETTINGS_SEARCH_ENTRY_DEFINITIONS } from './settingsSearchIndex.agent'
+import { ROW_SEARCH_ENTRY_DEFINITIONS } from './settingsSearchIndex.rows'
+import { SHORTCUT_SEARCH_ENTRY_DEFINITIONS } from './settingsSearchIndex.shortcuts'
 
 export const CORE_SEARCH_ENTRY_DEFINITIONS: Array<CoreSettingsSearchEntryDefinition> = [
   {
@@ -38,12 +40,49 @@ export const CORE_SEARCH_ENTRY_DEFINITIONS: Array<CoreSettingsSearchEntryDefinit
     keywords: ['display', 'locale', '中文', '语言'],
   },
   {
+    id: 'appearance.window-kind-colors',
+    pageId: 'appearance',
+    titleKey: 'settingsPanel.appearanceNext.windowKindColors',
+    descriptionKey: 'settingsPanel.appearanceNext.windowKindColorsHelp',
+    anchorId: 'settings-window-kind-colors',
+    keywords: ['kind', 'colour', 'color', 'tile', 'window', '类别', '颜色', '窗口'],
+  },
+  {
+    id: 'appearance.window-material',
+    pageId: 'appearance',
+    titleKey: 'settingsPanel.appearanceNext.windowMaterial',
+    descriptionKey: 'settingsPanel.appearanceNext.windowMaterialHelp',
+    anchorId: 'settings-window-material',
+    keywords: [
+      'material',
+      'transparency',
+      'reduce transparency',
+      'glass',
+      'blur',
+      'solid',
+      'opaque',
+      '材质',
+      '透明',
+      '模糊',
+      '实色',
+      '玻璃',
+    ],
+  },
+  {
     id: 'general.theme',
     pageId: 'appearance',
     titleKey: 'settingsPanel.general.uiThemeLabel',
     descriptionKey: 'settingsPanel.general.uiThemeHelp',
     anchorId: 'settings-ui-theme',
     keywords: ['theme', 'dark', 'light', 'appearance', '外观', '主题'],
+  },
+  {
+    id: 'appearance.mode',
+    pageId: 'appearance',
+    titleKey: 'settingsPanel.appearanceNext.mode',
+    descriptionKey: 'settingsPanel.appearanceNext.modeHelp',
+    anchorId: 'settings-ui-theme',
+    keywords: ['dark', 'light', 'system', 'mode', '浅色', '深色', '跟随系统'],
   },
   {
     id: 'general.ui-font-size',
@@ -96,7 +135,7 @@ export const CORE_SEARCH_ENTRY_DEFINITIONS: Array<CoreSettingsSearchEntryDefinit
     pageId: 'terminal',
     titleKey: 'settingsPanel.appearanceNext.terminalBackground',
     descriptionKey: 'settingsPanel.appearanceNext.terminalBackgroundHelp',
-    anchorId: 'settings-terminal-background-label',
+    anchorId: 'settings-terminal-background',
     keywords: ['transparent', 'opaque', 'background', 'terminal', 'glass', '透明', '背景', '终端'],
   },
   {
@@ -158,6 +197,8 @@ export const CORE_SEARCH_ENTRY_DEFINITIONS: Array<CoreSettingsSearchEntryDefinit
     keywords: ['remote worker', 'register', 'endpoint', '远程'],
   },
   ...AGENT_SETTINGS_SEARCH_ENTRY_DEFINITIONS,
+  ...ROW_SEARCH_ENTRY_DEFINITIONS,
+  ...SHORTCUT_SEARCH_ENTRY_DEFINITIONS,
   {
     id: 'notifications.standby-banner',
     pageId: 'notifications',

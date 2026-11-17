@@ -387,8 +387,7 @@ describe('control surface session launch agent', () => {
 
   it.each([
     ['pi', ['--session', 'provider-session']],
-    // Full access is off by default, so Kimi resumes without --auto.
-    ['kimi', ['--session', 'provider-session']],
+    ['kimi', ['--auto', '--session', 'provider-session']],
   ] as const)('resumes %s through its registered contribution', async (provider, expectedArgs) => {
     process.env.OPENCOVE_TEST_USE_REAL_AGENTS = '1'
     const spawnSession = vi.fn(async () => ({ sessionId: `pty-${provider}` }))
@@ -401,7 +400,8 @@ describe('control surface session launch agent', () => {
         registerRoot: async () => undefined,
         isPathApproved: async () => true,
       },
-      getPersistenceStore: async () => createStubStore({ settings: {} }),
+      // Saved full access, so the expected args include each provider's approval bypass.
+      getPersistenceStore: async () => createStubStore({ settings: { agentFullAccess: true } }),
       ptyRuntime: {
         spawnSession,
         write: () => undefined,

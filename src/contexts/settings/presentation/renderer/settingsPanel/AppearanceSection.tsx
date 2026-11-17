@@ -1,22 +1,30 @@
 import React from 'react'
+import { NumberInput } from '@app/renderer/components/ui/NumberInput'
+import { SettingRow } from '@app/renderer/components/ui/SettingRow'
 import { useTranslation } from '@app/renderer/i18n'
 import {
   MAX_UI_FONT_SIZE,
   MIN_UI_FONT_SIZE,
+  type AgentSettings,
   type PixelEffectSettings,
   type UiTheme,
 } from '@contexts/settings/domain/agentSettings'
 import { SettingsGroup, SettingsGroupBody } from './SettingsGroup'
 import { PixelEffectsSection } from './PixelEffectsSection'
 import { ThemeGallery } from './ThemeGallery'
+import { WindowAppearanceSection } from './WindowAppearanceSection'
 
 export function AppearanceSection({
   uiTheme,
   pixelEffects,
   onChangePixelEffect,
   uiFontSize,
+  windowKindColorsEnabled,
+  windowMaterial,
   onChangeUiTheme,
   onChangeUiFontSize,
+  onChangeWindowKindColors,
+  onChangeWindowMaterial,
 }: {
   uiTheme: UiTheme
   pixelEffects: PixelEffectSettings
@@ -24,6 +32,10 @@ export function AppearanceSection({
   uiFontSize: number
   onChangeUiTheme: (theme: UiTheme) => void
   onChangeUiFontSize: (size: number) => void
+  windowKindColorsEnabled: boolean
+  onChangeWindowKindColors: (enabled: boolean) => void
+  windowMaterial: AgentSettings['windowMaterial']
+  onChangeWindowMaterial: (material: AgentSettings['windowMaterial']) => void
 }): React.JSX.Element {
   const { t } = useTranslation()
   return (
@@ -34,32 +46,33 @@ export function AppearanceSection({
       >
         <ThemeGallery value={uiTheme} onChange={onChangeUiTheme} />
       </SettingsGroup>
+      <WindowAppearanceSection
+        windowKindColorsEnabled={windowKindColorsEnabled}
+        windowMaterial={windowMaterial}
+        onChangeWindowKindColors={onChangeWindowKindColors}
+        onChangeWindowMaterial={onChangeWindowMaterial}
+      />
       <PixelEffectsSection effects={pixelEffects} onChange={onChangePixelEffect} />
       <SettingsGroup
         id="settings-section-interface-text"
         title={t('settingsPanel.appearanceNext.interfaceText')}
       >
         <SettingsGroupBody>
-          <div className="settings-panel__row">
-            <div className="settings-panel__row-label">
-              <strong>{t('settingsPanel.general.interfaceFontSize')}</strong>
-              <span>{t('settingsPanel.appearance.interfaceFontSizeHelp')}</span>
-            </div>
-            <div className="settings-panel__control settings-type-size-control">
-              <input
+          <SettingRow
+            label={t('settingsPanel.general.interfaceFontSize')}
+            description={t('settingsPanel.appearance.interfaceFontSizeHelp')}
+            control={
+              <NumberInput
                 id="settings-ui-font-size"
                 data-testid="settings-ui-font-size"
-                className="cove-field"
-                type="number"
-                aria-label={t('settingsPanel.general.interfaceFontSize')}
                 min={MIN_UI_FONT_SIZE}
                 max={MAX_UI_FONT_SIZE}
                 value={uiFontSize}
+                unit={t('common.pixelUnit')}
                 onChange={event => onChangeUiFontSize(Number(event.target.value))}
               />
-              <span>{t('common.pixelUnit')}</span>
-            </div>
-          </div>
+            }
+          />
         </SettingsGroupBody>
       </SettingsGroup>
     </>

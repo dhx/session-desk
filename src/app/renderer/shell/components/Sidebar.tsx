@@ -45,8 +45,8 @@ import {
 } from '@contexts/settings/domain/sidebarViewSettings'
 import { projectSidebarView } from '../utils/sidebarView'
 import { SidebarViewControls } from './SidebarViewControls'
-// This fork's mark (the same one as the tab icon, src/shared/brand/brand.ts).
-import productMark from '../../assets/brand/session-desk-mark.svg'
+import { SidebarAttentionInbox } from './SidebarAttentionInbox'
+import { summarizeAgentActivity } from '../utils/agentActivitySummary'
 
 export type SidebarVariant = 'docked' | 'rail' | 'peek'
 type SidebarProps = {
@@ -115,6 +115,7 @@ export function Sidebar({
 }: SidebarProps): React.JSX.Element {
   const { t } = useTranslation()
   const trees = workspaces.map(buildSidebarProjectTree)
+  const waitingAgents = summarizeAgentActivity(workspaces).waiting
   const mountDetails = useWorkspaceMountDetails({ workspaces })
   const sensors = useSensors(
     useSensor(MouseSensor, {
@@ -298,12 +299,6 @@ export function Sidebar({
         onDragEnd={handleDragEnd}
       >
         <div className="workspace-project-rail" data-testid="workspace-project-rail">
-          <img
-            className="workspace-project-rail__logo"
-            src={productMark}
-            alt=""
-            aria-hidden="true"
-          />
           <div
             ref={setSidebarListRef}
             className="workspace-sidebar__list"
@@ -364,20 +359,6 @@ export function Sidebar({
               <>
                 <header className="workspace-sidebar__project-header">
                   <h2 title={displayedTree.workspace.name}>{displayedTree.workspace.name}</h2>
-                  <SidebarViewControls
-                    key={`view-mode-${displayedTree.workspace.id}`}
-                    mode={sidebarView.mode}
-                    hiddenWaitingCount={projectedView?.hiddenWaitingCount ?? 0}
-                    onChange={mode =>
-                      setAgentSettings(previous => ({
-                        ...previous,
-                        sidebarView: {
-                          ...previous.sidebarView,
-                          mode: mode as SidebarViewMode,
-                        },
-                      }))
-                    }
-                  />
                   <SidebarRemoteDetails
                     key={displayedTree.workspace.id}
                     remote={mountDetails[displayedTree.workspace.id]?.remote ?? null}
@@ -403,6 +384,20 @@ export function Sidebar({
                     <MoreHorizontal size={15} aria-hidden="true" />
                   </button>
                 </header>
+                <SidebarViewControls
+                  key={`view-mode-${displayedTree.workspace.id}`}
+                  mode={sidebarView.mode}
+                  hiddenWaitingCount={projectedView?.hiddenWaitingCount ?? 0}
+                  onChange={mode =>
+                    setAgentSettings(previous => ({
+                      ...previous,
+                      sidebarView: {
+                        ...previous.sidebarView,
+                        mode: mode as SidebarViewMode,
+                      },
+                    }))
+                  }
+                />
                 {persistNotice ? (
                   <div
                     className={`workspace-sidebar__persist-alert workspace-sidebar__persist-alert--${persistNotice.tone}`}
@@ -412,6 +407,10 @@ export function Sidebar({
                   </div>
                 ) : null}
                 <div className="workspace-sidebar__tree-scroll">
+                  <SidebarAttentionInbox
+                    items={waitingAgents}
+                    onSelectAgentNode={onSelectAgentNode}
+                  />
                   <SidebarWorkspaceNavigation
                     tree={projectedView?.tree ?? displayedTree}
                     isActive={displayedTree.workspace.id === activeWorkspaceId}

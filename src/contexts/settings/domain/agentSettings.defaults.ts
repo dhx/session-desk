@@ -25,6 +25,7 @@ export const DEFAULT_AGENT_SETTINGS: AgentSettings = {
   workspaceSearchPanelWidth: 420,
   defaultProvider: 'codex',
   agentProviderOrder: resolveDefaultFirstAgentProviderOrder(undefined, 'codex'),
+  // Off for every install, new or old: this fork never turns it on by itself (see agentSettings.ts).
   agentFullAccess: false,
   defaultTerminalProfileId: null,
   agentExecutablePathOverrideByProvider: DEFAULT_AGENT_EXECUTABLE_PATH_OVERRIDE_BY_PROVIDER,
@@ -88,6 +89,8 @@ export const DEFAULT_AGENT_SETTINGS: AgentSettings = {
   terminalFontSize: 13,
   terminalFontFamily: null,
   terminalBackground: DEFAULT_TERMINAL_BACKGROUND_MODE,
+  windowKindColorsEnabled: true,
+  windowMaterial: 'glass',
   terminalDisplayAutoReferenceEnabled: true,
   terminalDisplayCalibrationCompensationEnabled: true,
   terminalDisplayReference: null,

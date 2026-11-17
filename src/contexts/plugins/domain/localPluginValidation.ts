@@ -3,6 +3,7 @@ import { normalizePluginNodeHeader } from './pluginNodeHeader'
 import { normalizePluginPreferences, normalizePluginThemes } from './pluginHostExtensionValidation'
 import { normalizePluginEngines } from './pluginCompatibility'
 import type { LocalPluginPackage } from './pluginRuntimeTypes'
+import { PLUGIN_WINDOW_KINDS, type PluginWindowKind } from './pluginTypes'
 import type {
   PluginCommandDeclaration,
   PluginCommandMenu,
@@ -202,6 +203,12 @@ export function normalizeLocalPluginPackage(value: unknown): LocalPluginPackage 
     throw new Error('Plugin view.instances must be single or multiple.')
   }
   if (
+    view?.kind !== undefined &&
+    !(PLUGIN_WINDOW_KINDS as readonly unknown[]).includes(view.kind)
+  ) {
+    throw new Error(`Plugin view.kind must be one of ${PLUGIN_WINDOW_KINDS.join(', ')}.`)
+  }
+  if (
     raw.platforms !== undefined &&
     (!Array.isArray(raw.platforms) ||
       !raw.platforms.length ||
@@ -233,6 +240,7 @@ export function normalizeLocalPluginPackage(value: unknown): LocalPluginPackage 
           view: {
             entry,
             instances: (view.instances ?? 'multiple') as 'single' | 'multiple',
+            ...(view.kind === undefined ? {} : { kind: view.kind as PluginWindowKind }),
             minWidth,
             minHeight,
             width: Math.max(minWidth, dimension(view.width, 640)),

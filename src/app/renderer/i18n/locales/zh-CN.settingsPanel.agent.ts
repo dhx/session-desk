@@ -21,5 +21,7 @@ export const zhCNSettingsPanelAgent = {
   moveDown: '下移',
   fullAccessLabel: '完全访问模式',
   fullAccessHelp:
-    '为 Agent 关闭沙箱和人工审批。默认关闭。服务器可通过 OPENCOVE_AGENT_FULL_ACCESS=deny 禁止此功能。',
+    '让 Agent 不受沙箱限制，不经同意直接行动。默认关闭。服务器可通过 OPENCOVE_AGENT_FULL_ACCESS=deny 禁止此功能。',
+  fullAccessOffHelp: '已关闭：Agent 在沙箱里工作，运行命令或修改文件前会先征求你的同意。',
+  fullAccessOnHelp: '已开启：Agent 直接运行命令、修改文件，不再征求同意。只在你信任的项目里开启。',
 } as const

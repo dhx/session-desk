@@ -21,7 +21,10 @@
 @import './styles/workspace-sidebar.surface.css' layer(opencove);
 @import './styles/workspace-sidebar.view.css' layer(opencove);
 @import './styles/workspace-sidebar.dnd.css' layer(opencove);
+@import './styles/workspace-space-card.css' layer(opencove);
+@import './styles/project-tile.css' layer(opencove);
 @import './styles/workspace-sidebar.rail.css' layer(opencove);
+@import './styles/workspace-attention-inbox.css' layer(opencove);
 @import './styles/workspace-sidebar.fade.css' layer(opencove);
 @import './styles/primary-sidebar-layout.css' layer(opencove);
 @import './styles/workspace-agent-item.css' layer(opencove);
@@ -97,6 +100,8 @@
 /* Generated Cove tokens (pnpm design:tokens); the theme owner sets data-cove-family='cove' for Cove. */
 @import './styles/themes/generated/cove.css' layer(opencove);
 @import './styles/node-color-identity.css' layer(opencove);
+@import './styles/window-kind-identity.css' layer(opencove);
+@import './styles/themes/reduced-transparency.css' layer(opencove);
 @import './styles/node-collapse.css' layer(opencove);
 @import './styles/node-collapse-motion.css' layer(opencove);
 @import './styles/workspace-space-collapse.css' layer(opencove);

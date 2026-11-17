@@ -11,6 +11,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Plugins: `host.spaces.list`, `create` and `update` list Spaces, create an empty top-level Space beside the canvas content and rename or recolour one; open windows show the change at once. (#30)
 - Terminals: an optional libghostty-vt engine for the screen state that restores terminals after a reload or reconnect, chosen with `SESSION_DESK_TERMINAL_ENGINE=libghostty`; xterm stays the default.
 - Terminals: the worker logs which terminal engine it runs and warns about an unknown `SESSION_DESK_TERMINAL_ENGINE` value; a libghostty-vt module that fails to load, or a terminal it cannot create, falls back to xterm instead of leaving the terminal closed.
+- Plugin themes: a theme can declare four inputs (light or dark, a base tint, an accent colour and contrast) instead of individual colours, and OpenCove generates the whole palette with the same checked contrast as its built-in Cove themes. (#477)
 
 ### 💅 Changed
 
@@ -20,17 +21,28 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Canvas: the right-click menu shows the keyboard shortcuts for New Terminal, New Note, Run Agent and Create Space with Selected, and screen readers announce it as a menu. (#444)
 - Settings and dialogs: switches, checkboxes and task tags use shared controls that follow the theme and have larger click targets; task tags become chips. (#445)
 - Dialogs and windows: choices such as the issue type, connection method, plugin source, worktree branch mode and explorer view use one segmented control, which screen readers announce as a radio group. (#446)
+- Settings: search finds every row on every page, including update, notification banner, calibration, worker, Web UI, website window, diagnostics and each keyboard shortcut. (#470)
+- Sidebar and Command Center: the OpenCove logo leaves the project rail; Focus, Normal and All become one segmented control under the project name; Agent rows read on one line with an AI tile; Command Center windows show their kind tile with the Space on the right, and agents show a status pill. (#484)
 - Dialogs: text fields share one labelled field with help text and inline errors; remote machine port errors now appear under the field. (#448)
 - Appearance: menus, popovers and the control center share one acrylic material with checked contrast, and turn solid when the system reduces transparency. (#449)
+- Settings: every row's label now names its control and its description is read with it; selects also say their current value. Rows, number fields and buttons use the shared components, and the pages keep their layout. (#471)
+- Settings: headings are neutral instead of blue, the selected page is a neutral row, each group's rows sit on one card, and the search field is boxed; the theme is a family card plus a Light / Dark / Follow System row, and the Agent page switches views with a segmented control instead of tabs. (#483)
+- Pixel theme: decorative canvas effects keep an even 30 frames a second while OpenCove is focused (a 120Hz display no longer drops them to 24) and slow to 10 when it is in the background, which saves power. (#485)
 - Windows: every window header ends with the same collapse and close buttons, in the same order and size, with tooltips; the terminal and agent close button now has a name for screen readers. (#450)
 - Windows: terminal, agent, task, note, document, folder, role and plugin windows share one header layout: the kind icon on a small tile, 13px titles, status after the title and evenly spaced controls; the role header is no longer taller than the others. (#451)
 - Website windows: the header shows the page title like other windows, and back, forward, reload and the address bar join the browser toolbar below it, where the address stays readable in narrow windows. (#452)
 - Windows: content sits on an inset reading plate below the header, with a fine edge; the document editor reads directly on it. (#453)
 - Pixel theme: window headers no longer use a live background blur; windows use one tinted frame around the reading plate, which saves GPU work with many windows open. (#454)
 - Terminals: terminal text can sit directly on the window's reading plate. Settings → Terminal → Terminal Background chooses Auto (transparent on macOS, opaque on Windows and Linux), Transparent or Opaque; changing it keeps the running shell and its output. (#456)
+- Appearance: Window Material (Glass or Solid) in Settings → Appearance and the control center; Solid makes windows, menus and panels opaque and removes every blur, and windows turn solid whenever the system reduces transparency, live, without a restart. The control center now lists Appearance first and opens All Settings with its shortcut. (#480)
 - Control Center: quick switches for theme (Cove or Pixel), light, dark or follow system, pixel background, motion signals and the minimap; plugin themes are chosen in Settings, and "Top-right banner" is now "Notification banner" in Settings. (#457)
+- Settings: new installs start with agent Full Access off, so agents stay in their sandbox and ask before running commands or changing files; existing choices are kept, and the setting now says what each state means. (#461)
 - Top bar: the command entry names the project and the Space you are looking at, and a summary of agents across projects shows how many are working; when any are waiting, one click goes to the first. (#458)
+- Command center: ⌘P finds windows (with the Space they live in) as well as Spaces, projects and commands, and lists agents waiting for you across projects first, with how long they have waited; commands show their shortcuts, and while you type, the section with the best match comes first. (#475)
 - Sidebar: every project on the rail is a tile in its own colour with its name below, the number of agents waiting on its corner and three moving pixels while its agents work; the OpenCove mark sits at the top and pin, add project and settings at the bottom. (#459)
+- Sidebar: a "Needs you" inbox at the top lists every agent waiting for you across projects, with where it is and how long ago it started waiting; one click switches to its project and focuses it. (#460)
+- Sidebar: each Space is a card with a live pixel map of its windows in their kind colours, where working agents step and waiting ones turn amber; click a square to fly to that window. The card shows how many agents are working or waiting and how many windows it holds. (#466)
+- Windows: the header's icon tile shows what a window is in its kind colour (agents purple, terminals green, tasks orange, notes and documents blue, websites and images pink), with a light tint on Cove headers, and the canvas minimap uses the same colours; colour labels now draw only the window frame and a short flag, and unlabeled Cove windows keep a neutral frame. Settings → Appearance → Window Kind Colours turns the kind colours off, and plugin windows can choose a kind with `view.kind`. (#478)
 
 ### 🐛 Fixed
 
@@ -39,6 +51,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 - Terminal: copying from Claude Code, Codex and other programs that capture the mouse now reaches the clipboard. They copy through OSC 52, which the terminal ignored; it now accepts such a copy right after you used that terminal. Option+drag on macOS (Shift+drag elsewhere) still selects terminal text directly.
 - Agent terminals: preserve mouse encoding and paste modes across startup screen replacement, preventing split startup output from turning Codex mouse movement and scrolling into stray input characters. (#33)
+- Website windows: a frozen website window now always gets its snapshot; a snapshot requested before the page's first frame was presented used to be dropped. (#474)
 - Agent: give each managed Claude launch its own conversation ID and preserve it across recovery, preventing same-directory nodes from binding to the newest unrelated transcript. (#425)
 - Terminal: probe WebGL support once and release the probe, so workspaces with many terminals no longer evict active terminal renderers. (#428)
 - Canvas: keep zooming smooth in large workspaces by no longer restyling every window on each zoom step. (#429)
