@@ -44,5 +44,8 @@ it('makes skill discoverable on the last line of root help and provides offline 
   )
   const guide = identityFixture(false)
   expect(await run(['skill', '--help'], guide.io)).toBe(0)
-  expect(guide.out()).toMatchSnapshot()
+  // Session Desk: the release build stamps its own version before running these tests.
+  expect(
+    guide.out().replace(/"version":"[^"]+"/, '"version":"<package version>"'),
+  ).toMatchSnapshot()
 })
