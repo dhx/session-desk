@@ -45,6 +45,44 @@ const MAIN_IPC_STUB = 'Stubs an IPC handler of the Electron main process (ipcMai
 export const webTargetSkips: WebTargetSkip[] = [
   // Electron main process, BrowserWindow, native windows
   {
+    file: 'context-bridge.app-errors.display.spec.ts',
+    category: 'electron-only',
+    reason: 'Checks the Electron preload bridge: stubs ipcMain handlers in the main process',
+  },
+  {
+    file: 'context-bridge.app-errors.mac.spec.ts',
+    category: 'electron-only',
+    reason: 'Checks the Electron preload bridge: stubs ipcMain handlers in the main process',
+  },
+  {
+    file: 'context-bridge.app-errors.spec.ts',
+    category: 'electron-only',
+    reason: 'Checks the Electron preload bridge: stubs ipcMain handlers in the main process',
+  },
+  {
+    file: 'context-bridge.compatibility.spec.ts',
+    category: 'electron-only',
+    reason: 'Checks the Electron preload bridge: stubs ipcMain handlers in the main process',
+  },
+  {
+    file: 'smoke.spec.ts',
+    title: 'should launch the application and show main window',
+    category: 'electron-only',
+    reason: 'Reads app.getAppPath()/getName() of the Electron main process',
+  },
+  {
+    file: 'runtime-diagnostics.renderer-crash.spec.ts',
+    title: 'recovers the workspace in the same main process after a renderer crash',
+    category: 'electron-only',
+    reason: 'Crashes the Electron renderer and checks the main process pid',
+  },
+  {
+    file: 'workspace-canvas.terminal-live-reattach-geometry.spec.ts',
+    title: 'a live Desktop terminal reattach commits its measured frame without replacing the PTY',
+    category: 'electron-only',
+    reason: 'Reloads the Desktop BrowserWindow (BrowserWindow.loadURL)',
+  },
+  {
     file: 'workspace-canvas.far-view.spec.ts',
     title: 'zoom steps and a continuous wheel gesture do not commit window headers',
     category: 'electron-only',

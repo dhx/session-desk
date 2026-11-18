@@ -19,7 +19,11 @@ export const FORBIDDEN = [
   { marker: /statsig/i, why: 'Statsig feature flags / analytics' },
   { marker: /datadoghq\.com|browser-intake-datadoghq/, why: 'Datadog' },
   { marker: /google-analytics\.com|googletagmanager\.com/, why: 'Google Analytics' },
-  { marker: /crashReporter\.start\(/, why: 'Electron crash reporter' },
+  // Upstream's test-only reporter (src/app/main/runtimeDiagnostics.ts) keeps dumps local.
+  {
+    marker: /crashReporter\.start\((?![^)]*uploadToServer:\s*(?:false|!1)\b)/,
+    why: 'Electron crash reporter that may upload',
+  },
   // Things our builds removed (PR "no phone home"): each must stay gone.
   { marker: /["']electron-updater["']/, why: 'Electron auto-update against GitHub Releases' },
   {
