@@ -1,4 +1,3 @@
-/* eslint-disable no-await-in-loop -- Each request observes the preceding mutation or authorization boundary. */
 import { expect, vi } from 'vitest'
 import { SESSION_GRANT_POLICY } from '../../../src/app/main/controlSurface/http/sessionGrantPolicy'
 import { REQUIRED_SESSION_GRANT_DENIALS } from './sessionGrantPolicy.expectations'
@@ -71,7 +70,6 @@ export async function checkProductionGrantPolicy(options: {
   for (const id of ['session.launchAgent', 'session.launchAgentInMount']) {
     const target = id.endsWith('InMount') ? { mountId: 'missing' } : { spaceId: 'space' }
     for (const [field, value] of Object.entries({
-      agentFullAccess: true,
       env: { KEY: 'private' },
       executablePathOverride: '/bin/sh',
       resumeSessionId: 'old',

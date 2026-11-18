@@ -440,9 +440,10 @@ export function installBrowserOpenCoveApi(): void {
       install: async () => unsupportedCliStatus(),
       uninstall: async () => unsupportedCliStatus(),
     },
-  } as Window['opencoveApi']
+  } as unknown as Window['opencoveApi']
 
   window.opencoveApi = api
+  window.dispatchEvent(new Event('opencove:api-installed'))
 }
 
 function shouldEnableBrowserTerminalTestApi(): boolean {

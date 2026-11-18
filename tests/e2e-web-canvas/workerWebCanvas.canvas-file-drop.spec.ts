@@ -23,7 +23,7 @@ test.describe('Worker web canvas file drop', () => {
     page,
   }) => {
     const workspacePath = await createWorkspaceDir('canvas-file-drop')
-    await writeAppState(page.request, buildAppState({ workspacePath, spaces: [] }))
+    await writeAppState(page.request, () => buildAppState({ workspacePath, spaces: [] }))
     await openAuthedCanvas(page)
     await expect(page.locator(PANE)).toBeVisible()
 
@@ -67,7 +67,7 @@ test.describe('Worker web canvas file drop', () => {
 
   test('a dropped folder is refused with a message and nothing is uploaded', async ({ page }) => {
     const workspacePath = await createWorkspaceDir('canvas-folder-drop')
-    await writeAppState(page.request, buildAppState({ workspacePath, spaces: [] }))
+    await writeAppState(page.request, () => buildAppState({ workspacePath, spaces: [] }))
     await openAuthedCanvas(page)
     await expect(page.locator(PANE)).toBeVisible()
 

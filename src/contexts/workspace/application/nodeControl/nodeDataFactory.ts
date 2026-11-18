@@ -12,6 +12,7 @@ import type {
 import { resolveWebsiteNavigationUrl } from '../../../../shared/utils/websiteUrl'
 import { createAppError } from '../../../../shared/errors/appError'
 import { resolveInitialAgentRuntimeStatus } from '../../../agent/domain/agentRuntimeStatus'
+import { buildControlSurfaceAgentLaunchTitle } from '../../domain/controlSurfaceAgentLaunchTitle'
 import {
   resolveCanonicalNodeMaxSize,
   resolveCanonicalNodeMinSize,
@@ -35,7 +36,14 @@ export type NodeControlCreateData =
       sessionMode: WebsiteWindowSessionMode
       profileId: string | null
     }
-  | { kind: 'agent'; prompt: string; provider: AgentProviderId | null; model: string | null }
+  | {
+      kind: 'agent'
+      prompt: string
+      provider: AgentProviderId | null
+      model: string | null
+      agentFullAccess?: boolean
+      taskNodeId?: string
+    }
   | { kind: 'terminal'; shell: string | null; command: string | null; profileId: string | null }
 
 export interface AgentNodeRuntimeData {
@@ -184,11 +192,24 @@ export function normalizeCreateNodeData(
   }
 
   if (kind === 'agent') {
+    const taskNodeId = normalizeOptionalString(record.taskNodeId)
+    if (record.taskNodeId !== undefined && taskNodeId === null) {
+      throw createAppError('common.invalid_input', {
+        debugMessage: 'node.create agent data.taskNodeId must be a non-empty string.',
+      })
+    }
+    if (record.agentFullAccess !== undefined && typeof record.agentFullAccess !== 'boolean') {
+      throw createAppError('common.invalid_input', {
+        debugMessage: 'node.create agent data.agentFullAccess must be a boolean.',
+      })
+    }
     return {
       kind,
       prompt: typeof record.prompt === 'string' ? record.prompt : '',
       provider: normalizeAgentProvider(record.provider),
       model: normalizeOptionalString(record.model),
+      ...(taskNodeId === null ? {} : { taskNodeId }),
+      ...(record.agentFullAccess === undefined ? {} : { agentFullAccess: record.agentFullAccess }),
     }
   }
 
@@ -231,7 +252,7 @@ export function resolveNodeTitle(options: {
 
     const provider = options.agentRuntime?.provider ?? 'codex'
     const model = options.agentRuntime?.effectiveModel ?? options.agentRuntime?.model ?? null
-    return model ? `${provider} ${model}` : 'Agent'
+    return buildControlSurfaceAgentLaunchTitle(provider, model)
   }
 
   if (options.kind === 'terminal') {
@@ -335,7 +356,10 @@ export function makeNode(options: {
           directoryMode: 'workspace',
           customDirectory: null,
           shouldCreateDirectory: false,
-          taskId: null,
+          taskId: options.data.taskNodeId ?? null,
+          ...(options.data.agentFullAccess === undefined
+            ? {}
+            : { agentFullAccess: options.data.agentFullAccess }),
         }
       : null
 

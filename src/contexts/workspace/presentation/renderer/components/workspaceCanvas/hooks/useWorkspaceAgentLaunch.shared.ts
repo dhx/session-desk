@@ -1,11 +1,11 @@
+import { isAppErrorDescriptor } from '@shared/errors/appError'
 import { prepareManagedClaudeCreationIntent } from '../../../utils/managedClaudeCreation'
 import {
   ABSENT_MANAGED_CLAUDE_BINDING,
   type ManagedClaudeLifecycleReceipt,
 } from '@shared/contracts/managedClaudeLaunch'
-import type { MutableRefObject } from 'react'
 import { isAllocateProjectPlaceholderPath } from '@app/renderer/shell/utils/projectPlaceholderPath'
-import { toFileUri } from '@contexts/filesystem/domain/fileUri'
+import { toFileUri } from '@contexts/filesystem/domain'
 import {
   resolveAgentExecutablePathOverride,
   resolveAgentLaunchEnv,
@@ -19,6 +19,7 @@ import type {
 } from '@shared/contracts/dto'
 import type { WorkspaceSpaceState } from '../../../types'
 import type { NodeWorkerBinding } from '@shared/types/nodeWorkerBinding'
+import type { CanvasDocumentCommands } from '../../../store/canvasStoreContext'
 import {
   resolveControlSurfaceInvoke,
   shouldUseControlSurfacePlainRuntime,
@@ -130,26 +131,30 @@ async function listWorkspaceMounts(
 function updateSpaceTargetMountId({
   targetSpace,
   nextMountId,
-  spacesRef,
-  onSpacesChange,
-  onRequestPersistFlush,
+  updateSpaces,
 }: {
   targetSpace: WorkspaceSpaceState | null
   nextMountId: string
-  spacesRef?: MutableRefObject<WorkspaceSpaceState[]>
-  onSpacesChange?: (spaces: WorkspaceSpaceState[]) => void
-  onRequestPersistFlush?: () => void
+  updateSpaces?: CanvasDocumentCommands['updateSpaces']
 }): void {
-  if (!targetSpace || targetSpace.targetMountId === nextMountId || !spacesRef || !onSpacesChange) {
+  if (!targetSpace || targetSpace.targetMountId === nextMountId || !updateSpaces) {
     return
   }
 
-  const updatedSpaces = spacesRef.current.map(space =>
-    space.id === targetSpace.id ? { ...space, targetMountId: nextMountId } : space,
+  // The mount query has answered by now: the recipe maps the Spaces the store holds when it runs,
+  // and the flush rides on the write.
+  updateSpaces(
+    spaces => {
+      const stored = spaces.find(space => space.id === targetSpace.id)
+      if (!stored || stored.targetMountId === nextMountId) {
+        return spaces
+      }
+      return spaces.map(space =>
+        space.id === targetSpace.id ? { ...space, targetMountId: nextMountId } : space,
+      )
+    },
+    { flush: true },
   )
-  spacesRef.current = updatedSpaces
-  onSpacesChange(updatedSpaces)
-  onRequestPersistFlush?.()
 }
 
 export async function resolveWorkspaceAgentLaunchBinding({
@@ -158,9 +163,7 @@ export async function resolveWorkspaceAgentLaunchBinding({
   currentMountId,
   executionDirectory,
   targetSpace,
-  spacesRef,
-  onSpacesChange,
-  onRequestPersistFlush,
+  updateSpaces,
   mountQueryFailurePolicy = 'ignore',
 }: {
   workspaceId: string
@@ -168,9 +171,7 @@ export async function resolveWorkspaceAgentLaunchBinding({
   currentMountId: string | null
   executionDirectory: string
   targetSpace: WorkspaceSpaceState | null
-  spacesRef?: MutableRefObject<WorkspaceSpaceState[]>
-  onSpacesChange?: (spaces: WorkspaceSpaceState[]) => void
-  onRequestPersistFlush?: () => void
+  updateSpaces?: CanvasDocumentCommands['updateSpaces']
   mountQueryFailurePolicy?: 'ignore' | 'throw'
 }): Promise<WorkspaceAgentLaunchBinding> {
   let mountId = currentMountId
@@ -231,9 +232,7 @@ export async function resolveWorkspaceAgentLaunchBinding({
   updateSpaceTargetMountId({
     targetSpace,
     nextMountId: mountId,
-    spacesRef,
-    onSpacesChange,
-    onRequestPersistFlush,
+    updateSpaces,
   })
 
   if (normalizedDirectory.length === 0 || normalizedDirectory === normalizedWorkspacePath) {
@@ -353,9 +352,14 @@ export async function launchWorkspaceAgentSession({
           ? (error.details as { managedClaudeLaunch?: boolean; phase?: string; reason?: string })
           : undefined
       if (
+        !isAppErrorDescriptor(error) ||
         code.startsWith('agent.managed_launch_') ||
-        (details?.managedClaudeLaunch &&
-          !(details.phase === 'beforeSpawn' && details.reason === 'mountUnavailable')) ||
+        // Only explicit pre-spawn rejection evidence permits an automatic mount repair.
+        !(
+          details?.managedClaudeLaunch === true &&
+          details.phase === 'beforeSpawn' &&
+          details.reason === 'mountUnavailable'
+        ) ||
         !retryResolveMountBinding
       ) {
         throw error

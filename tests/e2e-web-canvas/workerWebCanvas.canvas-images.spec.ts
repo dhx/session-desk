@@ -18,7 +18,7 @@ const PANE = '.workspace-canvas .react-flow__pane'
 
 async function seedEmptyCanvas(page: Page, name: string): Promise<void> {
   const workspacePath = await createWorkspaceDir(name)
-  await writeAppState(page.request, buildAppState({ workspacePath, spaces: [] }))
+  await writeAppState(page.request, () => buildAppState({ workspacePath, spaces: [] }))
 }
 
 async function readImageAssetIds(page: Page): Promise<string[]> {

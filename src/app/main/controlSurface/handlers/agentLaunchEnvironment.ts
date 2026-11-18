@@ -1,3 +1,4 @@
+import { terminalEnvironment } from '../../../../shared/runtime/terminalEnvironment.mjs'
 import { assertSessionGrantMessagePrompt } from '../http/sessionGrantPromptPolicy'
 import type {
   AgentProviderId,
@@ -65,7 +66,7 @@ export async function resolveRemoteAgentLaunchSettings(
     ...payload,
     provider,
     env: resolveAgentLaunchCallerEnv(ctx, settings, provider),
-    agentFullAccess: settings.agentFullAccess,
+    agentFullAccess: payload.agentFullAccess ?? settings.agentFullAccess,
     codexReuseRunningAppServer: settings.codexReuseRunningAppServer,
   }
 }
@@ -85,8 +86,8 @@ export async function prepareAgentSessionEnvironment(options: {
   }
   // OPENCODE_TUI_CONFIG comes from the OpenCode launch plan (a per-launch temp file).
   return {
-    OPENCOVE_OPENCODE_SERVER_HOSTNAME: options.opencodeServer.hostname,
-    OPENCOVE_OPENCODE_SERVER_PORT: String(options.opencodeServer.port),
+    [terminalEnvironment.opencodeServerHostname]: options.opencodeServer.hostname,
+    [terminalEnvironment.opencodeServerPort]: String(options.opencodeServer.port),
     XDG_STATE_HOME: options.userDataPath.trim() || process.cwd(),
   }
 }

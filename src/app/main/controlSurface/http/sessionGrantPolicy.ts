@@ -1,3 +1,4 @@
+import { checkTaskCallerIdentity } from './sessionGrantTaskPolicy'
 import { checkSessionGrantPrompt } from './sessionGrantPromptPolicy'
 import type { CONTROL_SURFACE_OPERATIONS } from '../../../../shared/contracts/controlSurface/operations'
 import {
@@ -21,13 +22,13 @@ export type GrantRule =
       rejectedFields: Readonly<Record<string, string>>
       check: (payload: unknown, deps: GrantCheckDeps) => void
     }
-export const SESSION_GRANT_POLICY_VERSION = 's1a-v5'
+export const SESSION_GRANT_POLICY_VERSION = 's1d-v4'
 const allow = { access: 'allow' } as const
 const deny = (reason: string): GrantRule => ({ access: 'deny', reason })
 const launch = {
   access: 'constrained',
   reason:
-    'runtime creation requires admitted local node.create; agent terminals use saved launch settings for new conversations; prompts must describe a task and cannot run provider commands',
+    'runtime creation requires admitted local node.create; agent terminals inherit saved settings unless agentFullAccess explicitly chooses permissions for that agent; prompts must describe a task and cannot run provider commands',
   rejectedFields: SESSION_GRANT_LAUNCH_REJECTED_FIELDS,
   check: checkSessionGrantLaunch,
 } as const
@@ -131,6 +132,26 @@ export const SESSION_GRANT_POLICY = {
   'node.resolveCallerSelector': allow,
   'node.update': allow,
   'note.create': allow,
+  'note.append': {
+    access: 'constrained',
+    reason: 'append text only to notes in your project',
+    rejectedFields: {},
+    check: () => {},
+  },
+  'task.claim': {
+    access: 'constrained',
+    reason:
+      'claim tasks only for your own agents or agents you started in the same project and Space',
+    rejectedFields: {},
+    check: checkTaskCallerIdentity,
+  },
+  'task.release': {
+    access: 'constrained',
+    reason:
+      'release tasks only when the holder is your own agent or an agent you started in your project',
+    rejectedFields: {},
+    check: () => {},
+  },
   'plugin.command.run': deny(
     'plugin code runs with plugin authority and requires a human decision',
   ),

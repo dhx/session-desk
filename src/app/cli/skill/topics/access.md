@@ -30,7 +30,7 @@ operation IDs fail closed.
 ## What requires the user
 
 Ask the user in OpenCove for endpoint/mount administration, project addition/root approval, private
-settings, permission policy, Worker administration, and plugin distribution or execution. Grants
+settings, the default permission policy, Worker administration, and plugin distribution or execution. Grants
 cannot run plugin commands, invoke plugin code, or open plugin views/windows. They can read listed
 plugin metadata; this does not authorize running it.
 
@@ -42,6 +42,8 @@ Authentication and grant-policy refusals exit 4.
 ## Constrained agent launches
 
 From a canvas-bound session, use `opencove node create agent` or `opencove node create terminal`.
+Agent creation may include `--task <nodeId>` (`node.create` `data.taskNodeId`) to link an existing
+task in the same Space and move it to `doing`; this uses the same session-grant authority.
 These are the only grant routes that start runtimes. The caller must still be the canvas node’s
 current local session. Raw launch operations, including `session run-agent`, cannot be used by grants.
 A user can still start a standalone session with bearer authority. Its grant keeps reads, notes and
@@ -54,19 +56,25 @@ Moving nodes or deleting ancestors does not reset ancestry. User launches, task 
 exempt. Recovered descendants count toward subsequent grant requests. Grant runtime creation must
 stay on the same Worker; ask the user to start an agent on the target Worker for remote work.
 
-Agent launches use the user’s saved permissions, environment and executable. Explicit
-agentFullAccess, env, executablePathOverride, resumeSessionId, codexReuseRunningAppServer, mode and
-unknown fields are refused, including false/null values. Only the user changes permissions in
-Settings → Agent → Providers → Permissions → Full Access Mode.
+Agent launches use the user’s saved permissions by default. Explicit `--full-access true|false`
+(`agentFullAccess`) applies to that one agent, in either direction, and is remembered on its node
+for relaunch, resume and recovery. It never changes Settings. Nodes without an explicit value
+follow the current Settings → Agent → Providers → Permissions → Full Access Mode value.
+The saved environment and executable still apply: explicit `env`, `executablePathOverride`,
+`resumeSessionId`, `codexReuseRunningAppServer`, `mode` and unknown fields remain refused,
+including false/null values.
 
-Describe the task in a sentence: a nonempty one-word launch prompt is refused because providers may
-interpret it as a command. Start prompts with words, not command prefixes:
+<!-- initial-prompt-rules:start -->
+Agent-terminal prompt rules:
+- Launches: describe a task in a sentence; single ASCII words and provider command names are refused; unspaced Chinese/Japanese/Korean text is fine.
+- Provider controls: no leading /; Claude also refuses ! # &; Codex, OpenCode, Pi and Gemini also refuse !.
+- Exit aliases: no exit, quit, :q, :q!, :wq or :wq!.
+- File references: no @ anywhere. Read approved content with opencove fs read --uri file:///workspace/README.md --fields content (replace the absolute URI), then paste the content.
+- Codex skills: no $name or linked skill mentions; paste the instructions.
+- Leading dashes: Claude Code and Pi launches refuse prompts starting with -.
+- Null characters: remove NUL from the prompt.
+<!-- initial-prompt-rules:end -->
 
-- Claude Code: `!`, `/`, legacy `#` or `&`.
-- Codex, OpenCode, Pi and Gemini: `!` or `/`.
-- Kimi: `/`.
-
-Checks ignore initial whitespace. A prefix later in the text is ordinary message text.
 Provider-command grant refusals use field_denied and exit 4 before input or a delivery record.
 Launch permission does not establish prompt eligibility; see `opencove skill coordinate`.
 

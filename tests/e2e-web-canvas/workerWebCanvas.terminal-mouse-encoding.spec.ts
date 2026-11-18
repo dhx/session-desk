@@ -14,7 +14,7 @@ test('mouse motion and wheel remain SGR encoded after live Web reattach', async 
   const workspacePath = await createWorkspaceDir('mouse-encoding')
   await writeAppState(
     page.request,
-    buildAppState({ workspacePath, workspaceName: 'mouse-encoding', spaces: [] }),
+    () => buildAppState({ workspacePath, workspaceName: 'mouse-encoding', spaces: [] }),
   )
   await openAuthedCanvas(page, '/?opencoveTerminalTestApi=1')
   const pane = page.locator('.workspace-canvas .react-flow__pane')

@@ -8,6 +8,7 @@ import type { NodeWorkerBinding } from '@shared/types/nodeWorkerBinding'
 import type {
   PersistedFolderNodeData,
   PersistedSpaceRect,
+  PersistedWorkspaceNodeKind,
 } from '@shared/contracts/persistedAppState'
 import type {
   NormalizedPersistedAppStateContract,
@@ -38,17 +39,7 @@ import type { PluginNodePayload } from '@contexts/plugins/domain/pluginTypes'
 
 export type { AgentRuntimeStatus } from '@contexts/agent/domain/types'
 
-export type WorkspaceNodeKind =
-  | 'terminal'
-  | 'agent'
-  | 'task'
-  | 'note'
-  | 'role'
-  | 'image'
-  | 'document'
-  | 'folder'
-  | 'website'
-  | 'plugin'
+export type WorkspaceNodeKind = PersistedWorkspaceNodeKind
 
 export type TaskRuntimeStatus = 'todo' | 'doing' | 'ai_done' | 'done'
 
@@ -89,6 +80,8 @@ export interface AgentNodeData {
   customDirectory: string | null
   shouldCreateDirectory: boolean
   taskId: string | null
+  /** Launch-time override; absent means follow the current Settings value. */
+  agentFullAccess?: boolean
 }
 
 export interface TerminalAgentSessionBinding {

@@ -1,8 +1,11 @@
 # Canvas, Spaces and shared work
 
+For agents creating helper nodes, recommend `--near @self` on `node create note`, `terminal`
+or `agent`: it uses your current direct Space, or root. Omit it to keep existing placement.
+`--near <node selector>` selects another reference; `--root-canvas` overrides membership. Explicit Space/project constraints must match; `--frame` allows width/height only, without x/y. Unsupported Workers refuse.
+`node update --frame` grows its Space and ancestors with padding in the same update; Spaces never shrink, other nodes stay fixed and membership stays unchanged.
 ## Select targets explicitly
-Node, space and project selectors accept a full ID, exact case-sensitive name, or a unique ID prefix
-(6+ characters). Ambiguity exits 6: use a full ID. `@self` uses your authenticated terminal
+Node, space and project selectors accept a full ID, exact case-sensitive name, or a unique ID prefix (6+ characters). Ambiguity exits 6: use a full ID. `@self` uses your authenticated terminal
 identity, not your working directory. Inside OpenCove, `node create` and `node list` read your
 current container: your Space, or the root canvas when you are outside every Space. There, `node
 list` lists the whole project; use `node list --root-canvas` for only root nodes. Explicit
@@ -31,6 +34,9 @@ or is stopped, not when a turn finishes or a node disappears. User, task Run and
 remain available. Creating a runtime across Workers requires the user to start it there.
 If OpenCove cannot verify a historical tree after restart, ask the user to check its runtimes
 and start a new canvas agent for further delegation.
+
+Agent creation accepts `--full-access true|false` for this agent and its restarts. Omit it to
+follow Settings; this never changes Settings. The value cannot be changed with `node update`.
 
 To put a node on the canvas outside any Space: `opencove node create note --root-canvas --text …`.
 Outside OpenCove, add `--project <id>`. Placement searches next to you when run inside OpenCove, or
@@ -72,6 +78,12 @@ opencove worktree create --space space-123 --name review-work
 opencove node create agent --space space-123 --title "Reviewer" --prompt "Review the implementation" --wait --read --timeout 2m
 ```
 
+Add `--task <nodeId>` to link the new agent to an existing task in that same Space and move it
+to `doing`. The task must have no existing linked agent; a link to a deleted agent may be replaced.
+Use `--prompt` or `--prompt-file` for the assignment; linking does not copy the task requirement.
+The Worker validates before launch and commits both sides together after launch succeeds.
+Omitting `--task` leaves tasks unchanged. On the root canvas, both nodes must be outside Spaces.
+
 For one-shot delegation, --wait --read returns the initial exact reply; check outcome and reply.
 Stderr first prints `Created agent node <nodeId> (session <sessionId>).`, then a
 `Waiting for turn <turnId> of node <nodeId>...` progress line with an interruption-only continuation.
@@ -91,11 +103,9 @@ repository." A repository without commits fails with `worktree.repo_has_no_commi
 initial commit before using worktrees. Only launch the agent after worktree creation succeeds.
 
 ## Notes and tasks are a shared blackboard
-Read existing notes/tasks before changing them. Keep task ownership visible. Claim a task by setting
-status `doing` and putting your actual node ID from `whoami` in a tag or requirement note. This is a
-coordination convention, not an atomic lock: re-read and negotiate any conflicting claim. `--tag`
-replaces the provided tag list, so preserve existing tags or use a requirement note. Finish with
-`ai_done`; reserve `done` for human acceptance.
+Read existing notes/tasks before changing them. Use `task claim` for an atomic Worker claim, not tags or requirement edits. Claim for your own agent, or pass `--agent` for an agent you started
+(including transitive descendants). Siblings and unrelated agents are refused. Task and selected agent must share a project and Space. On a holder conflict, choose another task or ask for release.
+Only the holder, its recorded ancestors or a user can release it. Finish with `ai_done`; reserve `done` for human acceptance. A genuinely stale tab can still overwrite a claim; this is not a lease.
 
 ```sh
 opencove node list --kind note
@@ -104,9 +114,10 @@ opencove node get --node task-123
 opencove node create note --title "Progress" --text "Review started"
 opencove node update note --node note-123 --text-file ./progress.txt
 opencove node create task --title "Review" --requirement "Review the implementation"
-opencove node update task --node task-123 --status doing --requirement "Original requirement; claimed by node-123"
+opencove task claim --task task-123 --agent agent-123
 opencove node get --node task-123
-opencove node update task --node task-123 --status ai_done
+opencove note append --node note-123 --text "Review complete"
+opencove task release --task task-123 --status ai_done
 ```
 
 Long text accepts `--text-file` or `--requirement-file` and `-` for stdin. Use either inline or file
@@ -156,3 +167,13 @@ With `--spawned-by`, `--project` filters child results; the creator may belong t
 Full IDs, `@self` and `@parent` resolve the creator independently of that filter. Creator names
 and prefixes use your session project, or an explicit Space’s project. Without session identity,
 the selected project supplies the name lookup context. Use a full ID for a creator outside that context.
+
+`opencove whoami --fields lineageQuota` and `opencove context --fields self.lineageQuota`
+show `{depth, maxDepth, liveInTree, maxLiveInTree}` from the same Worker census as spawn admission.
+A user-started root has depth 1; liveInTree counts live/starting agent-created runtimes, excluding
+that root. Older Workers or unavailable accounting omit the quota. Depth/width refusal details
+include up to six occupying nodes (nodeId, title, kind, depth, state), with concrete
+`opencove agent stop --node <id>` hints for agent occupants. For terminals, read the current
+`node.sessionId` with `opencove node get --node <id> --fields sessionId`, then use
+`opencove session kill --session <sessionId>` to stop the entire terminal, including its shell.
+Stopping cannot reduce a caller's depth: depth-three callers must ask the user to start a new root.

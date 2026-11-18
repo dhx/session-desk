@@ -1,3 +1,5 @@
+import { taskNoteCommands } from './taskNotes'
+import { eventsCommand } from './events'
 import { spaceUpdateCommand } from './spaceUpdate'
 import { spaceCreateCommand } from './spaces'
 import { projectAddCommand } from './projects'
@@ -28,6 +30,7 @@ import { unknownOperation } from '../core/operationErrors'
 import { CliError } from '../core/errors'
 import { nodeCommands, stringOption } from './nodes'
 export const commands: Command[] = [
+  eventsCommand,
   spaceCreateCommand,
   spaceUpdateCommand,
   projectAddCommand,
@@ -39,6 +42,7 @@ export const commands: Command[] = [
   ...agentQueryCommands,
   skillCommand,
   ...nodeCommands,
+  ...taskNoteCommands,
   ...lifecycleCommands,
   ptyAttach,
   ...pluginCommands,
@@ -171,7 +175,9 @@ export const commands: Command[] = [
       },
       contract: {
         type: 'string',
+        // @compat control-surface-legacy-validation
         valueName: 'schema|legacy',
+        // @compat control-surface-legacy-validation
         choices: ['schema', 'legacy'],
         description: 'Filter by input contract availability',
       },

@@ -1,4 +1,3 @@
-/* eslint-disable no-await-in-loop -- Mutations replay an ordered protocol trace. */
 import { afterEach, expect, it, vi } from 'vitest'
 import { Client } from '../../support/convergence/client'
 import { markPersistedStateAsSynced } from '@contexts/workspace/presentation/renderer/utils/persistence/write'
@@ -33,20 +32,23 @@ it.each([1, 2, 3, 4, 5, 6, 7])('kills the I%i boundary mutation', async invarian
     expect(() => c!.check(false)).toThrow('I3')
   }
   if (invariant === 4) {
-    useAppStore.getState().setWorkspaces(ws => ws.map(w => ({ ...w, name: 'stale UI' })))
+    useAppStore.setState(state => ({
+      workspaces: (ws => ws.map(w => ({ ...w, name: 'stale UI' })))(state.workspaces),
+    }))
     expect(() => c!.check(true)).toThrow('I4')
   }
   if (invariant === 5) {
-    useAppStore.getState().setWorkspaces(ws =>
-      ws.map(w => ({
-        ...w,
-        nodes: w.nodes.map(n =>
-          n.id === 'agent'
-            ? { ...n, data: { ...n.data, agent: { ...n.data.agent!, resumeSessionId: 'stale' } } }
-            : n,
-        ),
-      })),
-    )
+    useAppStore.setState(state => ({
+      workspaces: (ws =>
+        ws.map(w => ({
+          ...w,
+          nodes: w.nodes.map(n =>
+            n.id === 'agent'
+              ? { ...n, data: { ...n.data, agent: { ...n.data.agent!, resumeSessionId: 'stale' } } }
+              : n,
+          ),
+        })))(state.workspaces),
+    }))
     expect(() => c!.check(false)).toThrow('I5')
   }
   if (invariant === 6) {
@@ -63,7 +65,9 @@ it.each([1, 2, 3, 4, 5, 6, 7])('kills the I%i boundary mutation', async invarian
     }
     await c.quiet()
     checkLegacyCompatibility(baseline, { ui: value(c.state()), server: c.server.model.value })
-    useAppStore.getState().setWorkspaces(ws => ws.map(w => ({ ...w, name: 'legacy regression' })))
+    useAppStore.setState(state => ({
+      workspaces: (ws => ws.map(w => ({ ...w, name: 'legacy regression' })))(state.workspaces),
+    }))
     expect(() =>
       checkLegacyCompatibility(baseline, { ui: value(c!.state()), server: c!.server.model.value }),
     ).toThrow('I7')

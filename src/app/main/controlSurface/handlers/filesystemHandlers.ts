@@ -14,12 +14,12 @@ import {
   filesystemStatOperation,
   filesystemWriteFileTextOperation,
 } from '../../../../shared/contracts/controlSurface/operations/domains/filesystem'
-import { FILE_MUTATION_CAPABILITIES } from '../../../../contexts/filesystem/domain/fileMutationOptions'
+import { FILE_MUTATION_CAPABILITIES } from '../../../../contexts/filesystem/domain'
 import { fileURLToPath } from 'node:url'
 import type { ControlSurface } from '../controlSurface'
 import type { ApprovedWorkspaceStore } from '../../../../contexts/workspace/infrastructure/approval/ApprovedWorkspaceStore'
 import { createAppError } from '../../../../shared/errors/appError'
-import { createLocalFileSystemPort } from '../../../../contexts/filesystem/infrastructure/localFileSystemPort'
+import { createLocalFileSystemPort } from '../../../../contexts/filesystem/infrastructure'
 import {
   copyEntryUseCase,
   createDirectoryUseCase,
@@ -31,7 +31,7 @@ import {
   renameEntryUseCase,
   statUseCase,
   writeFileTextUseCase,
-} from '../../../../contexts/filesystem/application/usecases'
+} from '../../../../contexts/filesystem/application'
 import type {
   FileSystemStat,
   ReadDirectoryResult,

@@ -1,4 +1,3 @@
-/* eslint-disable no-await-in-loop -- CAS retries and timed race rounds require sequential execution. */
 import { submitPersistenceWrite, originalSubmissionError } from './persistenceWriteOutcome'
 import { canonicalContent } from './mergeValue'
 
@@ -25,8 +24,10 @@ export class RevisionedSnapshotCache<T> {
     }
   }
 
-  invalidate(): void {
-    this.snapshots.clear()
+  invalidateLatest(): void {
+    // A raw replacement changes latest, but accepted revisions remain valid ancestors
+    // for pending renderer edits. Dropping them turns an unchanged field into a local
+    // edit against the replacement and can silently undo the imported value.
     this.latest = null
   }
 

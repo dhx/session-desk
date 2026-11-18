@@ -10,16 +10,22 @@ import {
 } from '../../cli/AgentCommandFactory'
 import { TerminalCliAgentProviderContribution } from '../terminal-cli/TerminalCliContribution'
 import { createOpenCodeEmbeddedTuiConfig } from '../../opencode/OpenCodeTuiConfig'
+import type { AgentLaunchArtifactRoot } from '../shared/AgentLaunchArtifactFile'
 
 export class CatalogTerminalCliProvider extends TerminalCliAgentProviderContribution {
   readonly descriptor: AgentProviderDescriptor & { readonly id: BuiltinAgentCommandProviderId }
+  private readonly artifactRoot: AgentLaunchArtifactRoot
 
   constructor(
     descriptor: AgentProviderDescriptor & { readonly id: BuiltinAgentCommandProviderId },
-    options: { readonly detector?: AgentProviderDetector } = {},
+    options: {
+      readonly artifactRoot: AgentLaunchArtifactRoot
+      readonly detector?: AgentProviderDetector
+    },
   ) {
     super(descriptor.id, descriptor.launch.executable, options)
     this.descriptor = descriptor
+    this.artifactRoot = options.artifactRoot
   }
 
   protected override async createTerminalLaunchPlan(
@@ -37,7 +43,7 @@ export class CatalogTerminalCliProvider extends TerminalCliAgentProviderContribu
     if (this.descriptor.id === 'opencode' && !process.env.OPENCODE_TUI_CONFIG?.trim()) {
       const tuiConfig = command.artifacts.track(
         'opencode-tui-config',
-        await createOpenCodeEmbeddedTuiConfig(),
+        await createOpenCodeEmbeddedTuiConfig(this.artifactRoot),
       )
       return { ...plan, env: { OPENCODE_TUI_CONFIG: tuiConfig.path } }
     }

@@ -1,12 +1,8 @@
-import { useEffect, useEffectEvent, type MutableRefObject } from 'react'
+import { useEffect, useEffectEvent } from 'react'
 import { getPtyEventHub } from '@app/renderer/shell/utils/ptyEventHub'
 import type { Node } from '@xyflow/react'
 import { resolveAgentMetadataResumeBindingUpdate } from '@contexts/agent/domain/agentResumeBinding'
-import type {
-  AgentSessionSummary,
-  TerminalSessionMetadataEvent,
-  TerminalSessionStateEvent,
-} from '@shared/contracts/dto'
+import type { AgentSessionSummary, TerminalSessionMetadataEvent } from '@shared/contracts/dto'
 import type { TerminalNodeData } from '../../../types'
 import {
   applyAgentSessionTitleToNodes,
@@ -16,66 +12,7 @@ import {
   resolveAgentSessionTitleSyncTarget,
 } from '../../../utils/agentSessionTitleSync'
 import { projectAgentRuntimeObservation } from '../../../utils/agentRuntimeObservation'
-
-export function applyAgentStateToNodes(
-  prevNodes: Node<TerminalNodeData>[],
-  event: TerminalSessionStateEvent,
-): { nextNodes: Node<TerminalNodeData>[]; didChange: boolean } {
-  let didChange = false
-
-  const nextNodes = prevNodes.map(node => {
-    if (node.data.kind !== 'agent' || node.data.sessionId !== event.sessionId) {
-      return node
-    }
-
-    const projected = projectAgentRuntimeObservation(node.data, event)
-    if (!projected) {
-      return node
-    }
-
-    didChange = true
-    return { ...node, data: projected.data }
-  })
-
-  return {
-    nextNodes: didChange ? nextNodes : prevNodes,
-    didChange,
-  }
-}
-
-export function applyAgentExitToNodes(
-  prevNodes: Node<TerminalNodeData>[],
-  event: { sessionId: string; exitCode: number },
-): { nextNodes: Node<TerminalNodeData>[]; didChange: boolean } {
-  let didChange = false
-
-  const nextNodes = prevNodes.map(node => {
-    if (node.data.sessionId !== event.sessionId || node.data.kind !== 'agent') {
-      return node
-    }
-
-    if (node.data.status === 'stopped') {
-      return node
-    }
-
-    didChange = true
-
-    return {
-      ...node,
-      data: {
-        ...node.data,
-        status: event.exitCode === 0 ? ('exited' as const) : ('failed' as const),
-        endedAt: new Date().toISOString(),
-        exitCode: event.exitCode,
-      },
-    }
-  })
-
-  return {
-    nextNodes: didChange ? nextNodes : prevNodes,
-    didChange,
-  }
-}
+import { useCanvasDocumentCommands, useReadCanvasDocument } from '../../../store/canvasStoreContext'
 
 export function applyAgentMetadataToNodes(
   prevNodes: Node<TerminalNodeData>[],
@@ -126,25 +63,25 @@ export function applyAgentMetadataToNodes(
 export function useWorkspaceCanvasPtyTaskCompletion({
   workspaceId,
   nodes,
-  nodesRef,
   setNodes,
   listAgentSessions,
-  onRequestPersistFlush,
 }: {
   workspaceId?: string
   nodes?: Node<TerminalNodeData>[]
-  nodesRef?: MutableRefObject<Node<TerminalNodeData>[]>
   setNodes: (
     updater: (prevNodes: Node<TerminalNodeData>[]) => Node<TerminalNodeData>[],
     options?: { syncLayout?: boolean },
   ) => void
   listAgentSessions?: (nodeId: string, limit?: number) => Promise<AgentSessionSummary[]>
-  onRequestPersistFlush?: () => void
 }): void {
+  // The reader belongs to the workspace of this render: a subscription made for one workspace
+  // reads that workspace's committed nodes when an event arrives, and is rebuilt on a switch.
+  const readDocument = useReadCanvasDocument()
+  const documentCommands = useCanvasDocumentCommands()
   // Callback changes are not a new runtime lifetime. Re-subscribing replays cached metadata and
   // restarts title scans while the previous Worker's request is still running.
   const updateNodes = useEffectEvent(setNodes)
-  const requestPersistFlush = useEffectEvent(() => onRequestPersistFlush?.())
+  const requestPersistFlush = useEffectEvent(() => documentCommands.requestPersistFlush())
   const querySessionTitles = useEffectEvent(
     async (nodeId: string) => (await listAgentSessions?.(nodeId, 20)) ?? [],
   )
@@ -157,17 +94,15 @@ export function useWorkspaceCanvasPtyTaskCompletion({
     let disposed = false
 
     const startTitleSync = (event: TerminalSessionMetadataEvent, restart: boolean): void => {
-      const titleSyncTarget = nodesRef
-        ? resolveAgentSessionTitleSyncTarget(nodesRef.current, event)
-        : null
+      const titleSyncTarget = resolveAgentSessionTitleSyncTarget(readDocument().nodes, event)
 
-      if (!titleSyncTarget || !nodesRef || !hasSessionCatalog) {
+      if (!titleSyncTarget || !hasSessionCatalog) {
         return
       }
 
       if (
         restart &&
-        !nodesRef.current.some(
+        !readDocument().nodes.some(
           node => node.id === titleSyncTarget.nodeId && isAgentNodeAwaitingSessionTitle(node),
         )
       ) {
@@ -191,7 +126,7 @@ export function useWorkspaceCanvasPtyTaskCompletion({
         resumeSessionId: titleSyncTarget.resumeSessionId,
         listSessions: () => querySessionTitles(titleSyncTarget.nodeId),
         isCurrent: () =>
-          !disposed && isAgentSessionTitleSyncTargetCurrent(nodesRef.current, titleSyncTarget),
+          !disposed && isAgentSessionTitleSyncTargetCurrent(readDocument().nodes, titleSyncTarget),
         signal: abortController.signal,
       }).then(sessionTitle => {
         if (!sessionTitle || disposed || abortController.signal.aborted) {
@@ -215,10 +150,6 @@ export function useWorkspaceCanvasPtyTaskCompletion({
     }
 
     const unsubscribeState = ptyEventHub.onState(event => {
-      updateNodes(prevNodes => applyAgentStateToNodes(prevNodes, event).nextNodes, {
-        syncLayout: false,
-      })
-
       if (event.state === 'standby') {
         const metadata = metadataByRuntimeSessionId.get(event.sessionId)
         if (metadata) {
@@ -247,23 +178,6 @@ export function useWorkspaceCanvasPtyTaskCompletion({
       startTitleSync(event, false)
     })
 
-    const unsubscribeExit = ptyEventHub.onExit(event => {
-      let didChange = false
-
-      updateNodes(
-        prevNodes => {
-          const result = applyAgentExitToNodes(prevNodes, event)
-          didChange = result.didChange
-          return result.nextNodes
-        },
-        { syncLayout: false },
-      )
-
-      if (didChange) {
-        requestPersistFlush()
-      }
-    })
-
     return () => {
       disposed = true
       titleSyncByNodeId.forEach(sync => sync.abortController.abort())
@@ -271,9 +185,8 @@ export function useWorkspaceCanvasPtyTaskCompletion({
       metadataByRuntimeSessionId.clear()
       unsubscribeState()
       unsubscribeMetadata()
-      unsubscribeExit()
     }
-  }, [hasSessionCatalog, nodesRef, workspaceId])
+  }, [hasSessionCatalog, readDocument, workspaceId])
 
   useEffect(() => {
     if (!nodes) {
@@ -282,6 +195,18 @@ export function useWorkspaceCanvasPtyTaskCompletion({
     // Recovery can bind a runtime after its hook event arrived. Reconcile from the existing
     // event owner without re-subscribing to metadata or restarting catalog scans.
     const hub = getPtyEventHub()
+    // This effect runs on every `nodes` change, drag frames included. Decide from the argument
+    // whether anything would project, so a frame that changes nothing never reaches the store.
+    const hasProjectableNode = nodes.some(node => {
+      if (node.data.kind !== 'agent') {
+        return false
+      }
+      const cached = hub.getLatestSessionState(node.data.sessionId)
+      return cached ? projectAgentRuntimeObservation(node.data, cached) !== null : false
+    })
+    if (!hasProjectableNode) {
+      return
+    }
     updateNodes(
       previous => {
         let didChange = false

@@ -45,12 +45,6 @@ const MAIN_IPC_STUB = 'Stubs an IPC handler of the Electron main process (ipcMai
 export const webTargetSkips: WebTargetSkip[] = [
   // Electron main process, BrowserWindow, native windows
   {
-    file: 'smoke.spec.ts',
-    title: 'should have correct window properties',
-    category: 'electron-only',
-    reason: 'Reads app.getAppPath()/getName() of the Electron main process',
-  },
-  {
     file: 'workspace-canvas.far-view.spec.ts',
     title: 'zoom steps and a continuous wheel gesture do not commit window headers',
     category: 'electron-only',

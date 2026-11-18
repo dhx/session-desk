@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import './lib/isolateHostEnvironment.mjs'
 
 import { spawn } from 'node:child_process'
 import { randomBytes } from 'node:crypto'
@@ -60,6 +61,8 @@ async function startWorker(options) {
         // The suite drives /debug/shell, which authenticates /events and /pty with ?token=.
         OPENCOVE_ENABLE_DEBUG_ROUTES: '1',
         OPENCOVE_ALLOW_QUERY_TOKEN: '1',
+        // The stub agent must run under real Node, not the Electron binary (fails as root).
+        OPENCOVE_TEST_NODE_EXECUTABLE: process.execPath,
       },
       shell: process.platform === 'win32',
       stdio: ['ignore', 'pipe', 'pipe'],

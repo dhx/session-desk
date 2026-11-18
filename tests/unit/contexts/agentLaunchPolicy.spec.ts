@@ -5,7 +5,10 @@ import {
   resolveEffectiveAgentFullAccess,
   type AgentFullAccessPolicy,
 } from '../../../src/contexts/agent/application/agentLaunchPolicy'
-import { resolveTransportLaunchOverrides } from '../../../src/app/main/controlSurface/handlers/agentLaunchOverrides'
+import {
+  resolveLocalAgentLaunchSecurity,
+  resolveTransportLaunchOverrides,
+} from '../../../src/app/main/controlSurface/handlers/agentLaunchOverrides'
 import { DEFAULT_AGENT_SETTINGS } from '../../../src/contexts/settings/domain/agentSettings'
 
 describe('agent full access policy', () => {
@@ -104,5 +107,34 @@ describe('launch overrides from transport payloads', () => {
       ignoredExecutablePathOverride: false,
       ignoredEnvKeys: [],
     })
+  })
+})
+
+// Upstream #612 lets a launch (CLI --full-access, node.create data.agentFullAccess, plugin
+// agents.launch, also from agent terminals) ask for Full Access. In this fork the request only
+// counts as far as OPENCOVE_AGENT_FULL_ACCESS lets it.
+describe('per-launch Full Access requests', () => {
+  const launch = (policy: string | undefined, setting: boolean, requested: boolean) =>
+    resolveLocalAgentLaunchSecurity({
+      payload: { agentFullAccess: requested },
+      agentSettings: { ...DEFAULT_AGENT_SETTINGS, agentFullAccess: setting },
+      state: null,
+      provider: 'claude-code',
+      policyEnv: { OPENCOVE_AGENT_FULL_ACCESS: policy },
+    }).agentFullAccess
+
+  it('cannot turn Full Access on under the default policy', () => {
+    expect(launch(undefined, false, true)).toBe(false)
+    expect(launch('setting', false, true)).toBe(false)
+  })
+
+  it('can always turn it off', () => {
+    expect(launch(undefined, true, false)).toBe(false)
+    expect(launch('allow', true, false)).toBe(false)
+  })
+
+  it('turns it on only when the operator allows launch requests to', () => {
+    expect(launch('allow', false, true)).toBe(true)
+    expect(launch('deny', true, true)).toBe(false)
   })
 })

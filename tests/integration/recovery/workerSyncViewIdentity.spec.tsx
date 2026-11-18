@@ -1,4 +1,3 @@
-/* eslint-disable no-await-in-loop -- Refreshes are ordered lifecycle transitions for the same mounted views. */
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, expect, it, vi } from 'vitest'
 import React, { type ReactNode } from 'react'
@@ -15,6 +14,7 @@ import { requestCanonicalRefresh } from '@contexts/workspace/presentation/render
 import { DEFAULT_AGENT_SETTINGS } from '@contexts/settings/domain/agentSettings'
 import type { PersistedAppState } from '@contexts/workspace/presentation/renderer/types'
 import type { PluginManifest } from '@contexts/plugins/domain/pluginTypes'
+import { CanvasStoreTestProvider } from '../../support/canvasStoreTestHarness'
 
 vi.mock(
   '@contexts/workspace/presentation/renderer/components/workspaceCanvas/nodePosition',
@@ -103,7 +103,6 @@ function Canvas() {
   const actions = useWorkspaceCanvasActionRefs()
   const composed = useWorkspaceCanvasNodeTypes({
     ...actions,
-    spacesRef: { current: workspace.spaces },
     workspacePath: workspace.path,
     agentProviderOrder: agentSettings.agentProviderOrder,
     defaultProvider: agentSettings.defaultProvider,
@@ -197,7 +196,11 @@ it('retains React types, live iframe and editor identities across canonical refr
     agentSettings: state.settings,
   })
   acceptPersistedStateSnapshot({ state, revision, isPersisted: true })
-  render(React.createElement(Shell))
+  render(
+    <CanvasStoreTestProvider workspaceId="views">
+      <Shell />
+    </CanvasStoreTestProvider>,
+  )
   await act(async () => {})
   const initialTypes = types
   const initialWorkspace = useAppStore.getState().workspaces[0]

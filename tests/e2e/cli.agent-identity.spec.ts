@@ -115,6 +115,14 @@ test('a canvas terminal discovers its identity, neighbors and scope through the 
       spaceId: mainSpaceId,
       nodeId,
       sessionId,
+      // A root terminal with no agents started yet; admission uses the same computation.
+      lineageQuota: {
+        depth: 1,
+        maxDepth: 3,
+        liveInTree: 0,
+        maxLiveInTree: 6,
+        remainingLiveInTree: 6,
+      },
     })
     expect(identity).not.toHaveProperty('token')
 
@@ -192,7 +200,6 @@ test('a canvas terminal discovers its identity, neighbors and scope through the 
       ['NOTE_FRAME_POSITION', '{"x":100,"y":100,"width":400,"height":300}'],
     ]) {
       // Commands share one PTY and must run sequentially.
-      // eslint-disable-next-line no-await-in-loop
       const result = await frameCommand(
         `opencove node create note --text Bounded --frame ${frameArgument(frame)}`,
         label,
@@ -204,7 +211,6 @@ test('a canvas terminal discovers its identity, neighbors and scope through the 
         expect(result.node.frame).toMatchObject({ x: 100, y: 100 })
       }
       const persisted = jsonOutput(
-        // eslint-disable-next-line no-await-in-loop
         await terminalCommand(
           page,
           binding,

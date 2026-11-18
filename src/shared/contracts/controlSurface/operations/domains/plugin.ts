@@ -37,6 +37,7 @@ import {
 } from '../pluginNormalize'
 import { defineOperation } from '../defineOperation'
 import { pluginNodeHeaderStateOperation } from './pluginNodeHeader'
+// @compat control-surface-legacy-validation
 // Structural admission uses Zod; legacyNormalize preserves raw-key checks and errors.
 export const pluginCommandRunOperation = defineOperation({
   input: z.strictObject({
@@ -51,6 +52,7 @@ export const pluginCommandRunOperation = defineOperation({
     expectedRuntimeGeneration: z.unknown().optional(),
   }),
   normalize: pluginCommandRunInput,
+  compat: 'control-surface-legacy-validation',
   legacyNormalize: pluginCommandRunInput,
   errors: ['plugin.operation_failed'],
   id: 'plugin.command.run',
@@ -62,6 +64,7 @@ export const pluginCommandRunOperation = defineOperation({
 export const pluginDetailsOperation = defineOperation({
   input: z.looseObject({ pluginId: z.string() }),
   normalize: pluginDetailsInput,
+  compat: 'control-surface-legacy-validation',
   legacyNormalize: pluginDetailsInput,
   errors: ['plugin.operation_failed'],
   id: 'plugin.details',
@@ -73,6 +76,7 @@ export const pluginDetailsOperation = defineOperation({
 export const pluginDiscoverOperation = defineOperation({
   input: z.strictObject({ query: z.string().optional() }).nullish(),
   normalize: pluginDiscoverInput,
+  compat: 'control-surface-legacy-validation',
   legacyNormalize: pluginDiscoverInput,
   errors: ['plugin.operation_failed'],
   id: 'plugin.discover',
@@ -84,6 +88,7 @@ export const pluginDiscoverOperation = defineOperation({
 export const pluginGitApplyOperation = defineOperation({
   input: z.strictObject({ candidateId: z.string() }),
   normalize: pluginGitApplyInput,
+  compat: 'control-surface-legacy-validation',
   legacyNormalize: pluginGitApplyInput,
   errors: ['plugin.operation_failed'],
   id: 'plugin.git.apply',
@@ -95,6 +100,7 @@ export const pluginGitApplyOperation = defineOperation({
 export const pluginGitCheckOperation = defineOperation({
   input: z.strictObject({ pluginId: z.string(), ref: z.string().optional() }),
   normalize: pluginGitCheckInput,
+  compat: 'control-surface-legacy-validation',
   legacyNormalize: pluginGitCheckInput,
   errors: ['plugin.operation_failed'],
   id: 'plugin.git.check',
@@ -111,6 +117,7 @@ export const pluginGitInstallOperation = defineOperation({
     build: z.unknown().optional(),
   }),
   normalize: pluginGitInstallInput,
+  compat: 'control-surface-legacy-validation',
   legacyNormalize: pluginGitInstallInput,
   errors: ['plugin.operation_failed'],
   id: 'plugin.git.install',
@@ -122,6 +129,7 @@ export const pluginGitInstallOperation = defineOperation({
 export const pluginGitUpdateOperation = defineOperation({
   input: z.strictObject({ pluginId: z.string(), ref: z.string().optional() }),
   normalize: pluginGitUpdateInput,
+  compat: 'control-surface-legacy-validation',
   legacyNormalize: pluginGitUpdateInput,
   errors: ['plugin.operation_failed'],
   id: 'plugin.git.update',
@@ -140,6 +148,7 @@ export const pluginHostRequestOperation = defineOperation({
       .describe('Host request JSON, validated by pluginJsonValue, at most 2 MiB'),
   }),
   normalize: normalizePluginHost,
+  compat: 'control-surface-legacy-validation',
   legacyNormalize: normalizePluginHost,
   errors: [
     'plugin.operation_failed',
@@ -163,6 +172,7 @@ export const pluginHostRequestOperation = defineOperation({
 export const pluginInstallOperation = defineOperation({
   input: z.looseObject({ directory: z.string() }),
   normalize: pluginInstallInput,
+  compat: 'control-surface-legacy-validation',
   legacyNormalize: pluginInstallInput,
   errors: ['plugin.operation_failed'],
   id: 'plugin.install',
@@ -178,6 +188,7 @@ export const pluginInvokeOperation = defineOperation({
     params: z.unknown().optional().describe('JSON backend parameters, limited to 1 MiB'),
   }),
   normalize: normalizePluginInvoke,
+  compat: 'control-surface-legacy-validation',
   legacyNormalize: normalizePluginInvoke,
   errors: ['plugin.operation_failed'],
   id: 'plugin.invoke',
@@ -189,6 +200,7 @@ export const pluginInvokeOperation = defineOperation({
 export const pluginListOperation = defineOperation({
   input: z.unknown(),
   normalize: pluginListInput,
+  compat: 'control-surface-legacy-validation',
   legacyNormalize: pluginListInput,
   errors: ['plugin.operation_failed'],
   id: 'plugin.list',
@@ -200,6 +212,7 @@ export const pluginListOperation = defineOperation({
 export const pluginPreferencesGetOperation = defineOperation({
   input: z.strictObject({ pluginId: z.string().describe('Installed plugin identifier') }),
   normalize: normalizePluginPreferencesGet,
+  compat: 'control-surface-legacy-validation',
   legacyNormalize: normalizePluginPreferencesGet,
   errors: ['plugin.operation_failed'],
   id: 'plugin.preferences.get',
@@ -218,6 +231,7 @@ export const pluginPreferencesSetOperation = defineOperation({
       .describe('Preference value validated by the plugin preference owner'),
   }),
   normalize: normalizePluginPreferencesSet,
+  compat: 'control-surface-legacy-validation',
   legacyNormalize: normalizePluginPreferencesSet,
   errors: ['plugin.operation_failed'],
   id: 'plugin.preferences.set',
@@ -229,6 +243,7 @@ export const pluginPreferencesSetOperation = defineOperation({
 export const pluginReloadOperation = defineOperation({
   input: z.looseObject({ pluginId: z.string() }),
   normalize: pluginReloadInput,
+  compat: 'control-surface-legacy-validation',
   legacyNormalize: pluginReloadInput,
   errors: ['plugin.operation_failed'],
   id: 'plugin.reload',
@@ -242,6 +257,7 @@ export const pluginRepositoryDetailsOperation = defineOperation({
     repository: z.string().describe('GitHub repository to inspect'),
   }),
   normalize: normalizePluginRepository,
+  compat: 'control-surface-legacy-validation',
   legacyNormalize: normalizePluginRepository,
   errors: ['plugin.operation_failed'],
   id: 'plugin.repository.details',
@@ -253,6 +269,7 @@ export const pluginRepositoryDetailsOperation = defineOperation({
 export const pluginRollbackOperation = defineOperation({
   input: z.strictObject({ pluginId: z.string(), revision: z.string() }),
   normalize: pluginRollbackInput,
+  compat: 'control-surface-legacy-validation',
   legacyNormalize: pluginRollbackInput,
   errors: ['plugin.operation_failed'],
   id: 'plugin.rollback',
@@ -264,6 +281,7 @@ export const pluginRollbackOperation = defineOperation({
 export const pluginSetEnabledOperation = defineOperation({
   input: z.looseObject({ pluginId: z.string(), enabled: z.boolean() }),
   normalize: pluginSetEnabledInput,
+  compat: 'control-surface-legacy-validation',
   legacyNormalize: pluginSetEnabledInput,
   errors: ['plugin.operation_failed'],
   id: 'plugin.setEnabled',
@@ -283,6 +301,7 @@ export const pluginSidebarItemsOperation = defineOperation({
     expectedRuntimeGeneration: z.number().describe('Current plugin runtime generation'),
   }),
   normalize: normalizePluginSidebar,
+  compat: 'control-surface-legacy-validation',
   legacyNormalize: normalizePluginSidebar,
   errors: ['plugin.operation_failed'],
   id: 'plugin.sidebar.items',
@@ -295,6 +314,7 @@ export const pluginSidebarItemsOperation = defineOperation({
 export const pluginSkillGetOperation = defineOperation({
   input: z.strictObject({ pluginId: z.string(), skillId: z.string() }),
   normalize: pluginSkillGetInput,
+  compat: 'control-surface-legacy-validation',
   legacyNormalize: pluginSkillGetInput,
   errors: ['plugin.operation_failed'],
   id: 'plugin.skill.get',
@@ -306,6 +326,7 @@ export const pluginSkillGetOperation = defineOperation({
 export const pluginSourceOperation = defineOperation({
   input: z.strictObject({ pluginId: z.string() }),
   normalize: pluginSourceInput,
+  compat: 'control-surface-legacy-validation',
   legacyNormalize: pluginSourceInput,
   errors: ['plugin.operation_failed'],
   id: 'plugin.source',
@@ -318,9 +339,11 @@ export const pluginStorageGetOperation = defineOperation({
   input: z.looseObject({
     viewId: z.string().describe('Plugin view identifier declared in the plugin manifest'),
     key: z.string().describe('Storage key'),
+    // @compat control-surface-legacy-validation
     value: z.unknown().optional().describe('Ignored by reads; retained for compatibility'),
   }),
   normalize: normalizePluginStorageGet,
+  compat: 'control-surface-legacy-validation',
   legacyNormalize: normalizePluginStorageGet,
   errors: ['plugin.operation_failed'],
   id: 'plugin.storage.get',
@@ -336,6 +359,7 @@ export const pluginStorageSetOperation = defineOperation({
     value: z.unknown().optional().describe('JSON value, limited to 1 MiB'),
   }),
   normalize: normalizePluginStorageSet,
+  compat: 'control-surface-legacy-validation',
   legacyNormalize: normalizePluginStorageSet,
   errors: ['plugin.operation_failed'],
   id: 'plugin.storage.set',
@@ -347,6 +371,7 @@ export const pluginStorageSetOperation = defineOperation({
 export const pluginUninstallOperation = defineOperation({
   input: z.looseObject({ pluginId: z.string() }),
   normalize: pluginUninstallInput,
+  compat: 'control-surface-legacy-validation',
   legacyNormalize: pluginUninstallInput,
   errors: ['plugin.operation_failed'],
   id: 'plugin.uninstall',
@@ -360,6 +385,7 @@ export const pluginViewCloseOperation = defineOperation({
     viewId: z.string().describe('Plugin view identifier declared in the plugin manifest'),
   }),
   normalize: normalizePluginViewClose,
+  compat: 'control-surface-legacy-validation',
   legacyNormalize: normalizePluginViewClose,
   errors: ['plugin.operation_failed'],
   id: 'plugin.view.close',
@@ -377,6 +403,7 @@ export const pluginViewOpenOperation = defineOperation({
     preview: z.boolean().optional().describe('Open a preview view'),
   }),
   normalize: normalizePluginViewOpen,
+  compat: 'control-surface-legacy-validation',
   legacyNormalize: normalizePluginViewOpen,
   errors: ['plugin.operation_failed'],
   id: 'plugin.view.open',
@@ -390,6 +417,7 @@ export const pluginViewPreferencesGetOperation = defineOperation({
     viewId: z.string().describe('Plugin view identifier declared in the plugin manifest'),
   }),
   normalize: normalizePluginViewPreferencesGet,
+  compat: 'control-surface-legacy-validation',
   legacyNormalize: normalizePluginViewPreferencesGet,
   errors: ['plugin.operation_failed'],
   id: 'plugin.view.preferences.get',
@@ -408,6 +436,7 @@ export const pluginViewPreferencesSetOperation = defineOperation({
       .describe('Preference value validated by the plugin preference owner'),
   }),
   normalize: normalizePluginViewPreferencesSet,
+  compat: 'control-surface-legacy-validation',
   legacyNormalize: normalizePluginViewPreferencesSet,
   errors: ['plugin.operation_failed'],
   id: 'plugin.view.preferences.set',
@@ -422,6 +451,7 @@ export const pluginViewSetTitleOperation = defineOperation({
     title: z.string().describe('New window title'),
   }),
   normalize: normalizePluginViewSetTitle,
+  compat: 'control-surface-legacy-validation',
   legacyNormalize: normalizePluginViewSetTitle,
   errors: ['plugin.operation_failed'],
   id: 'plugin.view.setTitle',
@@ -433,6 +463,7 @@ export const pluginViewSetTitleOperation = defineOperation({
 export const pluginWindowListOperation = defineOperation({
   input: z.strictObject({ pluginId: z.string(), projectId: z.string().optional() }),
   normalize: pluginWindowListInput,
+  compat: 'control-surface-legacy-validation',
   legacyNormalize: pluginWindowListInput,
   errors: ['plugin.operation_failed'],
   id: 'plugin.window.list',
@@ -450,6 +481,7 @@ export const pluginWindowOpenOperation = defineOperation({
     anchor: z.looseObject({ x: z.number(), y: z.number() }).optional(),
   }),
   normalize: pluginWindowOpenInput,
+  compat: 'control-surface-legacy-validation',
   legacyNormalize: pluginWindowOpenInput,
   errors: ['plugin.operation_failed'],
   id: 'plugin.window.open',

@@ -3,16 +3,23 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { AgentLaunchArtifactScope } from '../../../src/contexts/agent/application/services/AgentLaunchArtifactScope'
-import { createBuiltinAgentProviderContributions } from '../../../src/contexts/agent/infrastructure/providers/catalog/BuiltinAgentProviderCatalog'
+import {
+  createAgentLaunchArtifactRoot,
+  createBuiltinAgentProviderContributions,
+} from '../../../src/contexts/agent/infrastructure/providers/catalog/BuiltinAgentProviderCatalog'
 
 afterEach(() => {
   vi.unstubAllEnvs()
 })
 
+// Upstream #737 keeps launch artifacts under userData/runtime/agent-launch instead of the OS temp dir.
+const userData = join(tmpdir(), 'opencode-tui-config-spec')
+const launchRoot = join(userData, 'runtime', 'agent-launch')
+
 function openCodeContribution() {
-  const contribution = createBuiltinAgentProviderContributions().find(
-    entry => entry.descriptor.id === 'opencode',
-  )
+  const contribution = createBuiltinAgentProviderContributions({
+    artifactRoot: createAgentLaunchArtifactRoot(userData),
+  }).find(entry => entry.descriptor.id === 'opencode')
   if (!contribution) {
     throw new Error('missing opencode contribution')
   }
@@ -42,7 +49,7 @@ describe('OpenCode embedded TUI config', () => {
     const path = plan.env.OPENCODE_TUI_CONFIG
     expect(path).toBeTypeOf('string')
     expect(path).not.toBe(join(tmpdir(), 'opencove-opencode-tui.embedded.json'))
-    expect(dirname(dirname(path!))).toBe(tmpdir())
+    expect(dirname(dirname(path!))).toBe(launchRoot)
     expect(JSON.parse(await readFile(path!, 'utf8'))).toMatchObject({ theme: 'system' })
     if (process.platform !== 'win32') {
       expect((await stat(path!)).mode & 0o777).toBe(0o600)

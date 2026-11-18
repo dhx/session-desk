@@ -16,7 +16,7 @@ Control Surface 是 OpenCove 对外能力入口。Desktop、CLI、Web UI 和 rem
 
 - Desktop IPC：Renderer 通过 preload 白名单调用 Main。
 - HTTP `/invoke`：Worker Control Surface 的 command / query 调用。
-- HTTP `/events`：server-sent event stream。
+- HTTP `/events`：server-sent event stream；`format=cli-v1&stream=agent` 的可恢复只读表示见 [CLI event stream v1](../cli/EVENT_STREAM_PROTOCOL.md)。
 - WebSocket `/pty`：PTY attach、input、resize、controller-bound Agent re-exec、role/control event。
 - Worker Web access listener：同源 Full Web Canvas、debug shell、cookie auth 与上述 HTTP/WS routes。
 
@@ -308,16 +308,22 @@ project addition/root approval and plugin distribution or execution require a hu
 | `plugin.storage.set`, `plugin.preferences.set`, `plugin.view.preferences.set` | Installation-wide plugin state belongs to the user |
 
 Grant launches (`session.launchAgent`, `session.launchAgentInMount`) accept only target fields
-(`spaceId` / `cwd` or `mountId` / `cwdUri`), `prompt`, `provider`, `model`, `cols`, `rows`.
-Explicit `agentFullAccess`, `env`, `executablePathOverride`, `resumeSessionId`,
+(`spaceId` / `cwd` or `mountId` / `cwdUri`), `prompt`, `provider`, `model`, `agentFullAccess`, `cols`, `rows`.
+Explicit `agentFullAccess` overrides saved permissions in either direction for one agent; omission
+inherits Settings. `node.create` stores the optional boolean on the agent node, and relaunch,
+resume and recovery resolve `node.agent.agentFullAccess ?? settings.agentFullAccess` without
+changing Settings. `node.update` cannot change it. Existing nodes require no migration.
+Explicit `env`, `executablePathOverride`, `resumeSessionId`,
 `codexReuseRunningAppServer`, `mode` and unknown fields are refused, including null/false values.
 Grant launches also refuse nonempty prompts whose trimmed text is a single whitespace-free token,
 including ordinary words, because providers may dispatch them as commands. Describe the task in a sentence.
 This check also applies to nested agent creation and runs before remote bearer forwarding.
-The existing launch owner reads the user’s configured permission policy and environment.
-For remote grant launches, Home resolves and forwards its saved `agentFullAccess` and
-`codexReuseRunningAppServer` values explicitly, so the destination Worker does not replace
-them with its own defaults. Trusted callers retain their existing override behavior.
+The launch owner reads the user’s configured environment and resolves explicit Full Access over
+the saved default. Home’s remote launch preparation preserves that resolved value and its saved
+`codexReuseRunningAppServer` so the destination Worker cannot replace them with its own defaults.
+Grant runtime admission remains local-only as described below. Trusted callers retain their
+existing override behavior. This changes runtime policy only: no executable-rule impact on the
+architecture harness dependency and API rules.
 
 Launch responses and session listings describe the public command. Private process arguments
 and environment transport, including WSL environment assignments, stay out of session metadata.
@@ -326,19 +332,16 @@ Process failures retain their error code without returning private launch detail
 Known application refusals retain their typed reason and fixed recovery guidance; arbitrary
 process error payloads remain private for every caller.
 
-Provider launch planners preserve option-like prompts using the provider's literal input channel.
-Codex terminates parsing before every initial prompt; Pi uses text-file input only for
-option-like prompts, including older versions. Trusted Pi single-word prompts stay inline;
-Pi and Claude retain native command dispatch for trusted single-word prompts. Pi prompt files belong to the executing Worker's
-launch artifact owner and follow session cleanup; Home forwards prompt text, never a local file.
-Terminal profiles translate marked host-file arguments only after selecting the actual runtime;
-WSL profiles refuse files that cannot be mapped into that runtime.
-Model option values use the same literal encoding when their parser could interpret them as options.
-Grant-originated launch and delivery prompts also reject the target provider's command prefixes
-at the first non-whitespace character: Claude Code ! / # & (including legacy memory and background-task entry),
-Codex/OpenCode/Pi/Gemini ! /, and Kimi /. Delivery checks the resolved run fence before
-allocating a delivery record or writing input; launch checks the resolved provider before
-preparation or remote bearer forwarding. Trusted callers retain native provider behavior.
+Provider planners own argv safety for every caller: Codex uses `--`; Claude Code uses `--`
+plus exact root-command/alias refusal and refuses dash-prefixed prompts (raw flag readers bypass parsing).
+Pi refuses its package/config command names and leading `-`/`@`; it creates no prompt files.
+OpenCode/Gemini use typed string options (attached for leading dashes); Kimi retains its required string value and full-access gate.
+Accepted text is trimmed only at the edges; resume never replays it. UI preflight precedes task status changes and session replacement; Main enforces the same pure policy.
+Grant launches and deliveries reject provider command prefixes, exit aliases, all `@` references and Codex `$name` skill mentions, including inline, quoted, escaped and linked candidates.
+Claude Code prefixes are ! / # &, Codex/OpenCode/Pi/Gemini ! /, and Kimi /; surrounding provider whitespace is inspected without rewriting the message.
+Refusals occur before spawn/input/delivery records and retain editable text. UI callers keep composer semantics after argv admission.
+These checks are not a live-composer literal guarantee: existing drafts, Claude bash mode and user-installed Pi input handlers are separate delivery-safety work (S1e).
+See [initial prompt behavior](../agent/INITIAL_PROMPTS.md) for compatibility limits and recovery guidance.
 
 
 Forbidden envelopes include `details.reason` (`operation_denied` or `field_denied`),
@@ -381,6 +384,12 @@ records. Session grants cannot supply arbitrary canvas node IDs. Recovery carrie
 identity in an in-process context. This context propagates across nested spawn operations, isolated
 per asynchronous invocation. Caller environment variables never determine identity.
 
+`node.create` accepts request-only `near: {nodeId, target}` (`reference-container` or `root-canvas`).
+The workspace owner revalidates reference geometry and target identity before launch and on every CAS attempt;
+frame, membership and ancestor growth share one creation write. Runtime launch is never replayed.
+CLI dispatch requires `nodeNearPlacementV1`, including raw API calls. Near does not change authenticated
+creator identity, grants or remote routing; details: [near placement](../cli/CANVAS_NODE_CONTROL.md#near-placement-v1).
+
 For remote mounts, the Home Worker forwards its resolved identity with the existing private Worker
 bearer. The hosting Worker accepts this delegation only from bearer-authenticated callers, creates
 its local session/grant binding, and injects its own private Control Surface URL. The Home Worker does
@@ -421,7 +430,7 @@ expected ID 仅为身份 mismatch fence，parent 始终由 verified grant 推导
 
 ### Bounded grant runtime creation
 
-Policy `s1a-v5` permits grant runtime creation only through `node.create` with a current,
+Policy `s1d-v4` permits grant runtime creation only through `node.create` with a current,
 locally owned agent/terminal caller bound to the authenticated session. The existing node mutation
 queue owns admission through launch and commit settlement. Depth is at most 3 (user root = 1),
 with at most six distinct live or pending grant-created runtime descendants per immutable root.
