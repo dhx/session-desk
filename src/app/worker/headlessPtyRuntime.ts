@@ -1,3 +1,4 @@
+import { physicalSpawnLifecycle } from '../../shared/runtime/physicalSpawnLifecycle'
 import {
   ClaudeTranscriptChannel,
   type ClaudeTranscriptPort,
@@ -57,7 +58,7 @@ export interface HeadlessPtyRuntime extends ClaudeTranscriptPort {
   startSessionStateWatcher: (input: SessionStateWatcherStartInput) => void
   disposeSessionStateWatcher: (sessionId: string) => void
   debugCrashHost?: () => void | Promise<void>
-  dispose: () => void
+  dispose: () => void | Promise<void>
 }
 
 export function createHeadlessPtyRuntime(options: {
@@ -120,6 +121,7 @@ export function createHeadlessPtyRuntime(options: {
 
   const disposeExitListener = processEngine.onExit(event => {
     sessionRegistrations.noteCompletion(event.sessionId)
+    exitListeners.forEach(listener => listener(event))
     if (providerBySessionId.get(event.sessionId) === 'codex') {
       emitState({
         sessionId: event.sessionId,
@@ -128,10 +130,9 @@ export function createHeadlessPtyRuntime(options: {
         hookInstallState: hookInstallStateBySessionId.get(event.sessionId),
       })
     }
-    sessionStateWatcher.disposeSession(event.sessionId)
+    sessionStateWatcher.disposeSession(event.sessionId, true)
     providerBySessionId.delete(event.sessionId)
     hookInstallStateBySessionId.delete(event.sessionId)
-    exitListeners.forEach(listener => listener(event))
   })
   const disposeForegroundListener = processEngine.onForeground(event => {
     foregroundListeners.forEach(listener => listener(event))
@@ -158,13 +159,21 @@ export function createHeadlessPtyRuntime(options: {
       const registration = sessionRegistrations.begin()
       let spawned: { sessionId: string }
       try {
-        spawned = await processEngine.spawn(input)
+        physicalSpawnLifecycle.getStore()?.beforeDispatch(input)
+        spawned = await processEngine.spawn({
+          ...input,
+          sessionKind: input.agentProvider ? 'agent' : 'shell',
+        })
       } catch (error) {
         registration.cancel()
         throw error
       }
 
       const disposition = registration.complete(spawned.sessionId)
+      physicalSpawnLifecycle.getStore()?.started(spawned.sessionId)
+      if (disposition === 'completed') {
+        physicalSpawnLifecycle.getStore()?.completed(spawned.sessionId)
+      }
       if (disposition !== 'active') {
         const registrationError = new SessionRegistrationRejectedError(
           spawned.sessionId,
@@ -256,7 +265,7 @@ export function createHeadlessPtyRuntime(options: {
       }
     },
     kill: sessionId => {
-      sessionStateWatcher.disposeSession(sessionId)
+      sessionStateWatcher.disposeSession(sessionId, true)
       providerBySessionId.delete(sessionId)
       hookInstallStateBySessionId.delete(sessionId)
       processEngine.kill(sessionId)
@@ -324,7 +333,7 @@ export function createHeadlessPtyRuntime(options: {
       providerBySessionId.clear()
       sessionRegistrations.dispose()
       sessionStateWatcher.dispose()
-      processEngine.dispose()
+      return processEngine.dispose()
     },
   }
 }

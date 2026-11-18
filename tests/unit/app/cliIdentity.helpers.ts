@@ -27,12 +27,22 @@ export function identityFixture(inside = true) {
   let out = '',
     err = ''
   const values: Record<string, unknown> = {
+    'system.capabilities': { features: { nodeLineageV1: true, boundedAgentSpawningV1: true } },
     'system.whoami': inside ? who : { kind: 'bearer', scopeTier: 'admin' },
     'project.list': { projects: [project] },
+    'space.create': {
+      projectId: project.id,
+      spaceId: space.id,
+      mountId: 'mount',
+      space: { ...space, rect: { x: 0, y: 0, width: 420, height: 300 } },
+    },
     'space.list': { projectId: project.id, spaces: [space] },
     'space.get': { projectId: project.id, space },
     'node.list': { nodes: [node] },
     'agent.list': { agents: [] },
+    'system.operation.describe': {
+      inputSchema: { anyOf: [{ properties: { agentOnly: { const: true } } }] },
+    },
     'node.get': { node },
     'node.create': { node: { ...node, frame: { x: 0, y: 0, width: 220, height: 260 } } },
   }

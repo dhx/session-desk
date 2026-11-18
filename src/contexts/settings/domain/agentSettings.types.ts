@@ -98,6 +98,7 @@ export interface AgentSettings
   defaultProvider: AgentProvider
   agentProviderOrder: AgentProvider[]
   agentFullAccess: boolean
+  agentResidentContext: 'suggest' | 'off'
   codexReuseRunningAppServer: boolean
   defaultTerminalProfileId: TerminalProfileId
   agentExecutablePathOverrideByProvider: AgentExecutablePathOverrideByProvider<AgentProvider>

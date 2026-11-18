@@ -3,6 +3,7 @@ import { afterEach, expect, it, vi } from 'vitest'
 import { runWithTargetFixtures as run } from './cliTargetFixtures.helpers'
 import type { CliIo } from '../../../src/app/cli/core/io'
 import { createAppError } from '../../../src/shared/errors/appError'
+import { completedPromptFixture } from './cliAgentPromptWait.helpers'
 import { agentPromptCommand } from '../../../src/app/cli/commands/agent'
 
 function fixture(tty: boolean, error?: unknown) {
@@ -282,6 +283,17 @@ it('every printed command example includes a usable text source and projection o
       .match(/"[^"]*"|'[^']*'|\S+/g)!
       .slice(1)
       .map(word => word.replace(/^['"]|['"]$/g, ''))
+    if (words.includes('--wait')) {
+      const combined = completedPromptFixture()
+      // eslint-disable-next-line no-await-in-loop
+      expect(await run(words, combined.io), command).toBe(0)
+      expect(JSON.parse(combined.out())).toMatchObject({
+        outcome: 'completed',
+        reply: { message: 'Fast reply' },
+      })
+      expect(combined.requests.filter(r => r.id === 'agent.prompt')).toHaveLength(1)
+      continue
+    }
     // eslint-disable-next-line no-await-in-loop
     expect(await run(words, f.io), command).toBe(0)
     expect(f.fetch).toHaveBeenCalledTimes(1)
@@ -326,9 +338,11 @@ it.each([401, 403])('authorization refusal %s is explicit and preserves exit 4',
   f.fetch.mockImplementation(async () => new Response('{}', { status }))
   expect(await run(args, f.io)).toBe(4)
   expect(f.error()).toMatchObject({
-    code: 'context.unauthorized',
-    message: 'OpenCove refused authorization for this request.',
-    hint: 'Check the endpoint and credentials before retrying.',
+    code: status === 401 ? 'context.unauthorized' : 'common.forbidden',
+    message:
+      status === 401
+        ? 'The control token is invalid or has been revoked.'
+        : 'This credential does not permit the operation.',
   })
   expect(f.error().details).toBeUndefined()
 })

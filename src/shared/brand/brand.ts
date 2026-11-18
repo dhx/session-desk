@@ -11,7 +11,9 @@ export const NOT_OFFICIAL_NOTE = `${PRODUCT_NAME} is based on ${UPSTREAM_NAME} a
 
 /** Names this fork wherever upstream's interface text names OpenCove (the lowercase CLI name stays). */
 export function brandText(text: string): string {
-  return text.replaceAll(UPSTREAM_NAME, PRODUCT_NAME)
+  return text
+    .replaceAll(`an ${UPSTREAM_NAME}`, `a ${PRODUCT_NAME}`)
+    .replaceAll(UPSTREAM_NAME, PRODUCT_NAME)
 }
 
 /** The tab icon: two overlapping session cards above a desk. Inline, so the login page shows it before sign-in. */

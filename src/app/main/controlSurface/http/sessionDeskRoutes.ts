@@ -2,7 +2,13 @@
 // canvas images, files dropped from the Web UI, and speech (/voice/*).
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import type { ApprovedWorkspaceStore } from '../../../../contexts/workspace/infrastructure/approval/ApprovedWorkspaceStore'
-import type { WorkerVoiceRuntime } from '../../../../contexts/voice/presentation/worker/createWorkerVoiceRuntime'
+import { resolve } from 'node:path'
+import type { ControlSurface } from '../controlSurface'
+import {
+  createWorkerVoiceRuntime,
+  type WorkerVoiceRuntime,
+} from '../../../../contexts/voice/presentation/worker/createWorkerVoiceRuntime'
+import { resolveCanvasImageStoreDir } from '../../../../contexts/workspace/infrastructure/canvasImages/canvasImageStore'
 import {
   handleVoiceRoute,
   hasVoiceCsrfHeader,
@@ -26,6 +32,36 @@ export interface SessionDeskRouteDeps {
   approvedWorkspaces?: ApprovedWorkspaceStore
   /** Speech in and out (`/voice/*`); unset leaves those paths unknown. */
   voice?: WorkerVoiceRuntime
+}
+
+/** The worker's voice runtime, the stores behind these routes and the fork's request flags. */
+export function createSessionDeskRouteDeps(
+  controlSurface: ControlSurface,
+  options: {
+    userDataPath: string
+    approvedWorkspaces?: ApprovedWorkspaceStore
+    allowQueryToken?: boolean
+    enableDebugRoutes?: boolean
+  },
+): SessionDeskRouteDeps & {
+  voice: WorkerVoiceRuntime
+  allowQueryToken: boolean
+  enableDebugRoutes: boolean
+} {
+  const voice = createWorkerVoiceRuntime({
+    env: process.env,
+    reportIssue: message => process.stderr.write(`${message}\n`),
+  })
+  voice.registerHandlers(controlSurface)
+  return {
+    // Off unless the worker was started with them (docs/dhx/RELEASES.md, #4).
+    allowQueryToken: options.allowQueryToken === true,
+    enableDebugRoutes: options.enableDebugRoutes === true,
+    dropsDirectory: resolve(options.userDataPath, 'drops'),
+    canvasImagesDirectory: resolveCanvasImageStoreDir(options.userDataPath),
+    approvedWorkspaces: options.approvedWorkspaces,
+    voice,
+  }
 }
 
 function refuse(req: IncomingMessage, res: ServerResponse, status: 401 | 403): void {

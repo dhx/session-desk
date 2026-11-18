@@ -1,8 +1,7 @@
 import { unknownOperation } from './operationErrors'
 import { validateUriInputs } from './uriInputs'
 import { nodeFieldNotice } from './nodeFields'
-import { listLimitNotice } from './listOutput'
-import { promptComparisonNotice } from './promptTransport'
+import { listLimitNotice, cappedListNotice } from './listOutput'
 import { promptValidationPresentation } from '../../../shared/errors/agentPromptError'
 import { commands } from '../commands'
 import { getControlSurfaceOperation } from '../../../shared/contracts/controlSurface/operations'
@@ -16,7 +15,8 @@ import type { CliIo } from './io'
 import type { OperationId } from './command'
 import { version } from '../../../../package.json'
 import { resolveSelectors } from './selectors'
-import { selfUnavailable } from './identity'
+import { requireBoundedAgentSpawningForRequest } from './boundedAgentSpawning'
+import { sessionIdentity, selfUnavailable } from './identity'
 import type { ZodType } from 'zod'
 
 /**
@@ -40,7 +40,8 @@ function commandForOperation(id: string) {
 export async function run(argv: string[], io: CliIo): Promise<number> {
   let json = false,
     promptCommand = false,
-    invokeStarted = false
+    invokeStarted = false,
+    mutationStarted = false
   try {
     const specs = { ...globals, ...Object.assign({}, ...commands.map(c => c.options)) }
     const words = commandWords(argv, specs)
@@ -93,6 +94,7 @@ export async function run(argv: string[], io: CliIo): Promise<number> {
       io.stdout.write(help(commands, command.path))
       return 0
     }
+    command.validateBeforeConnect?.(args, io.env)
     let input = command.buildInput?.(args)
     const id =
       command.path.join(' ') === 'api call'
@@ -196,7 +198,8 @@ export async function run(argv: string[], io: CliIo): Promise<number> {
       }
     }
     const needsConnection =
-      command.connect || (command.path.join(' ') === 'api ops' && io.env.OPENCOVE_ENV === '1')
+      command.connect ||
+      (['api ops', 'api schema'].includes(command.path.join(' ')) && io.env.OPENCOVE_ENV === '1')
     const connection = needsConnection ? await resolveConnection(args.options, io) : undefined
     // Selector reads and the final query share a per-run snapshot. A write ends
     // that snapshot so a later read cannot reuse data from before its effects.
@@ -204,14 +207,16 @@ export async function run(argv: string[], io: CliIo): Promise<number> {
     const call = async (
       operationId: OperationId,
       payload: unknown,
-      callOptions?: { fresh?: boolean; signal?: AbortSignal },
+      callOptions?: { fresh?: boolean; signal?: AbortSignal; timeoutMs?: number },
     ) => {
       const op = getControlSurfaceOperation(operationId)!
       if (!connection) {
         throw new CliError('context.unreachable', 3, 'No connection')
       }
+      await requireBoundedAgentSpawningForRequest(operationId, payload, identity, call)
       const key = JSON.stringify([operationId, payload])
       if (op.kind === 'command') {
+        mutationStarted = true
         reads.clear()
       } else if (!callOptions?.fresh && reads.has(key)) {
         return reads.get(key)!
@@ -224,9 +229,10 @@ export async function run(argv: string[], io: CliIo): Promise<number> {
         { kind: op.kind, id: operationId, payload },
         {
           timeoutMs:
-            operationId === 'agent.prompt'
-              ? Number(args.options.timeout ?? 15000) + 5000
-              : Number(args.options.timeout ?? command.timeoutMs ?? 20000),
+            callOptions?.timeoutMs ??
+            (operationId === 'agent.prompt'
+              ? Number((payload as { timeoutMs?: number }).timeoutMs ?? 15000) + 5000
+              : Number(args.options.timeout ?? command.timeoutMs ?? 20000)),
           fetch: io.fetch,
           signal: callOptions?.signal ?? io.signal,
           errorTargets: command.errorTargets,
@@ -239,8 +245,13 @@ export async function run(argv: string[], io: CliIo): Promise<number> {
       return pending
     }
     const selfSelected = Object.values(args.options).flat().includes('@self')
-    const identity = await resolveSelectors(command, args, io, call)
+    const identity = sessionIdentity(io.env, call)
+    if (id) {
+      await requireBoundedAgentSpawningForRequest(id, input, identity, call, 'before_selectors')
+    }
+    await resolveSelectors(command, args, io, call, identity)
     input = command.buildInput?.(args)
+    mutationStarted ||= command.mutation === true
     const result = command.execute
       ? await command.execute({
           ...args,
@@ -256,30 +267,33 @@ export async function run(argv: string[], io: CliIo): Promise<number> {
     if (command.stream) {
       return Number(result)
     }
-    if (promptCommand) {
-      const comparisonNotice = promptComparisonNotice(result)
-      if (comparisonNotice) {
-        io.stderr.write(comparisonNotice + '\n')
-      }
+    // Apply display defaults only after execution: selectors and internal reads stay complete.
+    if (args.options.limit === undefined && renderSpec?.defaultLimit && !args.options.full) {
+      args.options.limit = renderSpec.defaultLimit
     }
     const output =
-      command.textOutput && !args.options.output && args.options.fields === undefined
-        ? command.textOutput(result)
-        : render(result, args.options, renderSpec)
+      args.options.quiet && command.quietIdPath
+        ? String(get(result, command.quietIdPath)) + '\n'
+        : command.textOutput && !args.options.output && args.options.fields === undefined
+          ? command.textOutput(result)
+          : render(result, args.options, renderSpec)
     const notice = nodeFieldNotice(result, args.options, renderSpec)
     if (notice) {
       io.stderr.write(notice + '\n')
     }
     const tableListKey = args.options.output === 'table' ? renderSpec?.listKey : undefined
-    const listNotice = listLimitNotice(
-      tableListKey ? get(result, tableListKey) : result,
-      args.options.limit,
-      command.path.join(' ') === 'api ops'
-        ? args.options.domains
-          ? 'domains'
-          : 'operations'
-        : (tableListKey ?? 'items'),
-    )
+    const listNotice =
+      renderSpec?.defaultLimit && renderSpec.listKey
+        ? cappedListNotice(result, args.options.limit, renderSpec.listKey)
+        : listLimitNotice(
+            tableListKey ? get(result, tableListKey) : result,
+            args.options.limit,
+            command.path.join(' ') === 'api ops'
+              ? args.options.domains
+                ? 'domains'
+                : 'operations'
+              : (tableListKey ?? 'items'),
+          )
     if (listNotice) {
       io.stderr.write(listNotice + '\n')
     }
@@ -302,7 +316,7 @@ export async function run(argv: string[], io: CliIo): Promise<number> {
         'Retry when ready.',
       )
     }
-    printError(io, cliError, json)
+    printError(io, cliError, json, !mutationStarted)
     return cliError.exitCode
   }
 }

@@ -5,6 +5,10 @@ import type { CliIo } from '../../../src/app/cli/core/io'
 import { commands } from '../../../src/app/cli/commands'
 import { help } from '../../../src/app/cli/core/help'
 const groups = [
+  'project',
+  'space',
+  'agent',
+  'node',
   'worker',
   'runtime',
   'endpoint',
@@ -47,7 +51,9 @@ it.each(groups)('lists real %s subcommands offline', async group => {
   expect(await run([group, '--help'], f.io)).toBe(0)
   for (const { path, summary } of commands.filter(c => c.path[0] === group)) {
     expect(f.out()).toContain(path[1])
-    expect(f.out()).toContain(summary)
+    if (path.length === 2) {
+      expect(f.out()).toContain(summary)
+    }
   }
   expect(f.out()).toMatchSnapshot()
   expect(f.out()).not.toContain('(legacy)')
@@ -143,19 +149,21 @@ it('renders defaultable target space groups as optional and preserves mandatory 
   const f = fixture()
   expect(await run(['node', 'create', 'note', '--help'], f.io)).toBe(0)
   expect(f.out()).toContain(
-    'Usage: opencove node create note [--space <id> | <other-target-space-options>] [options]',
+    'Usage: opencove node create note [--root-canvas | --space <id> | <other-target-space-options>] [options]',
   )
+  expect(f.out()).toContain('Target container (choose one):')
+  expect(f.out()).toContain("Create on the project's root canvas, outside every Space")
   expect(f.out()).toContain(
-    'Target space (choose one; inside OpenCove defaults to your own space):',
+    'inside OpenCove: your current Space, or the root canvas when you are outside any Space',
   )
-  const command = commands.find(candidate => candidate.path.join(' ') === 'node create note')!
+  const command = commands.find(candidate => candidate.path.join(' ') === 'canvas focus space')!
   const withoutDefault = {
     ...command,
     options: { ...command.options, space: { ...command.options!.space, defaultSelf: false } },
   }
   const text = help([withoutDefault], command.path)
   expect(text).toContain(
-    'Usage: opencove node create note (--space <id> | <other-target-space-options>) [options]',
+    'Usage: opencove canvas focus space (--space <id> | <other-target-space-options>) [options]',
   )
   expect(text).toContain('Target space (choose exactly one):')
 })
@@ -168,4 +176,18 @@ it('documents the supported browser modes and task priorities', async () => {
   ])
   expect(website.out()).toContain('--session-mode <shared|incognito|profile>')
   expect(task.out()).toContain('--priority <low|medium|high|urgent>')
+})
+
+it.each([
+  ['space', 'create'],
+  ['space', 'update'],
+  ['project', 'add'],
+  ['agent', 'stop'],
+  ['node', 'update', 'agent'],
+  ['node', 'update', 'terminal'],
+])('documents named-window commands offline: %j', async (...path) => {
+  const f = fixture()
+  expect(await run([...path, '--help'], f.io)).toBe(0)
+  expect(f.out()).toMatchSnapshot()
+  expect(f.io.fetch).not.toHaveBeenCalled()
 })

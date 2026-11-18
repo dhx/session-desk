@@ -1,3 +1,4 @@
+import { getPublicTerminalSpawnCommand } from '../../../../platform/terminal/publicTerminalSpawnCommand'
 import { PtyStreamInputEvidence } from './ptyStreamInputEvidence'
 import type { ClaudeTranscriptObservation } from '../../../../shared/runtime/agentHook/claudeTranscript'
 import type { ReservedSessionInput } from '../../../../contexts/agent/application/ports/PromptDeliveryPorts'
@@ -49,7 +50,10 @@ import {
   type PtyStreamHubAgentReexecOptions,
 } from './ptyStreamHub.agentReexec'
 import { PtyStreamRecoveryOperationTracker } from './ptyStreamRecoveryOperationTracker'
-import { registerPtyStreamAgentMetadata } from './ptyStreamAgentMetadataProjection'
+import {
+  registerPtyStreamAgentMetadata,
+  projectCommittedClaudeBinding,
+} from './ptyStreamAgentMetadataProjection'
 import { registerPtyClient, unregisterPtyClient } from './ptyStreamHub.clients'
 import { writeAutomationInput } from './ptyStreamAutomation'
 import { forgetPtyStreamSession, PtyStreamRetiredSessions } from './ptyStreamHub.retirement'
@@ -158,7 +162,7 @@ export class PtyStreamHub {
       return
     }
     const session = this.ensureSession(metadata.sessionId)
-    session.metadata = metadata
+    session.metadata = { ...metadata, ...getPublicTerminalSpawnCommand(metadata) }
     session.presentationSession.resize(metadata.cols, metadata.rows)
   }
 
@@ -195,6 +199,15 @@ export class PtyStreamHub {
           metadata: next,
         }),
     )
+  }
+
+  public projectCommittedClaudeBinding(runtimeSessionId: string, resumeSessionId: string): void {
+    const session = this.sessions.get(runtimeSessionId)
+    if (session) {
+      projectCommittedClaudeBinding(session, resumeSessionId, metadata =>
+        broadcastSessionMetadata({ sessions: this.sessions, clients: this.clients, metadata }),
+      )
+    }
   }
 
   public getSessionMetadata(sessionId: string): SessionMetadata | null {

@@ -139,6 +139,7 @@ describe('workspaceAgentLaunch.shared', () => {
     expect(invoke).toHaveBeenCalledWith({
       kind: 'command',
       id: 'session.launchAgent',
+      clientFeatures: { managedClaudeResumeBindingV1: true },
       payload: expect.objectContaining({
         cwd: '/external/worktrees/feature-a',
         codexReuseRunningAppServer: true,
@@ -201,6 +202,7 @@ describe('workspaceAgentLaunch.shared', () => {
     expect(invoke.mock.calls[1]?.[0]).toMatchObject({
       kind: 'command',
       id: 'session.launchAgentInMount',
+      clientFeatures: { managedClaudeResumeBindingV1: true },
       payload: {
         mountId: 'mount-fresh',
         codexReuseRunningAppServer: true,
@@ -303,3 +305,46 @@ describe('workspaceAgentLaunch.shared', () => {
     },
   )
 })
+
+it.each(['unknown', 'superseded', 'nodeGone', 'conflict', 'afterSpawn'])(
+  'never retries a managed %s outcome on another mount',
+  async reason => {
+    const error = Object.assign(
+      new Error('managed launch'),
+      reason === 'unknown'
+        ? { code: 'agent.managed_launch_commit_failed', details: { outcome: 'unknown' } }
+        : reason === 'afterSpawn'
+          ? {
+              code: 'agent.launch_failed',
+              details: { managedClaudeLaunch: true, phase: 'afterSpawn' },
+            }
+          : { code: 'agent.managed_launch_rejected', details: { reason } },
+    )
+    const invoke = vi.fn().mockRejectedValue(error)
+    window.opencoveApi = { controlSurface: { invoke } } as unknown as typeof window.opencoveApi
+    const retry = vi.fn()
+    await expect(
+      launchWorkspaceAgentSession({
+        canvasNodeId: 'agent',
+        workspaceId: 'workspace',
+        mountId: 'old',
+        workspacePath: '/repo',
+        executionDirectory: '/repo',
+        provider: 'claude-code',
+        mode: 'new',
+        prompt: '',
+        model: null,
+        mergedEnv: {},
+        agentSettings: {
+          agentFullAccess: false,
+          codexReuseRunningAppServer: false,
+          defaultTerminalProfileId: null,
+        },
+        launchGeometry: { terminalGeometry: { cols: 80, rows: 24 } },
+        retryResolveMountBinding: retry,
+      }),
+    ).rejects.toBe(error)
+    expect(invoke).toHaveBeenCalledTimes(1)
+    expect(retry).not.toHaveBeenCalled()
+  },
+)

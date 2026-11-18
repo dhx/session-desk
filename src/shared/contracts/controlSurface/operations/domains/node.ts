@@ -17,6 +17,7 @@ const nodeIdInput = z.strictObject({ nodeId: z.string() })
 const nodeListInput = z
   .strictObject({
     space: nodeSpaceLocator.nullish(),
+    spawnedByNodeId: z.string().trim().min(1).nullish(),
     projectId: z.unknown().optional(),
     kind: z.unknown().optional(),
   })
@@ -32,9 +33,14 @@ export const nodeCreateOperation = defineOperation({
   normalize: normalizeNodeCreateInput,
   legacyNormalize: withStrictInput(nodeCreateInput, normalizeNodeCreateInput),
   errors: [
+    'node.not_found',
     'space.not_found',
     'space.ambiguous',
+    'agent.spawn_depth_limit',
+    'agent.spawn_concurrency_limit',
     'agent.launch_failed',
+    'agent.managed_launch_rejected',
+    'agent.managed_launch_commit_failed',
     'terminal.spawn_failed',
     'worker.unavailable',
     'terminal.runtime_not_ready',
@@ -78,6 +84,17 @@ export const nodeGetOperation = defineOperation({
     'persistence.io_failed',
   ],
 })
+export const nodeManagedClaudeBindingOperation = defineOperation({
+  id: 'node.managedClaudeBinding',
+  kind: 'query',
+  scope: 'read',
+  availability: 'always',
+  summary: 'Read the saved Claude binding before or after its canvas node is saved',
+  input: z.strictObject({
+    nodeId: z.string().trim().min(1).max(256).describe('Agent node whose saved binding is read'),
+  }),
+  errors: ['persistence.unavailable'],
+})
 export const nodeListOperation = defineOperation({
   id: 'node.list',
   kind: 'query',
@@ -104,7 +121,7 @@ export const nodeUpdateOperation = defineOperation({
   kind: 'command',
   scope: 'interact',
   availability: 'always',
-  summary: 'Update a note, task or website node title, frame or content',
+  summary: 'Rename or resize a canvas node, or edit note, task or website content',
   input: nodeUpdateInput,
   normalize: normalizeUpdatePayload,
   legacyNormalize: withStrictInput(nodeUpdateInput, normalizeUpdatePayload),
@@ -116,7 +133,26 @@ export const nodeUpdateOperation = defineOperation({
     'persistence.io_failed',
   ],
 })
+export const nodeResolveCallerSelectorOperation = defineOperation({
+  id: 'node.resolveCallerSelector',
+  kind: 'query',
+  scope: 'read',
+  availability: 'always',
+  summary: 'Resolve the caller’s parent node from authenticated creation lineage',
+  input: z.strictObject({
+    selector: z.literal('@parent'),
+    expectedCallerNodeId: z.string().trim().min(1).optional(),
+  }),
+  errors: [
+    'node.parent_unavailable',
+    'node.not_found',
+    'persistence.unavailable',
+    'persistence.invalid_state',
+  ],
+})
 export const nodeOperations = [
+  nodeManagedClaudeBindingOperation,
+  nodeResolveCallerSelectorOperation,
   nodeCreateOperation,
   nodeDeleteOperation,
   nodeGetOperation,

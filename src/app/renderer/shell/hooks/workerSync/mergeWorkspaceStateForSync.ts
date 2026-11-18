@@ -1,3 +1,6 @@
+import { isRetiredManagedNode } from '@contexts/workspace/presentation/renderer/utils/persistence/publicationState'
+import { projectOwnedManagedClaudeNode } from '@shared/sync/managedClaudeResumeProjection'
+import { mergeNodeNaming } from '@shared/sync/mergePersistedNode'
 import { rebaseGuardedSpaceMembershipForSync } from './rebaseGuardedSpaceMembershipForSync'
 import { rebaseGuardedNodesForSync } from './rebaseGuardedNodesForSync'
 import type { Node } from '@xyflow/react'
@@ -32,7 +35,20 @@ function mergeRuntimeNode(
 
   const isGuarded = isNodeGuardedFromSyncOverwrite(persistedNode.id)
   if (!hasAcceptedBase && isGuarded) {
-    return existingNode
+    const guarded = {
+      ...existingNode,
+      data: projectOwnedManagedClaudeNode(persistedNode.data, {
+        ...existingNode.data,
+        ...(persistedNode.data.managedClaudeResumeBindingOwnership
+          ? mergeRuntimeSessionBinding(persistedNode.data, existingNode.data)
+          : {}),
+        ...mergeNodeNaming(persistedNode.data, existingNode.data),
+      }),
+    }
+    if (guarded.data.runtimeSessionBinding?.phase === 'preparing') {
+      guarded.data.sessionId = existingNode.data.sessionId
+    }
+    return isNodeEquivalent(guarded, existingNode) ? existingNode : guarded
   }
 
   const isDragging = existingNode.dragging === true
@@ -80,6 +96,10 @@ function mergeRuntimeNode(
     },
   }
 
+  nextNode.data = projectOwnedManagedClaudeNode(persistedNode.data, nextNode.data)
+  if (nextNode.data.runtimeSessionBinding?.phase === 'preparing') {
+    nextNode.data.sessionId = existingNode.data.sessionId
+  }
   return isNodeEquivalent(nextNode, existingNode) ? existingNode : nextNode
 }
 
@@ -110,6 +130,7 @@ export function toShellWorkspaceStateForSync(
 
   const extraRuntimeNodes = existingNodes.filter(
     node =>
+      !isRetiredManagedNode(node.id) &&
       !persistedNodeIds.has(node.id) &&
       !baseNodeIds.has(node.id) &&
       isNodeGuardedFromSyncOverwrite(node.id),
