@@ -61,7 +61,11 @@ describe('local IPC agent provider contribution launch', () => {
     } as unknown as PersistenceStore
     const { registerAgentIpcHandlers } =
       await import('../../../src/contexts/agent/presentation/main-ipc/register')
-    registerAgentIpcHandlers(runtime, approvedWorkspaces, async () => persistenceStore)
+    const registration = registerAgentIpcHandlers(
+      runtime,
+      approvedWorkspaces,
+      async () => persistenceStore,
+    )
 
     const result = await invokeHandledIpc(handlers.get(IPC_CHANNELS.agentLaunch), null, {
       provider,
@@ -70,9 +74,13 @@ describe('local IPC agent provider contribution launch', () => {
       model: `${provider}-model`,
     })
 
-    expect(result).toEqual(expect.objectContaining({ sessionId: 'session-1', provider }))
-    expect(runtime.spawnSession).toHaveBeenCalledWith(
-      expect.objectContaining({ command: provider, args: expectedArgs }),
-    )
+    try {
+      expect(result).toEqual(expect.objectContaining({ sessionId: 'session-1', provider }))
+      expect(runtime.spawnSession).toHaveBeenCalledWith(
+        expect.objectContaining({ command: provider, args: expectedArgs }),
+      )
+    } finally {
+      await registration.dispose()
+    }
   })
 })

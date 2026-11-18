@@ -59,15 +59,38 @@ export function parse(argv: string[], specs: Record<string, OptionSpec>, path: s
     options[key] = {
       type: spec.type === 'boolean' ? 'boolean' : 'string',
       multiple: spec.multiple ?? false,
-      ...(key === 'help' ? { short: 'h' } : key === 'output' ? { short: 'o' } : {}),
+      ...(spec.short
+        ? { short: spec.short }
+        : key === 'help'
+          ? { short: 'h' }
+          : key === 'output'
+            ? { short: 'o' }
+            : {}),
     }
     if (spec.fileVariant) {
       options[`${key}-file`] = { type: 'string' }
     }
   }
+  // Required option arguments are literal, including leading dashes. Keep strict
+  // validation for actual flags and stop normalization at positional delimiters.
+  const literalArgs: string[] = []
+  for (let i = 0; i < argv.length; i++) {
+    const arg = argv[i]
+    if (arg === '--') {
+      literalArgs.push(...argv.slice(i))
+      break
+    }
+    const key = arg.startsWith('--') ? arg.slice(2) : arg === '-o' ? 'output' : undefined
+    const option = key === undefined ? undefined : options[key]
+    if (option?.type === 'string' && argv[i + 1] !== undefined) {
+      literalArgs.push(`--${key}=${argv[++i]}`)
+    } else {
+      literalArgs.push(arg)
+    }
+  }
   try {
     const result = parseArgs({
-      args: argv,
+      args: literalArgs,
       options,
       strict: true,
       allowPositionals: true,
@@ -263,12 +286,24 @@ export async function parseCommand(argv: string[], command: Command, io: CliIo) 
   }
   if (
     !values.help &&
+    command.operation === 'node.create' &&
+    values['root-canvas'] &&
+    values.project === undefined &&
+    io.env.OPENCOVE_ENV !== '1'
+  ) {
+    usage('--root-canvas needs a project outside OpenCove: add --project <id>')
+  }
+  if (
+    !values.help &&
+    !values['root-canvas'] &&
     command.targetSpace === 'required' &&
     !['space', 'space-name', 'worker', 'branch', 'path'].some(key => values[key] !== undefined)
   ) {
     usage(
       `Missing required option --space (or another target space option) for "opencove ${command.path.join(' ')}".`,
-      commandHelpHint(command.path),
+      command.operation === 'node.create'
+        ? 'Choose a Space, or add --root-canvas to create outside every Space.'
+        : commandHelpHint(command.path),
     )
   }
   const positionals = parsed.positionals.slice(command.path.length)

@@ -28,6 +28,7 @@ export const DEFAULT_AGENT_SETTINGS: AgentSettings = {
   agentProviderOrder: resolveDefaultFirstAgentProviderOrder(undefined, 'codex'),
   // Off for every install, new or old: this fork never turns it on by itself (see agentSettings.ts).
   agentFullAccess: false,
+  agentResidentContext: 'suggest',
   codexReuseRunningAppServer: false,
   defaultTerminalProfileId: null,
   agentExecutablePathOverrideByProvider: DEFAULT_AGENT_EXECUTABLE_PATH_OVERRIDE_BY_PROVIDER,

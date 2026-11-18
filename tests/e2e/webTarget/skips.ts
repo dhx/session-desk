@@ -38,6 +38,8 @@ const CANVAS_IMAGE_SEED =
   'Seeds an image node through workspace.writeCanvasImage, which the Web UI does not implement yet'
 const SYSTEM_OPEN =
   'Asserts system opening through stubs of the Electron main process (shell.openExternal/openPath)'
+const WORKSPACE_IN_USER_DATA =
+  "Puts the test workspace inside the user data directory; this fork refuses to approve folders inside the worker's own data (workspaceRootGuard, #5)"
 const MAIN_IPC_STUB = 'Stubs an IPC handler of the Electron main process (ipcMain)'
 
 export const webTargetSkips: WebTargetSkip[] = [
@@ -94,6 +96,21 @@ export const webTargetSkips: WebTargetSkip[] = [
     category: 'known-failing',
     reason:
       'Restarts the worker between two app launches; since upstream #523 (one worker owner per profile) the web target meets the stopping owner and the restored terminal stays gated in CI. Passes locally; recorded on the Session Board.',
+  },
+  {
+    file: 'recovery.managed-claude-convergence.spec.ts',
+    category: 'by-design',
+    reason: WORKSPACE_IN_USER_DATA,
+  },
+  {
+    file: 'recovery.managed-claude-defaults.spec.ts',
+    category: 'by-design',
+    reason: WORKSPACE_IN_USER_DATA,
+  },
+  {
+    file: 'recovery.managed-claude-launch-lifecycle.spec.ts',
+    category: 'by-design',
+    reason: WORKSPACE_IN_USER_DATA,
   },
   {
     file: 'recovery.agent-input-after-window-reopen.spec.ts',

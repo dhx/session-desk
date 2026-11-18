@@ -1,3 +1,4 @@
+import { agentAttentionLabelKey } from '../../utils/agentAttentionLabel'
 import { useCallback, useState, type JSX, type PointerEvent, type ReactNode } from 'react'
 import { useTranslation } from '@app/renderer/i18n'
 import type { AgentProvider } from '@contexts/settings/domain/agentSettings'
@@ -19,6 +20,7 @@ interface TerminalNodeHeaderProps {
   kind: WorkspaceNodeKind
   agentProvider?: AgentProvider | null
   status: AgentRuntimeStatus | null
+  blockedReason?: import('@shared/contracts/dto/agentRunState').AgentRunSnapshot['blockedReason']
   agentStateDegraded?: boolean
   labelColor?: LabelColor | null
   agentExecutionDirectory?: string | null
@@ -42,6 +44,7 @@ export function TerminalNodeHeader({
   kind,
   agentProvider = null,
   status,
+  blockedReason,
   agentStateDegraded = false,
   labelColor,
   agentExecutionDirectory,
@@ -93,7 +96,7 @@ export function TerminalNodeHeader({
       case 'standby':
         return t('agentRuntime.standby')
       case 'waiting':
-        return t('agentRuntime.waiting')
+        return t(agentAttentionLabelKey({ blockedReason }))
       case 'exited':
         return t('agentRuntime.exited')
       case 'failed':

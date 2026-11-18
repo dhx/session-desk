@@ -35,6 +35,8 @@ function normalizeWorkerReadyPayload(value: unknown): WorkerConnectionInfo | nul
 
 export async function startWorker(options: {
   userDataDir: string
+  port?: number
+  token?: string
   env?: Record<string, string | undefined>
 }): Promise<{
   child: ChildProcessWithoutNullStreams
@@ -47,7 +49,8 @@ export async function startWorker(options: {
     '--hostname',
     '127.0.0.1',
     '--port',
-    '0',
+    String(options.port ?? 0),
+    ...(options.token ? ['--token', options.token] : []),
     '--user-data',
     options.userDataDir,
   ]

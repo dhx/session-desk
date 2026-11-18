@@ -1,4 +1,5 @@
-import { sendAgentPrompt } from '../core/agentPromptRequest'
+import { turnReplyFields, validateTurnWaitOptions } from '../core/agentTurnComposition'
+import { promptAndWait } from './agentPromptWait'
 import { defineCommand } from '../core/command'
 import { CliError, usage } from '../core/errors'
 import { stringOption } from './nodes'
@@ -11,17 +12,23 @@ export const agentPromptCommand = defineCommand({
   path: ['agent', 'prompt'],
   connect: true,
   operation: 'agent.prompt',
-  usage: '--node <id> (--text <text> | --text-file <path|->) [options]',
+  usage:
+    '--node <target> [--wait [--read]] (<text> | --text <text> | --text-file <path|->) [options]',
+  positionals: [{ name: 'text' }],
   summary: 'Send a prompt to an agent window OpenCove launched',
   description: [
-    'Send text to a local Claude Code or Codex agent window OpenCove launched. Inspect drafts/dialogs with agent read --screen first; existing drafts may be submitted too. Use exactly one of --text or --text-file (- reads stdin).',
-    'Working agents receive steering by default; --if-busy refuse rejects busy agents. --expect-turn requires that exact active turn. Waiting, unknown/degraded and unsupported sessions refuse; idle requires a hook-observed settled turn.',
-    'Loop: prompt → delivery <deliveryId> --wait → wait --turn <turnId> → read --turn <turnId> -o json. Save deliveryId (also printed before sending) and turnId. Codex dispatched needs delivery confirmation. Turn end does not prove your request was handled; inspect outcome and reply.',
-    'Never resend after uncertainty, interruption, transport loss or textComparison: different. Inspect delivery status and --screen; different still exits 0. This command never retries.',
-    'Exit codes: 0 submission observed or Codex steer dispatched; 1 refusal/unconfirmed; 2 invalid input; 124 deadline; 130 interruption. Timeout/interruption may follow submission. Trust limits, supported invocations and recovery: opencove skill.',
+    'Send text to a local Claude Code or Codex agent window OpenCove launched. Inspect drafts/dialogs with agent read --screen first; existing drafts may be submitted too. Choose one text source: positional text, --text or --text-file (- reads stdin).',
+    'Working agents receive steering by default; --if-busy refuse rejects busy agents. --expect-turn requires that exact active turn. Waiting, unknown/degraded and unsupported sessions refuse. Agent terminals cannot send provider commands or answer dialogs.',
+    '--wait confirms delivery, then waits for its exact turn to end. Add --read for the correlated reply; missing replies return reply: null with replyUnavailableReason. Check outcome and reply. Without --wait, save deliveryId and turnId for delivery → wait --turn → read --turn.',
+    'Stderr shows "Sending prompt (delivery <id>)." before sending and, with --wait, "Waiting for turn <turnId> of node <nodeId>..." with an interruption-only continuation command. These progress lines preserve IDs; the final JSON and exit status report the result.',
+    'With --wait, --timeout covers confirmation and turn waiting (default 20s; minimum 250ms); sending has a separate 15s budget. Without --wait, --timeout controls sending (default 15s; maximum 60s).',
+    'Never resend after uncertainty, interruption or textComparison: different. Resume with agent delivery or agent wait --turn using the returned IDs. This command never retries.',
+    'Exit codes: 0 submitted/dispatched, or selected turn ended with --wait; 1 refusal/unconfirmed; 2 invalid input; 4 authorization refusal; 10 waiting for user; 11 target exited; 124 timeout; 130 interruption. Details: opencove skill coordinate.',
   ].join('\n\n'),
-  execute: sendAgentPrompt,
+  execute: promptAndWait,
   options: {
+    wait: { type: 'boolean', description: 'Confirm delivery and wait for its exact turn to end' },
+    read: { type: 'boolean', description: 'Include the exact turn reply; requires --wait' },
     'expect-turn': {
       type: 'string',
       valueName: 'turnId',
@@ -43,11 +50,12 @@ export const agentPromptCommand = defineCommand({
     timeout: {
       type: 'number',
       valueName: 'duration',
-      description: 'Total delivery timeout, e.g. 15s or 15000ms (default: 15s; maximum: 60s)',
+      description:
+        'Delivery budget, or confirmation + turn wait budget with --wait (e.g. 30s or 2m)',
     },
   },
   examples: [
-    'opencove agent prompt --node node-123 --text "Review the changes"',
+    'opencove agent prompt --node node-123 --wait --read --timeout 2m --text "Review the changes"',
     'opencove agent prompt --node node-123 --text-file ./prompt.txt --timeout 20s',
     'opencove agent prompt --node node-123 --expect-turn turn-123 --text "Include refunds"',
     'cat prompt.txt | opencove agent prompt --node node-123 --text-file -',
@@ -64,6 +72,7 @@ export const agentPromptCommand = defineCommand({
         'textComparison',
         'comparisonProfile',
         'promptId',
+        ...turnReplyFields.filter(field => field !== 'turnId'),
       ],
       {},
     ),
@@ -72,14 +81,19 @@ export const agentPromptCommand = defineCommand({
       '{"deliveryId":"d"}',
     ],
   },
-  buildInput: ({ options }) => {
-    if (options.text === undefined) {
+  buildInput: ({ options, positionals }) => {
+    validateTurnWaitOptions(options)
+    if (positionals[0] !== undefined && options.text !== undefined) {
+      usage('Choose one prompt text source: positional text, --text or --text-file.')
+    }
+    const text = options.text ?? positionals[0]
+    if (text === undefined) {
       usage(
-        'Provide prompt text with --text or --text-file.',
+        'Provide prompt text as an argument, with --text or with --text-file.',
         'Use exactly one. Use --text-file - to read from stdin.',
       )
     }
-    const timeoutMs = options.timeout ?? 15000
+    const timeoutMs = options.wait ? 15000 : (options.timeout ?? 15000)
     if (!Number.isInteger(timeoutMs) || Number(timeoutMs) < 1 || Number(timeoutMs) > 60000) {
       usage(
         'The delivery timeout must be a whole number of milliseconds from 1ms to 60s.',
@@ -87,15 +101,21 @@ export const agentPromptCommand = defineCommand({
       )
     }
     try {
-      canonicalizePromptText(String(options.text))
+      canonicalizePromptText(String(text))
     } catch (error) {
       const descriptor = toAppErrorDescriptor(error),
-        text = promptValidationPresentation(descriptor.details)
-      throw new CliError(descriptor.code, 2, text.message, text.hint, descriptor.details)
+        presentation = promptValidationPresentation(descriptor.details)
+      throw new CliError(
+        descriptor.code,
+        2,
+        presentation.message,
+        presentation.hint,
+        descriptor.details,
+      )
     }
     return {
       nodeId: options.node,
-      text: options.text,
+      text,
       timeoutMs,
       ...(options['expect-turn'] !== undefined ? { expectTurnId: options['expect-turn'] } : {}),
     }

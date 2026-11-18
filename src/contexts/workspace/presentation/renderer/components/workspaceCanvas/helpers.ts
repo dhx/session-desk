@@ -11,7 +11,10 @@ import {
 } from '@shared/errors/appError'
 import type { Point, Size, TaskPriority, TerminalNodeData, WorkspaceSpaceState } from '../../types'
 import { providerTitlePrefix } from '../../utils/agentTitle'
-import { MIN_CANVAS_ZOOM, NODE_FOCUS_VIEWPORT_PADDING_PX, TASK_PRIORITIES } from './constants'
+import { TASK_PRIORITIES } from './constants'
+import { resolveBoundsCenter, resolveNodeFitZoom } from './nodeFocusZoom'
+
+export { resolveNodeFitZoom } from './nodeFocusZoom'
 import type { TrackpadGestureAction, TrackpadGestureTarget } from './types'
 
 function isTestEnvironment(): boolean {
@@ -105,31 +108,6 @@ export function focusNodeInViewport(
   })
 }
 
-/**
- * Lowers the target zoom just enough for the whole node, plus padding on every side, to fit the
- * visible canvas. It never raises the zoom: a node that already fits lands on the target.
- */
-export function resolveNodeFitZoom(
-  targetZoom: number,
-  nodeSize: Size,
-  bounds: Size,
-  paddingPx = NODE_FOCUS_VIEWPORT_PADDING_PX,
-): number {
-  const availableWidth = bounds.width - paddingPx * 2
-  const availableHeight = bounds.height - paddingPx * 2
-  if (
-    availableWidth <= 0 ||
-    availableHeight <= 0 ||
-    !(nodeSize.width > 0) ||
-    !(nodeSize.height > 0)
-  ) {
-    return targetZoom
-  }
-
-  const fitZoom = Math.min(availableWidth / nodeSize.width, availableHeight / nodeSize.height)
-  return Math.max(MIN_CANVAS_ZOOM, Math.min(targetZoom, fitZoom))
-}
-
 export function centerNodeInViewport(
   reactFlow: ReactFlowInstance<Node<TerminalNodeData>>,
   node: Pick<Node<TerminalNodeData>, 'position' | 'data'>,
@@ -173,21 +151,6 @@ function resolveNodeCenter(node: Pick<Node<TerminalNodeData>, 'position' | 'data
     x: node.position.x + node.data.width / 2,
     y: node.position.y + node.data.height / 2,
   }
-}
-
-function resolveBoundsCenter(bounds: {
-  left: number
-  top: number
-  width: number
-  height: number
-}): { x: number; y: number } | null {
-  const x = bounds.left + bounds.width / 2
-  const y = bounds.top + bounds.height / 2
-  if (!Number.isFinite(x) || !Number.isFinite(y)) {
-    return null
-  }
-
-  return { x, y }
 }
 
 function resolveWorkspaceContentBounds(options: { subtractSidebar: boolean }): {
@@ -429,6 +392,33 @@ export function validateSpaceTransfer(
 }
 
 export function toErrorMessage(error: unknown): string {
+  if (error instanceof OpenCoveAppError || isAppErrorDescriptor(error)) {
+    if (error.code === 'agent.managed_launch_commit_failed') {
+      return translate('messages.managedAgentLaunchUncertain')
+    }
+    if (error.code === 'agent.managed_launch_rejected') {
+      const details = error.details as { reason?: string } | undefined
+      return translate(
+        details?.reason === 'resumeBindingDrainExpired'
+          ? 'messages.managedAgentClearSaveUnconfirmed'
+          : details?.reason === 'workerUpgradeRequired'
+            ? 'messages.managedAgentWorkerUpgradeRequired'
+            : details?.reason === 'clientUpgradeRequired'
+              ? 'messages.managedAgentClientUpgradeRequired'
+              : details?.reason === 'writesDisabled'
+                ? 'messages.managedAgentWritesDisabled'
+                : details?.reason === 'resumeUnavailable'
+                  ? 'messages.managedAgentResumeUnavailable'
+                  : 'messages.managedAgentChanged',
+      )
+    }
+  }
+  if (
+    (error instanceof OpenCoveAppError || isAppErrorDescriptor(error)) &&
+    error.code === 'persistence.owned_node_identity_conflict'
+  ) {
+    return translate('messages.managedAgentChanged')
+  }
   if (error instanceof OpenCoveAppError) {
     if (error.code === 'terminal.runtime_not_ready') {
       return translate('common.terminalRuntimeNotReady')

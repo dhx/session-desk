@@ -19,6 +19,7 @@ describe('buildAgentLaunchCommand', () => {
       '--dangerously-bypass-approvals-and-sandbox',
       '--model',
       'gpt-5.2-codex',
+      '--',
       'implement login flow',
     ])
     expect(command.effectiveModel).toBe('gpt-5.2-codex')

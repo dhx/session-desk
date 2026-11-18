@@ -1,6 +1,7 @@
 import * as z from 'zod'
 import { normalizeCreatePayload } from '../nodeNormalize'
 import { createAppError } from '../../../../errors/appError'
+import { AGENT_PROVIDER_IDS } from '../../../dto/agent'
 
 const optionalText = (description: string) => z.string().describe(description).nullish()
 const priority = z
@@ -91,7 +92,7 @@ export const nodeCreateInput = z.discriminatedUnion('kind', [
       .strictObject({
         prompt: optionalText('Initial prompt; defaults to empty text'),
         provider: z
-          .enum(['claude-code', 'codex', 'opencode', 'gemini', 'pi', 'kimi', ''])
+          .enum([...AGENT_PROVIDER_IDS, ''])
           .describe('Agent provider; omitted or empty uses the configured default')
           .nullish(),
         model: optionalText('Provider model ID'),
@@ -111,6 +112,24 @@ export const nodeCreateInput = z.discriminatedUnion('kind', [
   }),
 ])
 export const nodeUpdateInput = z.discriminatedUnion('kind', [
+  z.strictObject({
+    ...update,
+    kind: z.literal('agent'),
+    title: z
+      .string()
+      .regex(/\S/)
+      .describe('Replacement name; kept until you rename the node again')
+      .optional(),
+  }),
+  z.strictObject({
+    ...update,
+    kind: z.literal('terminal'),
+    title: z
+      .string()
+      .regex(/\S/)
+      .describe('Replacement name; kept until you rename the node again')
+      .optional(),
+  }),
   z.strictObject({
     ...update,
     kind: z.literal('note'),

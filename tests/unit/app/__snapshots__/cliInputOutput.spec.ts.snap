@@ -49,7 +49,7 @@ Global options:
   -h, --help               Show help for this command or group
   --version                Print the CLI version
 
-Exit codes: 0 success; 1 operation failure; 2 invalid input; 3 unreachable; 4 unauthorized; 5 incompatible protocol; 6 ambiguous target; 124 timeout; 130 interrupted.
+Exit codes: 0 success; 1 operation failure; 2 invalid input; 3 unreachable; 4 unauthorized; 5 incompatible protocol; 6 ambiguous target; 10 waiting observed; 11 agent exited during wait; 124 timeout; 130 interrupted.
 
 Run "opencove <group> --help" for commands in a group.
 Start with "opencove api ops --domains" for a compact domain map.
@@ -104,7 +104,7 @@ exports[`command help snapshots: api ops --domains 1`] = `
 
 List Control Surface operations with their kind, contract and CLI command
 
-The full JSON catalog is large (about 26 KB). Start with --domains, then narrow with --prefix or --search and --fields. Each operation includes scope (read, interact or admin); inside OpenCove, allowed reflects your whoami scope. Outside OpenCove the catalog is offline and allowed is omitted.
+The full JSON catalog is large (about 30 KB). Start with --domains, then narrow with --prefix or --search and --fields. Each operation includes scope (read, interact or admin); inside OpenCove, access comes from the Worker policy (allowed, denied or constrained). Offline or with an older Worker, access is unknown. The allowed flag is omitted for unknown or constrained access.
 
 With --domains, output is an array of summaries with these projectable fields:
   domain: Operation ID prefix before the first dot
@@ -122,7 +122,7 @@ Options:
 List output: --limit <n> keeps up to n items per list; 0 means all. Cut object lists add top-level truncated totals; bare arrays keep their shape and write one stderr notice. Cut tables also write one stderr notice.
 
 Table output (-o table): supported.
-Projectable fields: id, kind, contract, summary, cliCommand, scope, allowed
+Projectable fields: id, kind, contract, summary, cliCommand, scope, access, allowed, reason, policyVersion, rejectedFields
 
 Projection example:
   opencove api ops --prefix node --fields id,cliCommand
@@ -143,7 +143,7 @@ exports[`command help snapshots: api ops 1`] = `
 
 List Control Surface operations with their kind, contract and CLI command
 
-The full JSON catalog is large (about 26 KB). Start with --domains, then narrow with --prefix or --search and --fields. Each operation includes scope (read, interact or admin); inside OpenCove, allowed reflects your whoami scope. Outside OpenCove the catalog is offline and allowed is omitted.
+The full JSON catalog is large (about 30 KB). Start with --domains, then narrow with --prefix or --search and --fields. Each operation includes scope (read, interact or admin); inside OpenCove, access comes from the Worker policy (allowed, denied or constrained). Offline or with an older Worker, access is unknown. The allowed flag is omitted for unknown or constrained access.
 
 With --domains, output is an array of summaries with these projectable fields:
   domain: Operation ID prefix before the first dot
@@ -161,7 +161,7 @@ Options:
 List output: --limit <n> keeps up to n items per list; 0 means all. Cut object lists add top-level truncated totals; bare arrays keep their shape and write one stderr notice. Cut tables also write one stderr notice.
 
 Table output (-o table): supported.
-Projectable fields: id, kind, contract, summary, cliCommand, scope, allowed
+Projectable fields: id, kind, contract, summary, cliCommand, scope, access, allowed, reason, policyVersion, rejectedFields
 
 Projection example:
   opencove api ops --prefix node --fields id,cliCommand
@@ -188,22 +188,32 @@ Lists per-kind summaries: data carries kind plus requirement, status, priority a
 
 data.status is task status. Top-level status is session lifecycle (for example running or exited) for agents and terminals, not whether an agent is idle or working. STATE shows task status or session lifecycle; agentState is the separate work-state field. sessionStatus aliases lifecycle status. agentState {state, quality, turnId} reports work for agents and observed agents in terminals; state working means the agent is working. Missing observations are unknown/degraded. context keeps its legacy state field.
 
-When no target is given, inside OpenCove defaults to your own space; project options default to your own project.
+Default target inside OpenCove: your current Space. Outside every Space, list all nodes in your project; use --root-canvas to list only root nodes. An explicit --project lists that project.
 
-Target space (choose one; inside OpenCove defaults to your own space):
+Target container (choose one):
+  --root-canvas                                 List only nodes on the project's root canvas, outside every Space
   --space <id>                                  Select a space by its ID; also accepts @self, an exact name or a unique ID prefix (6+ characters)
   --space-name <name> [--project <id>]          Find a named space, optionally within a project
   --worker <id-or-name> --branch <branch>       Find a space by worker and Git branch
   --worker <id-or-name> --path <absolute-path>  Find a space by worker and working directory
-  --project <id>                                Narrow a space name, branch or path lookup to one project; also accepts @self, an exact name or a unique ID prefix (6+ characters)
+  --project <id>                                Select the project to list, or narrow a Space lookup; also accepts @self, an exact name or a unique ID prefix (6+ characters)
+
+Shows up to 50 results in Worker order. Use --full or --limit 0 for all; --limit <n> overrides the default.
 
 Options:
-  --kind <kind>  Filter by note, task, website, agent, terminal, plugin, document, folder, image or role
+  --kind <kind>            Filter by note, task, website, agent, terminal, plugin, document, folder, image or role
+  --spawned-by <selector>  Filter direct children; --project filters results. Creator names use your project, or the selected Space’s project; also accepts @self, @parent, an exact name or a unique ID prefix (6+ characters)
+  --full                   Show all results unless --limit is specified
 
 List output: --limit <n> keeps up to n items per list; 0 means all. Cut object lists add top-level truncated totals; bare arrays keep their shape and write one stderr notice. Cut tables also write one stderr notice.
 
 Table output (-o table): supported.
-Projectable fields: id, kind, title, projectId, spaceId, frame, frame.x, frame.y, frame.width, frame.height, status, sessionId, sessionStatus, agentState, agentState.state, agentState.quality, agentState.turnId, taskNodeId, data, data.kind, data.status, data.priority, data.requirement, data.tags, data.url, data.linkedAgentNodeId
+Projectable fields: id, kind, title, projectId, spaceId, frame, frame.x, frame.y, frame.width, frame.height, status, sessionId, spawnedBy, lineageDepth, lineageStatus, sessionStatus, agentState, agentState.state, agentState.quality, agentState.turnId, taskNodeId, data, data.kind, data.status, data.priority, data.requirement, data.tags, data.url, data.linkedAgentNodeId
+
+Field descriptions:
+  spawnedBy      ID of the node that created this node; null for a root or unavailable lineage
+  lineageDepth   A node started by the user has lineageDepth 1; each agent-created generation adds one. Null when lineage is unavailable
+  lineageStatus  recorded when creation is recorded, root when no parent is recorded, unavailable when lineage cannot be read
 
 Projection example:
   opencove node list --fields id,data.status

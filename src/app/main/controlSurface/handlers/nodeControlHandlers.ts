@@ -1,6 +1,12 @@
+import { AgentSpawnAdmissionOwner } from '../../../../contexts/workspace/application/nodeSpawn/AgentSpawnAdmissionOwner'
+import type { AgentSpawnRuntimePort } from '../../../../contexts/workspace/application/nodeSpawn/AgentSpawnRuntimePort'
+import { installAgentSpawnOwner } from '../agentSpawnContext'
+import { resolveCallerParent } from '../../../../contexts/workspace/application/nodeLineage/NodeLineageOwner'
 import { canvasFocusOperation } from '../../../../shared/contracts/controlSurface/operations/domains/canvas'
 import { registerOperation } from '../registerOperation'
 import {
+  nodeManagedClaudeBindingOperation,
+  nodeResolveCallerSelectorOperation,
   nodeCreateOperation,
   nodeListOperation,
   nodeGetOperation,
@@ -71,9 +77,16 @@ function createLocatorDeps(
 
 function toNodeControlStateStore(store: PersistenceStore): NodeControlAppStateStore {
   return {
+    nodeLineage: store.nodeLineage,
+    commitCreatedNodeState: store.commitCreatedNodeState,
     readAppState: async () => normalizePersistedAppState(await store.readAppState()),
+    isAppStateRevisionCurrent: store.isAppStateRevisionCurrent,
     readAppStateRevision: store.readAppStateRevision,
     writeAppState: store.writeAppState,
+    isRuntimeReferenced: store.isManagedClaudeRuntimeReferenced,
+    isManagedNode: store.observeManagedClaudeNode
+      ? id => Boolean(store.observeManagedClaudeNode!(id).binding)
+      : undefined,
   }
 }
 
@@ -89,6 +102,8 @@ function queued<T>(queueRef: { current: Promise<void> }, task: () => Promise<T>)
 export function registerNodeControlHandlers(
   controlSurface: ControlSurface,
   deps: {
+    agentSpawnRuntime?: AgentSpawnRuntimePort
+    killExactSession?: (sessionId: string) => void | Promise<void>
     topology: WorkerTopologyStore
     getPersistenceStore: () => Promise<PersistenceStore>
     publishSyncEvent?: (payload: SyncEventPayload) => number
@@ -96,13 +111,58 @@ export function registerNodeControlHandlers(
     closeWebsiteNode?: (nodeId: string) => Promise<void> | void
   },
 ): void {
+  const admission =
+    deps.agentSpawnRuntime && deps.killExactSession
+      ? new AgentSpawnAdmissionOwner(deps.agentSpawnRuntime)
+      : undefined
+  if (admission) {
+    installAgentSpawnOwner(controlSurface, admission)
+  }
   const mutationQueue = { current: Promise.resolve() }
   const withDeps = async (ctx: ControlSurfaceContext) => ({
     store: toNodeControlStateStore(await deps.getPersistenceStore()),
     locatorDeps: createLocatorDeps(controlSurface, deps.topology, ctx),
-    runtime: createRuntimeDeps(controlSurface, ctx, deps.closeWebsiteNode, deps.closePluginNode),
+    runtime: createRuntimeDeps(
+      controlSurface,
+      ctx,
+      deps.closeWebsiteNode,
+      deps.closePluginNode,
+      admission,
+      deps.killExactSession,
+    ),
   })
 
+  registerOperation(controlSurface, nodeManagedClaudeBindingOperation, {
+    defaultErrorCode: 'persistence.unavailable',
+    handle: async (_ctx, input) => {
+      const store = await deps.getPersistenceStore()
+      if (!store.observeManagedClaudeNode) {
+        throw createAppError('persistence.unavailable')
+      }
+      const observed = store.observeManagedClaudeNode(input.nodeId)
+      return {
+        managedClaudeBinding: observed.binding,
+        nodeRuntimeSessionId: observed.nodeRuntimeSessionId ?? null,
+        retired: observed.retired,
+        executionDirectory: observed.context?.directory ?? null,
+      }
+    },
+  })
+  registerOperation(controlSurface, nodeResolveCallerSelectorOperation, {
+    defaultErrorCode: 'common.unexpected',
+    handle: async (ctx, input) => {
+      const caller = ctx.requestAuth?.kind === 'session-grant' ? ctx.requestAuth.grant.nodeId : null
+      if (!caller) {
+        throw createAppError('node.parent_unavailable', {
+          details: { reason: 'caller_identity_required' },
+        })
+      }
+      const store = toNodeControlStateStore(await deps.getPersistenceStore())
+      const result = await resolveCallerParent(store, caller, input)
+      ctx.assertActive?.()
+      return result
+    },
+  })
   registerOperation(controlSurface, nodeListOperation, {
     defaultErrorCode: 'common.unexpected',
     handle: async (ctx, input) => {
@@ -113,16 +173,17 @@ export function registerNodeControlHandlers(
   registerOperation(controlSurface, nodeGetOperation, {
     defaultErrorCode: 'common.unexpected',
     handle: async (_ctx, input) => {
-      return await getNodeForNodeControl({
-        store: toNodeControlStateStore(await deps.getPersistenceStore()),
-        input,
-      })
+      const store = await deps.getPersistenceStore()
+      const result = await getNodeForNodeControl({ store: toNodeControlStateStore(store), input })
+      const binding = store.observeManagedClaudeNode?.(input.nodeId).binding
+      return { ...result, ...(binding ? { managedClaudeBinding: binding } : {}) }
     },
   })
   registerOperation(controlSurface, nodeCreateOperation, {
     defaultErrorCode: 'common.unexpected',
     handle: async (ctx, input) =>
       queued(mutationQueue, async () => {
+        ctx.assertActive?.()
         const { store, locatorDeps, runtime } = await withDeps(ctx)
         return await createNodeForNodeControl({
           store,
@@ -130,6 +191,10 @@ export function registerNodeControlHandlers(
           runtime,
           input,
           now: ctx.now(),
+          admission,
+          authority: ctx.requestAuth?.kind === 'session-grant' ? ctx.requestAuth.grant : undefined,
+          callerNodeId:
+            ctx.requestAuth?.kind === 'session-grant' ? ctx.requestAuth.grant.nodeId : null,
         })
       }),
   })
@@ -155,6 +220,8 @@ export function registerNodeControlHandlers(
           ctx,
           deps.closeWebsiteNode,
           deps.closePluginNode,
+          admission,
+          deps.killExactSession,
         )
         return await deleteNodeForNodeControl({
           store: toNodeControlStateStore(await deps.getPersistenceStore()),

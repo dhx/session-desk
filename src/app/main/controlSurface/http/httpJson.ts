@@ -23,7 +23,7 @@ export function isJsonContentType(header: string | string[] | undefined): boolea
 
 /** The declared Content-Length, or null when absent or malformed. */
 export function readDeclaredContentLength(req: IncomingMessage): number | null {
-  const raw = req.headers['content-length']
+  const raw = req.headers?.['content-length']
   if (typeof raw !== 'string' || !/^\d+$/.test(raw.trim())) {
     return null
   }

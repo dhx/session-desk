@@ -38,6 +38,7 @@ interface TerminalNodeFrameProps {
   status: AgentRuntimeStatus | null
   agentStateSource: TerminalSessionStateSource | null
   agentHookInstallState: AgentHookInstallState | null
+  blockedReason?: import('@shared/contracts/dto/agentRunState').AgentRunSnapshot['blockedReason']
   agentStateDegraded: boolean
   directoryMismatch?: { executionDirectory: string; expectedDirectory: string } | null
   lastError: string | null
@@ -93,6 +94,7 @@ export function TerminalNodeFrame({
   status,
   agentStateSource,
   agentHookInstallState,
+  blockedReason,
   agentStateDegraded,
   directoryMismatch,
   lastError,
@@ -225,6 +227,7 @@ export function TerminalNodeFrame({
         kind={kind}
         agentProvider={agentProvider}
         status={status}
+        blockedReason={blockedReason}
         agentStateDegraded={agentStateDegraded}
         labelColor={labelColor ?? null}
         agentExecutionDirectory={agentExecutionDirectory}

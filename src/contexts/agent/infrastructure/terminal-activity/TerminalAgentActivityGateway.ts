@@ -1,6 +1,6 @@
 import { pickTerminalAgentForwardedEnvironment } from './TerminalAgentTelemetryScripts'
 import { randomBytes } from 'node:crypto'
-import { resolveCodexInvocationArguments } from '../cli/CodexInvocationArguments'
+import { resolveTerminalAgentInvocationArguments } from './TerminalAgentInvocationArguments'
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
 import type { TerminalAgentShimProvider } from '../../../../shared/contracts/dto'
 import type {
@@ -31,6 +31,7 @@ interface TerminalCredential {
   sessionId: string | null
   terminal: TerminalAgentInvocationTerminal
   token: string
+  residentContext: 'canvas' | 'none'
 }
 
 export interface TerminalAgentGatewayReservation {
@@ -116,7 +117,9 @@ export class TerminalAgentActivityGateway {
     }
   }
 
-  public async reserveTerminal(): Promise<TerminalAgentGatewayReservation> {
+  public async reserveTerminal(input?: {
+    residentContext?: 'canvas' | 'none'
+  }): Promise<TerminalAgentGatewayReservation> {
     await this.start()
     this.assertNotDisposed()
     const endpoint = this.endpoint
@@ -130,6 +133,7 @@ export class TerminalAgentActivityGateway {
       sessionId: null,
       terminal: this.options.registry.reserve({ sourceId: 'terminal-shim' }),
       token,
+      residentContext: input?.residentContext ?? 'none',
     }
     this.credentials.set(token, credential)
     return {
@@ -238,8 +242,10 @@ export class TerminalAgentActivityGateway {
       return
     }
 
+    const intent = resolveTerminalAgentInvocationArguments(provider, invocationArguments)
     const artifacts = new AgentLaunchArtifactScope()
     let plan: AgentHookInjectionPlan
+    let invocation: TerminalAgentInvocation | null = null
     try {
       const codexReuseRunningAppServer =
         provider === 'codex'
@@ -253,12 +259,16 @@ export class TerminalAgentActivityGateway {
       }
       plan = await planner.prepareHookInjection({
         codexReuseRunningAppServer,
+        residentContext: credential.residentContext,
+        // The reservation is fail-closed until prepare owns an invocation, even before PTY bind.
+        isInvocationCurrent: () =>
+          this.isCredentialLive(credential) && invocation?.isCurrent() === true,
         arguments: invocationArguments,
         artifacts,
         environment,
         executablePathOverride: executablePath,
         workspaceDirectory: cwd,
-        resumeSessionId: resolveExpectedResumeSessionId(provider, invocationArguments),
+        resumeSessionId: intent.expectedResumeSessionId,
       })
       artifacts.seal()
     } catch (error) {
@@ -276,12 +286,12 @@ export class TerminalAgentActivityGateway {
       this.respond(response, 409)
       return
     }
-    const invocation = credential.terminal.beginInvocation({
+    invocation = credential.terminal.beginInvocation({
       invocationId,
       provider,
       hookCoverage: plan.hookCoverage,
       hookInstallState: plan.hookInstallState,
-      expectedResumeSessionId: resolveExpectedResumeSessionId(provider, invocationArguments),
+      ...intent,
     })
     if (!invocation) {
       await artifacts.dispose().catch(() => undefined)
@@ -453,21 +463,6 @@ function normalizeArguments(value: unknown): string[] | null {
   return Array.isArray(value) && value.every(argument => typeof argument === 'string')
     ? value
     : null
-}
-
-function resolveExpectedResumeSessionId(
-  provider: TerminalAgentShimProvider,
-  args: readonly string[],
-): string | null {
-  if (provider === 'claude-code') {
-    const resumeIndex = args.findIndex(argument => argument === '--resume')
-    if (resumeIndex >= 0) {
-      return normalizeNonEmptyString(args[resumeIndex + 1])
-    }
-    const inline = args.find(argument => argument.startsWith('--resume='))
-    return inline ? normalizeNonEmptyString(inline.slice('--resume='.length)) : null
-  }
-  return provider === 'codex' ? resolveCodexInvocationArguments(args, '.').resumeSessionId : null
 }
 
 function normalizeEnvironment(value: unknown): NodeJS.ProcessEnv | null {

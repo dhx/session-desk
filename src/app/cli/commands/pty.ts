@@ -1,6 +1,7 @@
 import WebSocket from 'ws'
 import { defineCommand } from '../core/command'
 import { CliError } from '../core/errors'
+import { authorizationError } from '../core/authorizationError'
 import { option } from './remote'
 export const ptyAttach = defineCommand({
   path: ['pty', 'attach'],
@@ -14,7 +15,6 @@ export const ptyAttach = defineCommand({
     if (io.signal?.aborted) {
       throw new CliError('cli.interrupted', 130, 'Detached')
     }
-    // Session Desk: the token goes in a header; the worker refuses ?token= unless allowed.
     const ws = new WebSocket(url, 'opencove-pty.v1', {
       headers: { authorization: `Bearer ${connection!.token}` },
     })
@@ -33,6 +33,8 @@ export const ptyAttach = defineCommand({
         clearTimeout(timer)
         io.signal?.removeEventListener('abort', abort)
         ws.removeAllListeners('message')
+        ws.removeAllListeners('open')
+        ws.removeAllListeners('unexpected-response')
         ws.terminate()
         if (error) {
           reject(error)
@@ -41,6 +43,19 @@ export const ptyAttach = defineCommand({
         }
       }
       io.signal?.addEventListener('abort', abort, { once: true })
+      ws.on('unexpected-response', (_request, response) => {
+        finish(
+          authorizationError(response.statusCode) ??
+            new CliError(
+              'pty.handshake_failed',
+              1,
+              response.statusCode
+                ? `Terminal connection was refused (HTTP ${response.statusCode}).`
+                : 'Terminal connection was refused.',
+            ),
+        )
+        response.destroy()
+      })
       ws.on('error', error => finish(error))
       ws.on('close', () =>
         finish(new CliError('pty.closed', 1, 'Terminal connection closed before process exit')),
@@ -66,9 +81,7 @@ export const ptyAttach = defineCommand({
         }
         if (message.type === 'hello_ack') {
           clearTimeout(timer)
-          ws.send(
-            JSON.stringify({ type: 'attach', sessionId: options.session, role: 'controller' }),
-          )
+          ws.send(JSON.stringify({ type: 'attach', sessionId: options.session, role: 'viewer' }))
         }
         if (message.type === 'data' && typeof message.data === 'string') {
           io.stdout.write(message.data)

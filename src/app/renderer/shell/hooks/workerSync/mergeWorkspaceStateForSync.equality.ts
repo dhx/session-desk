@@ -1,3 +1,4 @@
+import { canonicalContent } from '@shared/sync/mergeValue'
 import type { Node } from '@xyflow/react'
 import type {
   SpaceArchiveRecord,
@@ -131,10 +132,13 @@ function isNodeDataEquivalent(persisted: TerminalNodeData, existing: TerminalNod
   }
 
   if (
+    JSON.stringify(persisted.managedClaudeResumeBindingOwnership ?? null) !==
+      JSON.stringify(existing.managedClaudeResumeBindingOwnership ?? null) ||
     persisted.sessionId !== existing.sessionId ||
     persisted.runtimeSessionBinding !== existing.runtimeSessionBinding ||
     persisted.title !== existing.title ||
     persisted.titlePinnedByUser !== existing.titlePinnedByUser ||
+    persisted.titleIsLiteral !== existing.titleIsLiteral ||
     persisted.width !== existing.width ||
     persisted.height !== existing.height ||
     persisted.profileId !== existing.profileId ||
@@ -245,6 +249,20 @@ function isNodeDataEquivalent(persisted: TerminalNodeData, existing: TerminalNod
         existingFolder.expandedDirectoryUris,
       )
     ) {
+      return false
+    }
+  }
+
+  // These payloads also arrive as fresh JSON objects. Compare content while retaining
+  // actual edits, including terminal binding and website session/navigation changes.
+  for (const field of [
+    'plugin',
+    'website',
+    'role',
+    'terminalAgentBinding',
+    'terminalGeometry',
+  ] as const) {
+    if (canonicalContent(persisted[field] ?? null) !== canonicalContent(existing[field] ?? null)) {
       return false
     }
   }

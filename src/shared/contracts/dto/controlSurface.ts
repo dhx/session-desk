@@ -1,3 +1,8 @@
+import type {
+  ManagedClaudeLaunchIntent,
+  ManagedClaudeLifecycleReceipt,
+  ManagedClaudeBindingObservation,
+} from '../managedClaudeLaunch'
 import type { AgentProviderId } from './agent'
 import type { TerminalPtyGeometry, TerminalRuntimeKind } from './terminal'
 import type { PresentationSnapshotTerminalResult } from './terminal'
@@ -35,6 +40,11 @@ export interface ControlSurfaceCapabilitiesResult {
   protocolVersion: number
   appVersion: string | null
   features: {
+    managedClaudeResumeBindingV1?: boolean
+    managedClaudeResumeBindingDeliveryV1?: boolean
+    managedClaudeResumeBindingWritesEnabled?: boolean
+    nodeLineageV1?: boolean
+    boundedAgentSpawningV1?: boolean
     operationRegistry?: boolean
     webShell: boolean
     sync: {
@@ -127,6 +137,8 @@ export interface ListSpacesResult {
     directoryPath: string
     targetMountId: string | null
     parentSpaceId: string | null
+    /** Canvas geometry; absent on older Workers, null if no frame is saved. */
+    rect?: { x: number; y: number; width: number; height: number } | null
     boundary: SpaceBoundary
     sortOrder: number
     labelColor: LabelColor | null
@@ -148,6 +160,8 @@ export interface GetSpaceResult {
     directoryPath: string
     targetMountId: string | null
     parentSpaceId: string | null
+    /** Canvas geometry; absent on older Workers, null if no frame is saved. */
+    rect?: { x: number; y: number; width: number; height: number } | null
     boundary: SpaceBoundary
     sortOrder: number
     labelColor: LabelColor | null
@@ -182,43 +196,6 @@ export interface CreateChildSpaceResult {
     rect: { x: number; y: number; width: number; height: number } | null
   }
   movedNodeIds: string[]
-}
-
-/** A top-level Space for a caller without a canvas view; placed beside existing content. */
-export interface CreateSpaceInput {
-  projectId: string
-  name: string
-  labelColor?: LabelColor | null
-  directoryPath?: string | null
-}
-
-export interface SpaceAttributesDto {
-  id: string
-  name: string
-  labelColor: LabelColor | null
-  directoryPath: string
-  targetMountId: string | null
-  parentSpaceId: string | null
-  rect: { x: number; y: number; width: number; height: number } | null
-}
-
-export interface CreateSpaceResult {
-  revision: number
-  projectId: string
-  space: SpaceAttributesDto
-}
-
-/** Renames or recolours a Space. `labelColor: null` clears the colour; omitted fields stay. */
-export interface UpdateSpaceInput {
-  spaceId: string
-  name?: string
-  labelColor?: LabelColor | null
-}
-
-export interface UpdateSpaceResult {
-  revision: number
-  projectId: string
-  space: SpaceAttributesDto
 }
 
 export interface ListWorktreesInput {
@@ -261,6 +238,7 @@ export interface ArchiveWorktreeResult {
 }
 
 export interface LaunchAgentSessionInput {
+  intent?: ManagedClaudeLaunchIntent
   canvasNodeId?: string
   workspaceId?: string
   spaceId?: string | null
@@ -279,6 +257,7 @@ export interface LaunchAgentSessionInput {
 }
 
 export interface LaunchAgentSessionInMountInput {
+  intent?: ManagedClaudeLaunchIntent
   canvasNodeId?: string
   workspaceId?: string
   spaceId?: string
@@ -298,6 +277,8 @@ export interface LaunchAgentSessionInMountInput {
 }
 
 export interface LaunchAgentSessionResult {
+  managedClaudeLifecycle?: ManagedClaudeLifecycleReceipt
+  managedClaudeBinding?: ManagedClaudeBindingObservation
   sessionId: string
   provider: AgentProviderId
   startedAt: string
@@ -418,6 +399,8 @@ export interface PreparedRuntimeAgentResult {
 export type AgentRecoveryIssue = 'codex_writer_locked' | 'remote_worker_unavailable'
 
 export interface PreparedRuntimeNodeResult {
+  managedClaudeBinding?: ManagedClaudeBindingObservation
+  managedClaudeLifecycle?: ManagedClaudeLifecycleReceipt
   nodeId: string
   kind: 'terminal' | 'agent'
   recoveryState: 'live' | 'revived' | 'restarted' | 'fallback_terminal'

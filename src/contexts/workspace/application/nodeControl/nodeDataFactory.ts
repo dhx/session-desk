@@ -1,5 +1,6 @@
 import { resolveLaunchedAgentResumeBinding } from '../../../agent/domain/agentResumeBinding'
 import { randomUUID } from 'node:crypto'
+import { AGENT_PROVIDER_IDS } from '../../../../shared/contracts/dto'
 import type {
   AgentProviderId,
   CanvasNodeFrameDto,
@@ -121,15 +122,9 @@ function normalizeAgentProvider(value: unknown): AgentProviderId | null {
     return null
   }
   const normalized = typeof value === 'string' ? value.trim() : value
-  if (
-    normalized === 'claude-code' ||
-    normalized === 'codex' ||
-    normalized === 'opencode' ||
-    normalized === 'gemini' ||
-    normalized === 'pi' ||
-    normalized === 'kimi'
-  ) {
-    return normalized
+  const provider = AGENT_PROVIDER_IDS.find(id => id === normalized)
+  if (provider) {
+    return provider
   }
   throw createAppError('common.invalid_input', { debugMessage: 'Invalid agent provider.' })
 }
@@ -205,10 +200,7 @@ export function normalizeCreateNodeData(
   }
 }
 
-export function normalizeUpdateNodeData(
-  _kind: 'note' | 'task' | 'website',
-  data: unknown,
-): unknown {
+export function normalizeUpdateNodeData(_kind: ManagedCanvasNodeKind, data: unknown): unknown {
   return isRecord(data) ? data : {}
 }
 
@@ -291,6 +283,7 @@ export function makeNode(options: {
   id?: string
   kind: ManagedCanvasNodeKind
   title: string
+  titlePinnedByUser?: boolean
   frame: CanvasNodeFrameDto
   data: NodeControlCreateData
   now: string
@@ -350,7 +343,8 @@ export function makeNode(options: {
     id: options.id ?? randomUUID(),
     sessionId: runtime?.sessionId ?? null,
     title: options.title,
-    titlePinnedByUser: false,
+    titlePinnedByUser: options.titlePinnedByUser === true,
+    titleIsLiteral: options.titlePinnedByUser === true,
     position: { x: options.frame.x, y: options.frame.y },
     width: options.frame.width,
     height: options.frame.height,

@@ -7,6 +7,7 @@ export interface OptionSpec {
   selector?: 'node' | 'space' | 'project'
   defaultSelf?: boolean
   defaultSelfUnless?: string[]
+  short?: string
   type: 'string' | 'boolean' | 'number' | 'json'
   multiple?: boolean
   required?: boolean
@@ -24,6 +25,8 @@ export interface PositionalSpec {
   required?: boolean
 }
 export interface RenderSpec {
+  /** Presentation-only cap for the declared list; never sent to the Worker. */
+  defaultLimit?: number
   fields?: string[]
   defaultFields?: string[]
   list?: boolean
@@ -31,11 +34,15 @@ export interface RenderSpec {
   itemAtRoot?: boolean
   unavailable?: string
   itemKey?: string
+  /** Declared envelope fields to project alongside the item while retaining other metadata. */
+  projectedEnvelopeFields?: string[]
   rawPaths?: boolean
   aliases?: Record<string, string>
   declaredRawPaths?: string[]
   rawItemKey?: string
   fieldHints?: Record<string, string>
+  /** Help text for declared projectable fields; never changes output validation. */
+  fieldDescriptions?: Record<string, string>
   examples?: string[]
   tableFields?: Record<string, string[]>
   listKey?: string
@@ -56,7 +63,7 @@ export interface CommandContext extends CommandArgs {
   invoke(
     id: OperationId,
     payload: unknown,
-    options?: { fresh?: boolean; signal?: AbortSignal },
+    options?: { fresh?: boolean; signal?: AbortSignal; timeoutMs?: number },
   ): Promise<unknown>
   whoami(): Promise<CallerIdentity>
   self(kind: NonNullable<OptionSpec['selector']>): Promise<string>
@@ -70,7 +77,11 @@ export interface Command {
   examples?: string[]
   options?: Record<string, OptionSpec>
   positionals?: PositionalSpec[]
+  /** Use the caller node's current container for implicit node create/list targets. */
+  currentContainer?: boolean
   targetSpace?: 'required' | 'optional'
+  /** Stable identifier to print for --quiet, relative to the operation result. */
+  quietIdPath?: string
   mutation?: boolean
   stream?: boolean
   timeoutMs?: number
@@ -79,6 +90,7 @@ export interface Command {
   operationAliases?: OperationId[]
   operationCommand?: string
   operation?: OperationId
+  validateBeforeConnect?(args: CommandArgs, env: CliIo['env']): void
   buildInput?(args: CommandArgs): unknown
   textOutput?(result: unknown): string
   execute?(ctx: CommandContext): Promise<CommandResult>
@@ -90,6 +102,17 @@ export interface Command {
 }
 export function defineCommand(command: Command): Command {
   const options = { ...command.options }
+  if (command.quietIdPath) {
+    options.quiet = {
+      type: 'boolean',
+      short: 'q',
+      conflicts: ['fields', 'output'],
+      description: 'Print only the created object identifier followed by a newline',
+    }
+  }
+  if (command.render?.defaultLimit) {
+    options.full = { type: 'boolean', description: 'Show all results unless --limit is specified' }
+  }
   if (options.node && !options.space) {
     options.space = {
       type: 'string',

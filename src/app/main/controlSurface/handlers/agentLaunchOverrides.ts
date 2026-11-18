@@ -186,6 +186,11 @@ export async function forwardLaunchAgentPayload(
   },
 ): Promise<LaunchAgentSessionInput> {
   const { getPersistenceStore, ...rest } = input
-  const state = normalizePersistedAppState(await (await getPersistenceStore()).readAppState())
+  // The saved state only tells which requested env is trusted; skip the read when nothing asks.
+  const requestedEnv = rest.payload.env ? Object.keys(rest.payload.env).length > 0 : false
+  const state =
+    requestedEnv && !areLaunchOverridesAllowed(process.env)
+      ? normalizePersistedAppState(await (await getPersistenceStore()).readAppState())
+      : null
   return buildForwardedLaunchAgentPayload({ ...rest, state })
 }
