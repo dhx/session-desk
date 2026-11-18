@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 
+import { execFileSync } from 'node:child_process'
 import { existsSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { validatePullRequestBody, validateTemplateStructure } from './lib/pr-template-check.mjs'
@@ -96,6 +97,21 @@ if (templateErrors.length > 0) {
 // The co-change partners this diff leaves untouched: the same function `pnpm impact` uses.
 let missingPartners = null
 const diffRange = resolveDiffRange()
+
+// Session Desk: our pr-template workflow checks out one commit (this session cannot change
+// workflows; upstream sets fetch-depth: 0). Both checks need the merge base, so fetch the history.
+if (diffRange) {
+  const shallow = execFileSync('git', ['rev-parse', '--is-shallow-repository'], {
+    cwd: rootDir,
+    encoding: 'utf8',
+  }).trim()
+  if (shallow === 'true') {
+    execFileSync('git', ['fetch', '--no-tags', '--quiet', '--unshallow', 'origin'], {
+      cwd: rootDir,
+      stdio: 'inherit',
+    })
+  }
+}
 if (diffRange) {
   try {
     const changes = resolveBaseChanges(rootDir, diffRange.base, diffRange.head)
