@@ -11,6 +11,13 @@ import type {
   ControlSurfaceInvokeResult,
 } from '../../../shared/contracts/controlSurface'
 import type { ControlSurfaceContext, ControlSurfaceHandler } from './types'
+import type { SessionGrant } from './http/sessionGrantRegistry'
+
+/** Session Desk: keeps a session grant inside its workspace (sessionGrantWorkspaceScope.ts). */
+export interface SessionGrantWorkspaceScope {
+  scopeRequest(grant: SessionGrant, operationId: string, payload: unknown): Promise<unknown>
+  scopeResult(grant: SessionGrant, operationId: string, value: unknown): Promise<unknown>
+}
 
 export interface ControlSurface {
   register: <TPayload, TResult>(
@@ -33,6 +40,7 @@ export function createControlSurface(
       execute: (context?: ControlSurfaceContext) => Promise<unknown>,
       payload: unknown,
     ) => Promise<unknown>
+    grantWorkspaceScope?: SessionGrantWorkspaceScope
   } = {},
 ): ControlSurface {
   const handlers = new Map<string, ControlSurfaceHandler<unknown, unknown>>()
@@ -77,22 +85,30 @@ export function createControlSurface(
         }
         leave = options.enter?.(request.id)
         ctx.assertActive?.()
-        const payload = handler.validate(request.payload)
-        if (ctx.requestAuth?.kind === 'session-grant') {
+        let payload = handler.validate(request.payload)
+        const grant = ctx.requestAuth?.kind === 'session-grant' ? ctx.requestAuth.grant : null
+        if (grant) {
           const rule = sessionGrantRule(request.id)
           if (rule.access === 'constrained') {
             rule.check(payload, {
-              grant: ctx.requestAuth.grant,
+              grant,
               wirePayload: request.payload,
               operationId: request.id,
             })
           }
+          if (options.grantWorkspaceScope) {
+            payload = await options.grantWorkspaceScope.scopeRequest(grant, request.id, payload)
+          }
         }
         assertGrantSpawnRoute(surface, ctx, request.id)
         const execute = async (context = ctx) => await handler.handle(context, payload)
-        const value = options.run
+        const handled = options.run
           ? await options.run(ctx, request, execute, payload)
           : await execute()
+        const value =
+          grant && options.grantWorkspaceScope
+            ? await options.grantWorkspaceScope.scopeResult(grant, request.id, handled)
+            : handled
 
         return {
           __opencoveControlEnvelope: true,

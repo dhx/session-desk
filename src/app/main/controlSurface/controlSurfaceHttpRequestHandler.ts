@@ -308,6 +308,7 @@ export function createControlSurfaceHttpRequestHandler(
                 (auth.kind !== 'session-grant' ||
                   Boolean(deps.sessionGrants?.isActive(auth.grant.grantId))),
               readLineage: async () => (await deps.getPersistenceStore()).nodeLineage,
+              ...(auth.kind === 'session-grant' ? { scopeProjectId: auth.grant.projectId } : {}),
             })
             if (streamRevoked) {
               disposeStream()
@@ -321,6 +322,7 @@ export function createControlSurfaceHttpRequestHandler(
             registry: deps.agentRuns,
             clients: deps.agentClients,
             listenerClients: listenerSyncClients,
+            ...(auth.kind === 'session-grant' ? { scopeProjectId: auth.grant.projectId } : {}),
           })
           return
         }

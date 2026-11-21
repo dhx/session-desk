@@ -26,6 +26,8 @@ export function serveCliEventStream(options: {
   listenerClients: Set<ServerResponse>
   isActive(): boolean
   readLineage(): Promise<NodeLineageRepository | undefined>
+  /** Session Desk: an agent terminal only sees agents of its own workspace. */
+  scopeProjectId?: string
 }): () => void {
   const { req, res, registry, url } = options
   let selection: EventSelection, cursor, resume: boolean
@@ -126,6 +128,7 @@ export function serveCliEventStream(options: {
     finishTerminal()
   }
   const spatial = (item: RetainedEvent) =>
+    (options.scopeProjectId === undefined || item.projectId === options.scopeProjectId) &&
     matchesAgentRunFilter(item, { ...selection, types: undefined })
   const relationship = Boolean(selection.spawnedBy || selection.lineage)
   const processItem = async (item: RetainedEvent) => {

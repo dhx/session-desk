@@ -132,3 +132,6 @@ docs/Microsoft/
 
 # Extracted immutable sources used only while generating non-clear compatibility goldens.
 tests/fixtures/claude/non-clear/baseline/
+
+# Agent launch files written by contract tests that use the repository as user data
+/runtime/
