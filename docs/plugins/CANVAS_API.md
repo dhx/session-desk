@@ -139,7 +139,7 @@ Both `host.terminals` and `host.agents` expose:
 
 | Method | Input | Behavior |
 | --- | --- | --- |
-| `get` | `{ nodeId }` | `{ node, session, agentState }`; session/state can be null |
+| `get` | `{ nodeId }` | `{ node, session, agentState, conversation }`; session/state can be null |
 | `read` | `{ nodeId }` | output tail with `{ nodeId, sessionId, output, truncated, fromSeq, toSeq }` |
 | `write` | `{ nodeId, data }` | writes exact text; no automatic newline or escaping |
 | `interrupt` | `{ nodeId }` | writes Ctrl-C to the current running session |
@@ -150,7 +150,11 @@ uses the session's mutation queue, without stealing the UI's terminal geometry
 control. The node-to-session binding is rechecked immediately before queued input.
 Output is the latest 256 KiB, may include ANSI escape codes, and is not a complete
 log. `agentState` is the latest observed Agent signal, not an acknowledgement that
-an Agent finished a task. `stop` returns `{ nodeId, sessionId, requested: true }`;
+an Agent finished a task. Session Desk: `agents.get` also returns `conversation`,
+`{ id }` of the provider conversation the Worker has confirmed for the running
+process (Claude Code, also after `/clear`), or `null`; `terminals.get` always
+returns `null`. Prefer it over a `--resume`/`--session-id` on the command line,
+which keeps the ID the process started with. `stop` returns `{ nodeId, sessionId, requested: true }`;
 observe subsequent state to confirm exit. `write`/`interrupt` return
 `{ nodeId, sessionId, accepted: true }`.
 
