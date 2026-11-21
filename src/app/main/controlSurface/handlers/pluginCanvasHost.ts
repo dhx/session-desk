@@ -126,9 +126,7 @@ export function createPluginCanvasHost(
       session: current,
       agentState: current ? deps.ptyStreamHub.observeAgentState(current.sessionId) : null,
       conversation:
-        kind === 'agent'
-          ? pluginAgentConversation(found.managedClaudeBinding, current?.sessionId)
-          : null,
+        kind === 'agent' ? pluginAgentConversation(found.managedClaudeBinding, current) : null,
     }
   }
   async function create(

@@ -16,22 +16,28 @@ const binding = (
   observedRevision: 1,
 })
 
+const running = { sessionId: 'pty-1', status: 'running' }
+
 // Session Desk: plugins see the conversation a Claude window runs now. After /clear the Worker
 // rebinds the window to the new conversation in the same process, while the command line still
 // names the one it started with (managedClaudeClearBinding.native.spec.ts).
 describe('pluginAgentConversation', () => {
   it('names the confirmed conversation of the running process', () => {
-    expect(pluginAgentConversation(binding('after-clear', true), 'pty-1')).toEqual({
+    expect(pluginAgentConversation(binding('after-clear', true), running)).toEqual({
       id: 'after-clear',
     })
   })
 
   it('says nothing it cannot vouch for', () => {
-    expect(pluginAgentConversation(undefined, 'pty-1')).toBeNull()
-    expect(pluginAgentConversation(binding('guess', false), 'pty-1')).toBeNull()
-    expect(pluginAgentConversation(binding(null, true), 'pty-1')).toBeNull()
+    expect(pluginAgentConversation(undefined, running)).toBeNull()
+    expect(pluginAgentConversation(binding('guess', false), running)).toBeNull()
+    expect(pluginAgentConversation(binding(null, true), running)).toBeNull()
     // A binding of another process of this window.
-    expect(pluginAgentConversation(binding('old', true, 'pty-0'), 'pty-1')).toBeNull()
+    expect(pluginAgentConversation(binding('old', true, 'pty-0'), running)).toBeNull()
     expect(pluginAgentConversation(binding('old', true), null)).toBeNull()
+    // Claude has exited: the session list keeps the PTY, but nothing runs the conversation.
+    expect(
+      pluginAgentConversation(binding('closed', true), { sessionId: 'pty-1', status: 'exited' }),
+    ).toBeNull()
   })
 })

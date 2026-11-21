@@ -10,6 +10,7 @@ import {
 import { normalizePersistedAppState } from '../../../../platform/persistence/sqlite/normalize'
 import type { PersistenceStore } from '../../../../platform/persistence/sqlite/PersistenceStore'
 import type { PtyStreamHub } from '../ptyStream/ptyStreamHub'
+import { pluginAgentConversation } from '../../../../contexts/plugins/domain/pluginAgentConversation'
 
 export function createPluginCanvasObservationSnapshot(deps: {
   getPersistenceStore(): Promise<PersistenceStore>
@@ -70,17 +71,30 @@ export function createPluginCanvasObservationSnapshot(deps: {
         const sessions = new Map(
           deps.ptyStreamHub.listSessions().sessions.map(item => [item.sessionId, item]),
         )
+        const store = await deps.getPersistenceStore()
         put(
           type,
           project?.nodes
             .filter(node => !!node.sessionId)
-            .map(node => [
-              node.id,
-              {
-                session: sessions.get(node.sessionId!) ?? null,
-                state: deps.ptyStreamHub.observeAgentState(node.sessionId!),
-              },
-            ]) ?? [],
+            .map(node => {
+              const session = sessions.get(node.sessionId!) ?? null
+              return [
+                node.id,
+                {
+                  session,
+                  state: deps.ptyStreamHub.observeAgentState(node.sessionId!),
+                  // Session Desk: a /clear rebind keeps PTY and arguments, so the conversation
+                  // agents.get reports must be part of what a change is detected on.
+                  conversation:
+                    node.kind === 'agent'
+                      ? pluginAgentConversation(
+                          store.observeManagedClaudeNode?.(node.id).binding,
+                          session,
+                        )
+                      : null,
+                },
+              ]
+            }) ?? [],
         )
       }
       if (type === 'preferences') {

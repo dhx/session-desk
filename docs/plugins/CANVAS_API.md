@@ -152,7 +152,8 @@ Output is the latest 256 KiB, may include ANSI escape codes, and is not a comple
 log. `agentState` is the latest observed Agent signal, not an acknowledgement that
 an Agent finished a task. Session Desk: `agents.get` also returns `conversation`,
 `{ id }` of the provider conversation the Worker has confirmed for the running
-process (Claude Code, also after `/clear`), or `null`; `terminals.get` always
+process (Claude Code, also after `/clear`), or `null` (also once the process has
+exited); a change of it is a `session` change in `events.poll`; `terminals.get` always
 returns `null`. Prefer it over a `--resume`/`--session-id` on the command line,
 which keeps the ID the process started with. `stop` returns `{ nodeId, sessionId, requested: true }`;
 observe subsequent state to confirm exit. `write`/`interrupt` return
