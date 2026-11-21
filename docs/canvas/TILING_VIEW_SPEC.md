@@ -2,7 +2,7 @@
 
 This spec defines a second way to look at a Space: a **tiling view** that arranges the Space's windows as non-overlapping tiles filling the screen, driven mostly by the keyboard. The canvas stays the default and stays untouched.
 
-Status: Proposed (Large change), revision 3 after review. Awaiting approval of this spec, then a feasibility check (section 10), then a plan. Nothing here is implemented yet.
+Status: Proposed (Large change), revision 4 after review. Awaiting approval of this spec, then a feasibility check (section 10), then a plan. Nothing here is implemented yet.
 
 ## Problem Class
 
@@ -54,7 +54,8 @@ What transfers:
 
 - **A new window created through the tiling view** opens next to the focused tile: the create command names the focused group's id. It splits that group along its longer side if both halves keep their minimum size, otherwise it becomes a new tab in that group and is activated. If the group no longer exists when the Worker applies the command, the window goes to the default destination below.
 - **A window that arrives any other way** (created on the canvas, by an Agent, by restore, moved in from another Space, or by a client that does not know tiling) goes to the layout's **default destination**: appended as an inactive tab to the last group in depth-first order (the bottom-right group). This is the same rule the normaliser uses, so every client and the Worker agree on where it lands.
-- **A window that leaves** the Space (closed, moved, archived) leaves its group; an empty group is removed and its split's weights are renormalised; a split with one child collapses into that child.
+- **A window that leaves** the Space (closed, moved, archived) leaves its group; an empty group is removed and its split's weights are renormalised; a split with one child collapses into that child. When the last window leaves, the layout becomes **empty** (section 4).
+- **An empty Space** (no windows, or the last one just closed) shows the empty state: the breadcrumb and child Space list stay, and the tiling area offers to open a terminal or an Agent. The first window to arrive, by any route, becomes the root group.
 - **Closing a tile** is `Close Window` on its active window, with the existing close semantics, including save confirmation for unsaved documents. There is no "hidden but open" state.
 
 ### 1.4 Sizes
@@ -111,7 +112,7 @@ The Worker's terminal authority is unchanged (`docs/terminal/MULTI_CLIENT_ARCHIT
 6. Every window of the Space, and every child Space, is reachable in Tiling by pointer and by keyboard alone, at a viewport of 320 by 480 CSS pixels with the largest terminal font setting.
 7. No tile is drawn below its minimum size or overlapping another; shrinking and restoring the viewport restores the stored layout exactly.
 8. Per terminal, per mount or divider release: at most one accepted resize, sent only by the controller; a viewer sends none.
-9. Reload in Tiling restores the same tiling target, layout and active tabs, and focuses the last focused window if it is still in the Space; otherwise the fallback focus (section 1.5).
+9. Reload in Tiling restores the same tiling target and the layout at its latest revision, and focuses the group containing the last focused window if that window is still in the Space; otherwise the fallback focus (section 1.5). The group shows its shared active tab, which may be a different window if another client changed it meanwhile.
 10. A wide and a narrow client opening the same Space in Tiling before either edits it receive the same layout revision and the same split and group ids; the narrow one shows it folded.
 11. After a layout-only command or `resetLayout` from one client, and after a window is added or removed on the Canvas by another, a passive client in Tiling on that Space shows the new layout without user action.
 
@@ -173,7 +174,15 @@ The Worker applies commands for one Space in order, and **revalidates every targ
 - `placeNew` with a vanished group falls back to the default destination (section 1.3) instead of failing;
 - other commands with a missing target are rejected.
 
-The result is typed, like the terminal resize results: `applied` (with the new layout and revision), `rejected_stale_target`, `space_not_found`. `baseLayoutRevision` is used to tell the client whether its optimistic view was based on the latest layout; a command whose targets still validate is applied even if the revision moved on, so unrelated concurrent edits do not reject each other. After any result the client shows the layout the Worker returned and drops its optimistic state, so a rejected command visibly snaps back.
+The result is typed, like the terminal resize results: `applied` and `rejected_stale_target` both carry the Space's current layout and `layoutRevision`; `space_not_found` carries neither. `baseLayoutRevision` tells the client whether its optimistic view was based on the latest layout; a command whose targets still validate is applied even if the revision moved on, so unrelated concurrent edits do not reject each other.
+
+**Applying what arrives.** Layouts reach a client three ways: command results, refetches after `tiling.layout_updated`, and the first read. They can arrive in any order. The client keeps, for its tiling target only, the `layoutRevision` it displays, and:
+
+- ignores any layout for a Space that is not its current tiling target (switching target resets the held revision);
+- applies a layout only if its `layoutRevision` is greater than or equal to the displayed one; an older one is dropped;
+- drops the optimistic state of a command when that command's result arrives, whether or not the result's layout is applied, so a rejected or superseded command visibly snaps back to the newest layout the client holds.
+
+So a delayed result for revision 8 arriving after a refetch for revision 9 leaves revision 9 on screen, and the client never settles on a layout older than one it has shown. Local membership normalisation (section 3.3) is applied on top of the held revision and does not change it.
 
 Divider drags update weights only in the client's interaction slice per frame and send one `setWeights` on release.
 
@@ -196,7 +205,7 @@ A client in Tiling on a Space refetches that Space's layout when an event names 
 ## 4. Data Model (proposal)
 
 ```ts
-type TilingLayout = { version: 1; root: TilingNode }
+type TilingLayout = { version: 1; root: TilingNode | null }
 type TilingNode =
   | { kind: 'split'; id: string; direction: 'row' | 'column'; children: TilingNode[]; weights: number[] }
   | { kind: 'group'; id: string; nodeIds: string[]; activeNodeId: string }
@@ -204,7 +213,10 @@ type TilingNode =
 
 - `weights` has the same length as `children`, entries are positive and sum to 1 (normalised on write).
 - Ids are unique within a layout and never reused after removal.
-- `normalizeTilingLayout(layout | null, nodeIds) → TilingLayout` is the single place that enforces invariant 1: drops unknown window ids, appends missing ones to the default destination, removes empty groups, collapses single-child splits, keeps the ids of everything that survives. It is pure and shared by the Worker and the client's optimistic path.
+- `root: null` is the **empty layout**, the only valid layout of a Space with no windows. It is stored and versioned like any other: opening an empty Space materialises `{ version: 1, root: null }` at revision 1; the first window arriving makes a new group the root (revision +1); closing the last window returns to `root: null` (revision +1). Ids are never reused across these transitions.
+- On an empty layout only `placeNew` and `resetLayout` apply; every other command is `rejected_stale_target`. The default destination (section 1.3) of an empty layout is a new root group.
+- Focus in an empty layout rests on the empty state's first action; the remembered window (section 1.5) is kept and used if it returns.
+- `normalizeTilingLayout(layout | null, nodeIds) → TilingLayout` is the single place that enforces invariant 1: drops unknown window ids, appends missing ones to the default destination, removes empty groups, collapses single-child splits, returns `root: null` when no window is left, keeps the ids of everything that survives. It is pure and shared by the Worker and the client's optimistic path.
 
 ## 5. Rendering
 
@@ -246,9 +258,12 @@ type TilingNode =
   - deleting a Space through a snapshot deletes its layout in the same transaction;
   - acceptance 5: two clients' interleaved commands, including a stale `setWeights`, give `rejected_stale_target` and leave the layout as the other client's command made it;
   - migration of the new table;
+  - empty layouts: opening an empty Space stores `root: null` at revision 1; adding its first window through a snapshot and closing it again each increment the revision and emit one event;
   - acceptance 10: two concurrent first reads of a Space with no layout, one from a wide and one from a narrow client fixture, return the same revision and ids, and only one row is stored;
   - section 3.3: an applied command, a reset, and a snapshot that adds and removes windows each emit exactly one `tiling.layout_updated` after commit with the incremented revision; a snapshot that does not change membership emits none and leaves the revision unchanged.
 - **Type:** the layout and command types are the only shapes the operations accept; there is no operation that takes a whole tree from a client.
+- **Unit (ordering):** layouts for one Space delivered in reverse order (refetch at revision 9, then the delayed command result at revision 8) leave revision 9 displayed and clear the command's optimistic state; a layout for another Space is ignored.
+- **Unit (empty):** normalising with no windows gives `root: null`; `placeNew` on it gives a single root group; removing that window gives `root: null` again with no reused ids; other commands on the empty layout are rejected.
 - **Unit (focus):** the reload focus rule for a remembered window still present, removed, moved to another Space, and nothing remembered.
 - **E2E (Desktop and Web):** acceptance 11 (a passive client updates after a command, a reset, and a Canvas edit in another client); acceptance 1 (ten switches: same session id, attach and detach events strictly alternate for the window, scrollback present), 3 (two clients), 6 (320 by 480 viewport, largest font, every tab and child Space reached by keyboard), 8 (resize count per mount and per release for a controller and a viewer client), 9 (reload). Added to the E2E budget with reasons.
 - **Visual:** screenshots of light, dark and forced-colours themes for the implementation PRs.
@@ -276,7 +291,9 @@ If remounting is too slow or flickers, the check also prototypes the keep-alive 
 - Layout storage: apart from the snapshot, changed only by revalidated commands and the Worker's own membership normalisation.
 - First layout: derived and stored by the Worker, projected per viewport by each client.
 - Change notification: a post-commit `tiling.layout_updated` event, no polling.
-- Focus on reload: the last focused window per Space, client-local, validated, with a deterministic fallback.
+- Focus on reload: the group of the last focused window per Space, client-local, validated, with a deterministic fallback; the shared active tab is not changed.
+- Ordering: a client applies a layout only for its current tiling target and only at a revision no older than the one it shows.
+- Empty Spaces: an explicit `root: null` layout, stored and versioned.
 
 ## 12. Delivery Slices (sketch, for the plan)
 
