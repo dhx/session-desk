@@ -1,4 +1,4 @@
-import { useMemo, type ComponentProps } from 'react'
+import { useMemo, type ComponentProps, type ReactNode } from 'react'
 import type { TerminalBackgroundMode } from '@contexts/settings/domain/terminalBackgroundSettings'
 import type { TerminalClientDisplayCalibration } from '@contexts/settings/domain/terminalDisplayCalibration'
 import { useTerminalTransparentBackground } from '../terminalNode/useTerminalTransparentBackground'
@@ -11,8 +11,11 @@ export function TerminalDisplayAlignedWorkspaceCanvasView({
   terminalFontFamily,
   terminalDisplayCalibration,
   terminalBackground,
+  spikeOverlay,
   ...viewProps
 }: ComponentProps<typeof WorkspaceCanvasView> & {
+  /** SPIKE (never merged): rendered inside the alignment provider, beside the canvas. */
+  spikeOverlay?: ReactNode
   terminalFontSize: number
   terminalFontFamily: string | null
   terminalDisplayCalibration: TerminalClientDisplayCalibration | null
@@ -37,6 +40,7 @@ export function TerminalDisplayAlignedWorkspaceCanvasView({
   return (
     <TerminalDisplayAlignmentProvider value={value}>
       <WorkspaceCanvasView {...viewProps} {...projected} />
+      {spikeOverlay}
     </TerminalDisplayAlignmentProvider>
   )
 }

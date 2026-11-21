@@ -46,13 +46,13 @@ export function CanvasFlowHost({
   )
 
   return (
-    <>
-      <TerminalDisplayAlignedWorkspaceCanvasView
-        {...viewProps}
-        nodes={nodes}
-        spaceFramePreview={spaceFramePreview}
-      />
-      {tiledNode ? <TilingSpikeLayer node={tiledNode} nodeTypes={viewProps.nodeTypes} /> : null}
-    </>
+    <TerminalDisplayAlignedWorkspaceCanvasView
+      {...viewProps}
+      nodes={nodes}
+      spaceFramePreview={spaceFramePreview}
+      spikeOverlay={
+        tiledNode ? <TilingSpikeLayer node={tiledNode} nodeTypes={viewProps.nodeTypes} /> : null
+      }
+    />
   )
 }
