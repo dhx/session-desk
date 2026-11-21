@@ -4,7 +4,7 @@ import {
   assertManagedClaudeLaunchCurrent,
 } from '../managedClaudeLaunchRuntime'
 import { ABSENT_MANAGED_CLAUDE_BINDING } from '../../../../shared/contracts/managedClaudeLaunch'
-import { toFileUri } from '../../../../contexts/filesystem/domain/fileUri'
+import { toFileUri } from '../../../../contexts/filesystem/domain'
 import {
   isResumeSessionBindingVerified,
   resolveLaunchedAgentResumeBinding,
@@ -154,7 +154,7 @@ export async function prepareAgentNode(options: {
             model: sanitizedAgent.model,
             resumeSessionId: mode === 'resume' ? sanitizedAgent.resumeSessionId : null,
             ...(Object.keys(mergedEnv).length > 0 ? { env: mergedEnv } : {}),
-            agentFullAccess: settings.agentFullAccess,
+            agentFullAccess: options.agent.agentFullAccess ?? settings.agentFullAccess,
             codexReuseRunningAppServer: settings.codexReuseRunningAppServer,
             cols: initialGeometry.cols,
             rows: initialGeometry.rows,
@@ -187,7 +187,7 @@ export async function prepareAgentNode(options: {
           model: sanitizedAgent.model,
           resumeSessionId: mode === 'resume' ? sanitizedAgent.resumeSessionId : null,
           ...(Object.keys(mergedEnv).length > 0 ? { env: mergedEnv } : {}),
-          agentFullAccess: settings.agentFullAccess,
+          agentFullAccess: options.agent.agentFullAccess ?? settings.agentFullAccess,
           codexReuseRunningAppServer: settings.codexReuseRunningAppServer,
           cols: initialGeometry.cols,
           rows: initialGeometry.rows,

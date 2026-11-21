@@ -1,24 +1,25 @@
+import { createTestAgentLaunchArtifactRoot } from '../../support/agentLaunchArtifactRoot'
+import { parseArgs } from '../../fixtures/provider-argv/pi.mjs'
 // @vitest-environment node
-import { access, readFile, stat } from 'node:fs/promises'
-import { dirname } from 'node:path'
+import { access } from 'node:fs/promises'
 import { afterEach, expect, it, vi } from 'vitest'
 import { PiAgentProviderContribution } from '../../../src/contexts/agent/infrastructure/providers/pi/PiAgentProviderContribution'
 import { createManagedAgentLaunchPlan } from '../../../src/contexts/agent/application/use-cases/createManagedAgentLaunchPlan'
-import type { TemporaryProviderConfig } from '../../../src/contexts/agent/infrastructure/providers/shared/TemporaryProviderConfig'
-const files = vi.hoisted(() => [] as TemporaryProviderConfig[])
+import type { AgentLaunchArtifactFile } from '../../../src/contexts/agent/infrastructure/providers/shared/AgentLaunchArtifactFile'
+const files = vi.hoisted(() => [] as AgentLaunchArtifactFile[])
 vi.mock(
-  '../../../src/contexts/agent/infrastructure/providers/shared/TemporaryProviderConfig',
+  '../../../src/contexts/agent/infrastructure/providers/shared/AgentLaunchArtifactFile',
   async importOriginal => {
     const actual =
       await importOriginal<
-        typeof import('../../../src/contexts/agent/infrastructure/providers/shared/TemporaryProviderConfig')
+        typeof import('../../../src/contexts/agent/infrastructure/providers/shared/AgentLaunchArtifactFile')
       >()
     return {
       ...actual,
-      createTemporaryProviderConfig: async (
-        ...args: Parameters<typeof actual.createTemporaryProviderConfig>
+      createAgentLaunchArtifactFile: async (
+        ...args: Parameters<typeof actual.createAgentLaunchArtifactFile>
       ) => {
-        const file = await actual.createTemporaryProviderConfig(...args)
+        const file = await actual.createAgentLaunchArtifactFile(...args)
         files.push(file)
         return file
       },
@@ -37,12 +38,13 @@ const input = {
   agentFullAccess: false,
   workspaceDirectory: '/fixture',
 }
-it.each(['--continue', '--approve'])(
-  'keeps hook arguments before prompt %j and retires both artifacts',
+it.each(['Explain the change', 'Refactor'])(
+  'keeps hook arguments before prompt %j and retires the hook artifact',
   async prompt => {
     const dispose = vi.fn(async () => {})
     const commit = vi.fn()
     const provider = new PiAgentProviderContribution({
+      artifactRoot: createTestAgentLaunchArtifactRoot(),
       channel: {
         reserveSpawn: async () => ({
           usesHook: true,
@@ -54,36 +56,33 @@ it.each(['--continue', '--approve'])(
       } as never,
     })
     const managed = await createManagedAgentLaunchPlan(provider, { ...input, prompt })
-    const promptFile = files[0].path
-    const extensionFile = files[1].path
+    const extensionFile = files[0].path
     try {
-      expect(managed.plan.args).toEqual(['-e', extensionFile, `@${promptFile}`])
-      expect(managed.plan.fileArguments).toEqual([{ index: 2, prefix: '@' }])
-      expect(await readFile(promptFile, 'utf8')).toBe(prompt)
-      if (process.platform !== 'win32') {
-        expect((await stat(dirname(promptFile))).mode & 0o777).toBe(0o700)
-      }
+      expect(managed.plan.args).toEqual(['-e', extensionFile, prompt])
+      expect(managed.plan.fileArguments).toBeUndefined()
+      expect(parseArgs(managed.plan.args).messages).toEqual([prompt])
+      expect(parseArgs(managed.plan.args).fileArgs).toEqual([])
       managed.plan.onStarted?.('child')
       expect(commit).toHaveBeenCalledWith('child')
     } finally {
       await managed.artifacts.dispose()
     }
-    await expect(access(promptFile)).rejects.toThrow()
     await expect(access(extensionFile)).rejects.toThrow()
     expect(dispose).toHaveBeenCalledOnce()
   },
 )
-it('rolls back the prompt file if later hook preparation fails', async () => {
-  const provider = new PiAgentProviderContribution({
-    channel: {
-      reserveSpawn: async () => {
-        throw new Error('Fixture reservation failed')
-      },
-    } as never,
-  })
-  await expect(createManagedAgentLaunchPlan(provider, input)).rejects.toThrow(
-    'Fixture reservation failed',
-  )
-  expect(files).toHaveLength(1)
-  await expect(access(files[0].path)).rejects.toThrow()
-})
+it.each(['--continue', '--approve', 'config', 'update', '@file'])(
+  'refuses %j before reserving hooks or creating files',
+  async prompt => {
+    const reserveSpawn = vi.fn()
+    const provider = new PiAgentProviderContribution({
+      artifactRoot: createTestAgentLaunchArtifactRoot(),
+      channel: { reserveSpawn } as never,
+    })
+    await expect(
+      createManagedAgentLaunchPlan(provider, { ...input, prompt }),
+    ).rejects.toMatchObject({ details: { reason: 'initial_prompt_unsupported' } })
+    expect(reserveSpawn).not.toHaveBeenCalled()
+    expect(files).toHaveLength(0)
+  },
+)

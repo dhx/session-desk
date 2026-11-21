@@ -102,14 +102,12 @@ describe('existing unowned Claude renderer launches', () => {
       },
     })
     const taskContext = {
-      nodesRef: f.nodesRef,
-      spacesRef: f.spacesRef,
+      readDocument: f.readDocument,
       setNodes: f.setNodes,
       workspaceId: 'workspace',
       workspacePath: '/repo',
       agentSettings: DEFAULT_AGENT_SETTINGS,
-      onSpacesChange: vi.fn(),
-      onRequestPersistFlush: vi.fn(),
+      updateCanvasDocument: vi.fn(),
       buildAgentNodeTitle: () => 'Agent',
       launchAgentInNode: f.result.current.launchAgentInNode,
       t: (key: string) => key,

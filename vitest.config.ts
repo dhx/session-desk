@@ -1,4 +1,5 @@
 /// <reference types="vitest/config" />
+import './scripts/lib/isolateHostEnvironment.mjs'
 import { realpathSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { availableParallelism } from 'node:os'
@@ -70,7 +71,21 @@ export default defineConfig({
     ],
 
     // 排除目录
-    exclude: ['node_modules', 'dist', 'tests/e2e'],
+    exclude: [
+      'node_modules',
+      'dist',
+      'tests/e2e',
+      'tests/contract/worker-cli/**',
+      // Session Desk runs its own workflows (.github/workflows/ci.yml, dhx-*.yml) and has no
+      // nightly.yml or release.yml. These upstream specs check upstream's workflow files; they
+      // come back when ci.yml follows upstream's layout (docs/dhx/RELEASES.md).
+      'tests/unit/scripts/ci-e2e-budget.spec.ts',
+      'tests/unit/scripts/ci-main-flow.spec.ts',
+      'tests/unit/scripts/ci-platform-vitest.spec.ts',
+      'tests/unit/scripts/ci-repo-checks.spec.ts',
+      'tests/unit/scripts/ci-web-suites.spec.ts',
+      'tests/unit/scripts/windowsNativeArgumentsCi.spec.ts',
+    ],
 
     // 覆盖率配置
     coverage: {

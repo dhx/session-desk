@@ -1,4 +1,4 @@
-import { act, cleanup, renderHook } from '@testing-library/react'
+import { act, cleanup } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { DragEvent } from 'react'
 import {
@@ -6,8 +6,13 @@ import {
   type FilesystemNodesParams,
 } from '@contexts/workspace/presentation/renderer/components/workspaceCanvas/hooks/useFilesystemNodes'
 import { useCanvasCollapseStore } from '@contexts/workspace/presentation/renderer/store/useCanvasCollapseStore'
+import {
+  createCanvasDocumentHarness,
+  renderInCanvasDocument,
+} from '../../support/canvasDocumentHarness'
 
-vi.mock('@xyflow/react', () => ({
+vi.mock('@xyflow/react', async importOriginal => ({
+  ...(await importOriginal<object>()),
   useReactFlow: () => ({
     screenToFlowPosition: ({ x, y }: { x: number; y: number }) => ({ x: x / 2, y: y / 2 }),
   }),
@@ -42,30 +47,32 @@ function setup() {
     () => null,
   )
   const onShowMessage = vi.fn()
+  createCanvasDocumentHarness({
+    workspaceId: 'one',
+    spaces: [
+      {
+        id: 'feature-space',
+        name: 'Feature',
+        nodeIds: [],
+        directoryPath: '/project/.opencove/worktrees/feature',
+        rect: { x: 0, y: 0, width: 300, height: 300 },
+        targetMountId: null,
+      },
+    ],
+  })
   const params: Omit<FilesystemNodesParams, 'workspaceId'> = {
     workspacePath: '/project',
     nodeStore: {
-      nodesRef: { current: [] },
       setNodes: vi.fn(),
+      updateCanvasDocument: vi.fn(),
       createDocumentNode,
       createFolderNode: vi.fn(() => null),
     },
-    spacesRef: {
-      current: [
-        {
-          id: 'feature-space',
-          name: 'Feature',
-          nodeIds: [],
-          directoryPath: '/project/.opencove/worktrees/feature',
-          rect: { x: 0, y: 0, width: 300, height: 300 },
-          targetMountId: null,
-        },
-      ],
-    } as FilesystemNodesParams['spacesRef'],
-    onSpacesChange: vi.fn(),
     onShowMessage,
   }
-  const hook = renderHook(() => useFilesystemNodes({ ...params, workspaceId: 'one' }))
+  const hook = renderInCanvasDocument(() => useFilesystemNodes({ ...params, workspaceId: 'one' }), {
+    workspaceId: 'one',
+  })
   return { ...hook, createDocumentNode, onShowMessage }
 }
 

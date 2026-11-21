@@ -7,6 +7,7 @@ import { resolveNodeCreationTarget, type ResolvedNodeCreationTarget } from './no
 import type { SpaceLocatorResolverDeps } from './spaceLocator'
 import type { NodeControlRuntimeDeps } from './nodeControlUseCases'
 import {
+  isNodeControlRevisionConflict,
   replaceNodeControlWorkspace,
   requireNodeControlState,
   type NodeControlAppStateStore,
@@ -15,6 +16,7 @@ import {
 import { resolvePlacement, workspaceWithNode } from './nodeCreatePlacement'
 import { resolveCreateFrame } from './nodeDataFactory'
 import { toCanvasNodeDetail } from './nodeDtos'
+import { assertTaskCanTakeAgent, linkAgentToTask } from './nodeTaskLink'
 
 function targetIdentity(target: ResolvedNodeCreationTarget) {
   return JSON.stringify([
@@ -24,6 +26,7 @@ function targetIdentity(target: ResolvedNodeCreationTarget) {
     target.endpoint.endpointId,
     target.mount?.rootUri ?? null,
     target.workingDirectory,
+    target.referenceSpaceId,
   ])
 }
 
@@ -35,10 +38,11 @@ export async function commitCreatedNode(options: {
   input: CreateNodeInput
   node: NodeControlNode
   initialTarget: ResolvedNodeCreationTarget
+  taskNodeId?: string
+  now: Date
   lineage?: NodeLineageRecord | null
   callerNodeId?: string | null
 }): Promise<CreateNodeResult> {
-  /* eslint-disable no-await-in-loop -- Each bounded CAS attempt must use a fresh snapshot. */
   for (let attempt = 0; attempt < 3; attempt++) {
     options.runtime.assertActive?.()
     const expectedRevision = await options.store.readAppStateRevision()
@@ -65,6 +69,7 @@ export async function commitCreatedNode(options: {
       bucket: normalizeAgentSettings(state.settings).standardWindowSizeBucket,
       frame: options.input.frame,
       callerNodeId: options.callerNodeId,
+      reference: current.reference,
     })
     const frame = resolveCreateFrame({
       kind: options.input.kind,
@@ -79,7 +84,27 @@ export async function commitCreatedNode(options: {
       height: frame.height,
     }
     const spaceId = current.space?.id ?? null
-    const workspace = workspaceWithNode(current.workspace, node, spaceId)
+    if (options.taskNodeId !== undefined) {
+      assertTaskCanTakeAgent({
+        workspace: current.workspace,
+        spaceId,
+        taskNodeId: options.taskNodeId,
+      })
+    }
+    const inserted = workspaceWithNode(
+      current.workspace,
+      node,
+      spaceId,
+      Boolean(options.input.near),
+    )
+    const workspace =
+      options.taskNodeId === undefined
+        ? inserted
+        : linkAgentToTask(inserted, {
+            taskNodeId: options.taskNodeId,
+            agentNodeId: node.id,
+            now: options.now.toISOString(),
+          })
     options.runtime.assertActive?.()
     const nextState = replaceNodeControlWorkspace(state, workspace)
     const result = options.lineage
@@ -100,14 +125,10 @@ export async function commitCreatedNode(options: {
         )[0],
       }
     }
-    const isConflict =
-      result.error.code === 'persistence.invalid_state' &&
-      /^App state revision conflict(?:\s|\(|$)/.test(result.error.debugMessage ?? '')
-    if (!isConflict || attempt === 2) {
+    if (!isNodeControlRevisionConflict(result.error) || attempt === 2) {
       throw createAppError(result.error)
     }
   }
-  /* eslint-enable no-await-in-loop */
   throw new Error('Node creation persistence attempts exhausted.')
 }
 

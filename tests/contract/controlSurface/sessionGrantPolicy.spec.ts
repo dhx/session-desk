@@ -1,5 +1,6 @@
+import { deniedLaunchFields, singleTokenLaunchPrompts } from '../../support/sessionGrantCases'
+import { nodeCreateOperation } from '../../../src/shared/contracts/controlSurface/operations/domains/node'
 import { admittedGrantInvocation } from './admittedGrantInvocation.testUtils'
-/* eslint-disable no-await-in-loop -- Each request observes the preceding mutation or authorization boundary. */
 // @vitest-environment node
 import { expect, it, vi } from 'vitest'
 import { CONTROL_SURFACE_OPERATIONS } from '../../../src/shared/contracts/controlSurface/operations'
@@ -92,7 +93,6 @@ it.each(REQUIRED_SESSION_GRANT_DENIALS)(
 for (const op of [sessionLaunchAgentOperation, sessionLaunchAgentInMountOperation]) {
   const target = op.id === 'session.launchAgent' ? { spaceId: 's' } : { mountId: 'm' }
   it.each([
-    'agentFullAccess',
     'env',
     'executablePathOverride',
     'resumeSessionId',
@@ -104,7 +104,6 @@ for (const op of [sessionLaunchAgentOperation, sessionLaunchAgentInMountOperatio
       handle = vi.fn(() => ({ sessionId: 'started' }))
     registerLaunch(surface, op, handle)
     const value: Record<string, unknown> = {
-      agentFullAccess: true,
       env: { KEY: 'secret' },
       executablePathOverride: '/bin/sh',
       resumeSessionId: 'old',
@@ -122,6 +121,17 @@ for (const op of [sessionLaunchAgentOperation, sessionLaunchAgentInMountOperatio
       error: { code: 'common.forbidden', details: { reason: 'field_denied', field } },
     })
     expect(handle).not.toHaveBeenCalled()
+  })
+  it.each([true, false])(`${op.id} allows explicit Full Access=%s`, async agentFullAccess => {
+    const surface = createControlSurface()
+    registerLaunch(surface, op, (_ctx, payload) => payload)
+    expect(
+      await admittedGrantInvocation(surface, ctx, {
+        id: op.id,
+        kind: 'command',
+        payload: { ...target, prompt: 'Explain this project', agentFullAccess },
+      }),
+    ).toMatchObject({ ok: true, value: { agentFullAccess } })
   })
   it(`${op.id} refuses target fields belonging to the other launch operation`, async () => {
     const surface = createControlSurface(),
@@ -141,8 +151,6 @@ for (const op of [sessionLaunchAgentOperation, sessionLaunchAgentInMountOperatio
     expect(handle).not.toHaveBeenCalled()
   })
   it.each([
-    ['agentFullAccess', false],
-    ['agentFullAccess', null],
     ['env', null],
     ['executablePathOverride', null],
     ['resumeSessionId', null],
@@ -200,7 +208,7 @@ for (const op of [sessionLaunchAgentOperation, sessionLaunchAgentInMountOperatio
     { kind: 'bearer' as const },
     { kind: 'cookie' as const, webSessionGeneration: 0 },
   ]) {
-    it.each(['logout', 'update', 'resume', 'Refactor'])(
+    it.each(singleTokenLaunchPrompts)(
       `${op.id}/${auth.kind} preserves trusted single-token %j admission`,
       async prompt => {
         const surface = createControlSurface()
@@ -330,5 +338,73 @@ it.each(['read', 'interact'] as const)(
         expect(access, op.id).toBe('denied')
       }
     }
+  },
+)
+
+it.each([true, false])(
+  'preserves admitted grant Full Access=%s during mount forwarding',
+  agentFullAccess => {
+    expect(
+      toMountedAgentLaunchInput(
+        { prompt: '', agentFullAccess },
+        { mountId: 'mount', cwdUri: null },
+        ctx.requestAuth,
+      ),
+    ).toMatchObject({ agentFullAccess })
+  },
+)
+
+it.each([true, false])(
+  'preserves explicit Full Access=%s when resolving Home launch settings',
+  async agentFullAccess => {
+    const { resolveRemoteAgentLaunchSettings } =
+      await import('../../../src/app/main/controlSurface/handlers/agentLaunchEnvironment')
+    const { createMinimalState } =
+      await import('./controlSurfaceHttpServer.sessionStreaming.testUtils')
+    const state = createMinimalState('/repo', 'p', 's')
+    state.settings = { agentFullAccess: !agentFullAccess }
+    const result = await resolveRemoteAgentLaunchSettings(
+      ctx,
+      { mountId: 'm', prompt: 'Explain this project', agentFullAccess },
+      { getPersistenceStore: async () => ({ readAppState: async () => state }) as never },
+    )
+    expect(result.agentFullAccess).toBe(agentFullAccess)
+    expect(state.settings).toEqual({ agentFullAccess: !agentFullAccess })
+  },
+)
+
+// The same explicit values rejected by the CLI must fail at the node input boundary,
+// before any runtime handler can create a node or start a PTY.
+it.each(Object.entries(deniedLaunchFields))(
+  'node.create preserves CLI input-policy refusal for %s=%j',
+  async (field, value) => {
+    const surface = createControlSurface()
+    const handle = vi.fn()
+    registerOperation(surface, nodeCreateOperation, {
+      handle,
+      defaultErrorCode: 'common.unexpected',
+    })
+    expect(
+      await surface.invoke(ctx, {
+        kind: 'command',
+        id: 'node.create',
+        payload: {
+          kind: 'agent',
+          space: { kind: 'spaceId', spaceId: 's' },
+          data: { provider: 'claude-code', prompt: 'Review this project', [field]: value },
+        },
+      }),
+    ).toMatchObject({
+      ok: false,
+      error: {
+        code: 'common.invalid_input',
+        details: {
+          issues: expect.arrayContaining([
+            expect.objectContaining({ code: 'unrecognized_keys', path: ['data', field] }),
+          ]),
+        },
+      },
+    })
+    expect(handle).not.toHaveBeenCalled()
   },
 )

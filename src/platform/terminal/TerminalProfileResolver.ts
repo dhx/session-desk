@@ -1,3 +1,7 @@
+import { assertSpawnEnvironment } from '../process/spawnEnvironment'
+import { assertSpawnArguments } from '../process/spawnArguments'
+import { serializeWslArguments } from '../process/wslCommandLine'
+import { mergePowerShellLaunchEnv } from './windowsNativeLaunch'
 import { execFile } from 'node:child_process'
 import os from 'node:os'
 import process from 'node:process'
@@ -8,7 +12,7 @@ import { installBrowserBridge, needsBrowserBridge, withBrowserBridgeEnv } from '
 import type { CommandFileArgument } from '../../shared/types/commandFileArgument'
 import { createTerminalSpawnApplicationError } from '../../shared/errors/terminalSpawnError'
 import {
-  buildPowerShellExecArgs,
+  buildPowerShellExecLaunch,
   findProfileById,
   inferLegacyRuntimeKind,
   isBashLikeWindowsCommand,
@@ -220,6 +224,7 @@ export class TerminalProfileResolver {
         cwd: resolveWindowsHostCwd(input.cwd, this.deps.homeDir().trim(), this.deps.processCwd()),
         env,
         profileId: null,
+        // @compat terminal-profile-legacy-runtime-kind
         runtimeKind: inferLegacyRuntimeKind(input.shell, this.deps.platform),
       }
     }
@@ -231,7 +236,11 @@ export class TerminalProfileResolver {
       null
 
     if (selectedProfile) {
-      return selectedProfile.resolveSpawn(input.cwd, env)
+      const spawn = selectedProfile.resolveSpawn(input.cwd, env)
+      if (spawn.runtimeKind === 'wsl') {
+        serializeWslArguments(spawn.args)
+      }
+      return spawn
     }
 
     return {
@@ -247,6 +256,7 @@ export class TerminalProfileResolver {
   public async resolveCommandSpawn(
     input: ResolveCommandSpawnInput,
   ): Promise<ResolvedTerminalSpawn> {
+    assertSpawnArguments(input.command, input.args, input.cwd)
     const command = input.command.trim()
     const args = [...input.args]
     const env = removeElectronRunAsNode({
@@ -255,6 +265,7 @@ export class TerminalProfileResolver {
     })
     stripParentAgentSessionEnv(env)
     const resolvedEnv = this.withBrowserBridge(withTerminalCapabilityEnv(env, this.deps.platform))
+    assertSpawnEnvironment(resolvedEnv)
 
     if (this.deps.platform !== 'win32') {
       return {
@@ -303,17 +314,22 @@ export class TerminalProfileResolver {
       }
       const commandEnv = { ...(input.commandEnv ?? input.env ?? {}) }
       stripParentAgentSessionEnv(commandEnv)
+      assertSpawnEnvironment(commandEnv)
       const envPairs = Object.entries(commandEnv).flatMap(([key, value]) =>
         typeof value === 'string' ? [`${key}=${value}`] : [],
       )
+      const wslArgs = [
+        ...shellSpawn.args,
+        '--exec',
+        ...(envPairs.length > 0 ? ['env', ...envPairs] : []),
+        command,
+        ...args,
+      ]
+      // Refuse here to retain public recovery guidance; PTY host validates again at dispatch.
+      serializeWslArguments(wslArgs)
       return {
         command: shellSpawn.command,
-        args: [
-          ...shellSpawn.args,
-          ...(envPairs.length > 0 ? ['env', ...envPairs] : []),
-          command,
-          ...args,
-        ],
+        args: wslArgs,
         cwd: shellSpawn.cwd,
         env: shellSpawn.env,
         profileId,
@@ -334,11 +350,13 @@ export class TerminalProfileResolver {
     }
 
     if (isPowerShellCommand(shellSpawn.command)) {
+      const launch = buildPowerShellExecLaunch(command, args, shellSpawn.cwd)
       return {
         command: shellSpawn.command,
-        args: buildPowerShellExecArgs(command, args, shellSpawn.cwd),
+        args: launch.args,
+        publicCommand: { command, args: [...args] },
         cwd: shellSpawn.cwd,
-        env: shellSpawn.env,
+        env: mergePowerShellLaunchEnv(shellSpawn.env, launch.env),
         profileId,
         runtimeKind: profile.runtimeKind,
       }

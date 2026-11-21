@@ -1,5 +1,6 @@
+import { registerWorkspaceDocumentPersistFlush } from '@contexts/workspace/presentation/renderer'
 import { currentManagedClaudeCompatibilityNotice } from '@contexts/workspace/presentation/renderer/utils/managedClaudeCompatibilityNotice'
-import { useCallback, useEffect, useRef } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef } from 'react'
 import { useTranslation } from '@app/renderer/i18n'
 import type { AgentSettings } from '@contexts/settings/domain/agentSettings'
 import type {
@@ -16,6 +17,8 @@ import { useAppStore } from '../store/useAppStore'
 import { flushScheduledScrollbackWrites } from '@contexts/workspace/presentation/renderer/utils/persistence/scrollbackSchedule'
 import { TERMINAL_SCROLLBACK_FLUSH_EVENT } from '@contexts/workspace/presentation/renderer/components/terminalNode/constants'
 import { toErrorMessage } from '../utils/format'
+import { createPersistenceDiagnostics, persistenceFailureNoticeKey } from './persistenceDiagnostics'
+import { logRuntimeDiagnostics } from '@app/renderer/debug/runtimeDiagnostics'
 
 function flushTerminalScrollback(): void {
   if (typeof window === 'undefined') {
@@ -47,18 +50,23 @@ export function usePersistedAppState({
   const setPersistNotice = useAppStore(state => state.setPersistNotice)
   const persistFlushRequestedRef = useRef(false)
   const initialHydrationWriteSkippedRef = useRef(false)
+  const diagnosticsRef = useRef<ReturnType<typeof createPersistenceDiagnostics> | null>(null)
+  diagnosticsRef.current ??= createPersistenceDiagnostics(logRuntimeDiagnostics)
 
   const handlePersistWriteResult = useCallback(
     (result: PersistWriteResult) => {
+      const noticeKey = result.ok ? null : persistenceFailureNoticeKey(result)
+      diagnosticsRef.current?.(result, noticeKey, Date.now())
       setPersistNotice(previous => {
         if (previous?.kind === 'connection') {
           return previous
         }
         if (result.ok) {
           if (result.level === 'full') {
-            return previous?.kind === 'recovery' || previous?.kind === 'compatibility'
+            return previous?.kind === 'recovery' ||
+              /* @compat managed-claude-worker-support */ previous?.kind === 'compatibility'
               ? previous
-              : currentManagedClaudeCompatibilityNotice()
+              : /* @compat managed-claude-worker-support */ currentManagedClaudeCompatibilityNotice()
           }
 
           const message =
@@ -75,18 +83,7 @@ export function usePersistedAppState({
         }
 
         const identityConflict = result.error.code === 'persistence.owned_node_identity_conflict'
-        const message =
-          result.outcome === 'unknown'
-            ? t('persistence.saveUnconfirmed')
-            : identityConflict
-              ? t('persistence.ownedIdentityRestored')
-              : result.reason === 'unavailable'
-                ? t('persistence.unavailable')
-                : result.reason === 'quota' || result.reason === 'payload_too_large'
-                  ? t('persistence.limitExceeded')
-                  : result.reason === 'io'
-                    ? t('persistence.ioFailed', { message: toErrorMessage(result.error) })
-                    : t('persistence.failed', { message: toErrorMessage(result.error) })
+        const message = t(noticeKey!, { message: toErrorMessage(result.error) })
 
         const next: PersistNotice = {
           tone: identityConflict ? 'warning' : 'error',
@@ -117,6 +114,20 @@ export function usePersistedAppState({
       })
     }
   }, [handlePersistWriteResult, isHydrated, producePersistedState])
+
+  // One registration for the shell's lifetime, calling the latest `requestPersistFlush`. Its
+  // identity changes with hydration and the language; re-registering on each change left the
+  // child effects of that commit with nothing to reach, because React runs every passive cleanup
+  // of a commit before any passive setup. A layout effect registers before any passive effect of
+  // the first commit runs.
+  const requestPersistFlushRef = useRef(requestPersistFlush)
+  useLayoutEffect(() => {
+    requestPersistFlushRef.current = requestPersistFlush
+  }, [requestPersistFlush])
+  useLayoutEffect(
+    () => registerWorkspaceDocumentPersistFlush(() => requestPersistFlushRef.current()),
+    [],
+  )
 
   useEffect(() => {
     if (window.opencoveApi?.meta?.isTest) {

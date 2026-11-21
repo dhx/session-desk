@@ -35,6 +35,7 @@ export default defineConfig({
   testDir: './tests/e2e',
   testMatch: '**/*.spec.ts',
   testIgnore: skippedFiles,
+  forbidOnly: !!process.env.CI,
   grepInvert: skippedTests.length > 0 ? skippedTests : undefined,
   timeout: 120_000,
   expect: {

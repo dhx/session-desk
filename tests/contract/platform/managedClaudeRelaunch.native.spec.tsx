@@ -1,8 +1,10 @@
 // @vitest-environment happy-dom
 import { DEFAULT_AGENT_ENV_BY_PROVIDER } from '../../../src/contexts/settings/domain/agentEnv'
-import { useCallback, useMemo, useRef, useState } from 'react'
+import { createElement, useCallback, useMemo, useState } from 'react'
 import { act, cleanup, renderHook } from '@testing-library/react'
 import { afterEach, expect, it, vi } from 'vitest'
+import { CanvasStoreTestProvider } from '../../support/canvasStoreTestHarness'
+import { createStoreBackedChannels } from '../../support/workspaceCanvasStoreHarness'
 import { describeWithElectronNativeModules } from '../electronNativeSuite'
 import { snapshotFixture, type SnapshotFixture } from './managedClaudeSnapshotFixture'
 import { toShellWorkspaceState } from '../../../src/app/renderer/shell/hooks/useHydrateAppState.helpers'
@@ -169,75 +171,93 @@ describeWithElectronNativeModules('UI Claude relaunch during normal persistence'
         await fixture.store.readAppStateRevision(),
       )
       vi.useFakeTimers()
-      const hook = renderHook(() => {
-        const [nodes, setNodes] = useState(workspace.nodes)
-        const nodesRef = useRef(nodes)
-        nodesRef.current = nodes
-        const [spaces, setSpaces] = useState(workspace.spaces)
-        const spacesRef = useRef(spaces)
-        spacesRef.current = spaces
-        const onSpacesChange = (next: typeof spaces) => {
-          spacesRef.current = next
-          setSpaces(next)
-        }
-        const workspaces = useMemo(() => [{ ...workspace, nodes, spaces }], [nodes, spaces])
-        const produce = useCallback(
-          () =>
-            toPersistedState(
-              [{ ...workspace, nodes: nodesRef.current, spaces: spacesRef.current }],
-              workspace.id,
-            ),
-          [],
-        )
-        const persistence = usePersistedAppState({
-          workspaces,
-          activeWorkspaceId: workspace.id,
-          agentSettings: DEFAULT_AGENT_SETTINGS,
-          isHydrated: true,
-          producePersistedState: produce,
-        })
-        const setCanvasNodes: TaskActionContext['setNodes'] = update => {
-          const next = update(nodesRef.current)
-          nodesRef.current = next
-          setNodes(next)
-        }
-        const lifecycle = useWorkspaceCanvasAgentNodeLifecycle({
-          workspaceId: workspace.id,
-          workspacePath: workspace.path,
-          nodesRef,
-          spacesRef,
-          onSpacesChange,
-          setNodes: setCanvasNodes,
-          bumpAgentLaunchToken: () => 1,
-          isAgentLaunchTokenCurrent: () => true,
-          agentFullAccess: false,
-          codexReuseRunningAppServer: false,
-          defaultTerminalProfileId: null,
-          terminalFontSize: 13,
-          terminalDisplayMetrics: { fontSize: 13 },
-          agentEnvByProvider: DEFAULT_AGENT_ENV_BY_PROVIDER,
-        })
-        return {
-          ...lifecycle,
-          nodesRef,
-          runTask: () =>
-            runTaskAgentAction('task', {
-              nodesRef,
-              spacesRef,
-              onSpacesChange,
-              setNodes: setCanvasNodes,
-              createNodeForSession: vi.fn(),
-              buildAgentNodeTitle: () => 'Claude',
-              launchAgentInNode: lifecycle.launchAgentInNode,
-              agentSettings: DEFAULT_AGENT_SETTINGS,
-              workspaceId: workspace.id,
-              workspacePath: workspace.path,
-              terminalDisplayMetrics: { fontSize: 13 },
-              t: translate,
-              onRequestPersistFlush: persistence.requestPersistFlush,
-            }),
-        }
+      // The lifecycle and the task run read the canvas document from the store; the persisted
+      // state below is produced from these views of the one workspace the store holds.
+      const { nodesRef, spacesRef, readDocument } = createStoreBackedChannels({
+        workspaceId: workspace.id,
+        nodes: workspace.nodes,
+        spaces: workspace.spaces,
       })
+      const hook = renderHook(
+        () => {
+          const [nodes, setNodes] = useState(workspace.nodes)
+          const [spaces, setSpaces] = useState(workspace.spaces)
+          const onSpacesChange = (next: typeof spaces) => {
+            spacesRef.current = next
+            setSpaces(next)
+          }
+          const workspaces = useMemo(() => [{ ...workspace, nodes, spaces }], [nodes, spaces])
+          const produce = useCallback(
+            () =>
+              toPersistedState(
+                [{ ...workspace, nodes: nodesRef.current, spaces: spacesRef.current }],
+                workspace.id,
+              ),
+            [],
+          )
+          const persistence = usePersistedAppState({
+            workspaces,
+            activeWorkspaceId: workspace.id,
+            agentSettings: DEFAULT_AGENT_SETTINGS,
+            isHydrated: true,
+            producePersistedState: produce,
+          })
+          // The flush rides on the node write that asks for it, as the node store runs it.
+          const setCanvasNodes: TaskActionContext['setNodes'] = (update, options) => {
+            const next = update(nodesRef.current)
+            nodesRef.current = next
+            setNodes(next)
+            if (options?.flush) {
+              persistence.requestPersistFlush()
+            }
+          }
+          // The push-away is one recipe over the nodes and the Spaces, as the node store runs it.
+          const updateCanvasDocument: TaskActionContext['updateCanvasDocument'] = recipe => {
+            const next = recipe({ nodes: nodesRef.current, spaces: spacesRef.current })
+            if (next.nodes !== nodesRef.current) {
+              setCanvasNodes(() => next.nodes)
+            }
+            onSpacesChange(next.spaces)
+          }
+          const lifecycle = useWorkspaceCanvasAgentNodeLifecycle({
+            workspaceId: workspace.id,
+            workspacePath: workspace.path,
+            setNodes: setCanvasNodes,
+            bumpAgentLaunchToken: () => 1,
+            isAgentLaunchTokenCurrent: () => true,
+            agentFullAccess: false,
+            codexReuseRunningAppServer: false,
+            defaultTerminalProfileId: null,
+            terminalFontSize: 13,
+            terminalDisplayMetrics: { fontSize: 13 },
+            agentEnvByProvider: DEFAULT_AGENT_ENV_BY_PROVIDER,
+          })
+          return {
+            ...lifecycle,
+            nodesRef,
+            runTask: () =>
+              runTaskAgentAction('task', {
+                readDocument,
+                updateCanvasDocument,
+                updateSpaces: vi.fn(),
+                setNodes: setCanvasNodes,
+                createNodeForSession: vi.fn(),
+                buildAgentNodeTitle: () => 'Claude',
+                launchAgentInNode: lifecycle.launchAgentInNode,
+                agentSettings: DEFAULT_AGENT_SETTINGS,
+                workspaceId: workspace.id,
+                workspacePath: workspace.path,
+                terminalDisplayMetrics: { fontSize: 13 },
+                t: translate,
+              }),
+          }
+        },
+        {
+          // The native suite compiles without the automatic JSX runtime, so no JSX here.
+          wrapper: ({ children }) =>
+            createElement(CanvasStoreTestProvider, { workspaceId: workspace.id }, children),
+        },
+      )
       let launch!: ReturnType<typeof hook.result.current.launchAgentInNode>
       try {
         await act(async () => {

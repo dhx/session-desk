@@ -1,5 +1,6 @@
+import { createTestAgentLaunchArtifactRoot } from '../../support/agentLaunchArtifactRoot'
+import { assertProviderInitialPrompt } from '../../../src/contexts/agent/domain/providerInitialPromptPolicy'
 // @vitest-environment node
-import { access, readFile, stat } from 'node:fs/promises'
 import { describe, expect, it } from 'vitest'
 import { AGENT_PROVIDER_IDS } from '../../../src/shared/contracts/dto'
 import { createBuiltinAgentProviderContributions } from '../../../src/contexts/agent/infrastructure/providers/catalog/BuiltinAgentProviderCatalog'
@@ -22,11 +23,14 @@ const prompts = [
   '--model=other',
   '--approve\nsecond line',
 ]
-for (const provider of createBuiltinAgentProviderContributions({ runtimePlatform: 'linux' })) {
+for (const provider of createBuiltinAgentProviderContributions({
+  artifactRoot: createTestAgentLaunchArtifactRoot(),
+  runtimePlatform: 'linux',
+})) {
   describe(`${provider.descriptor.id} initial prompt encoding`, () => {
     it.each(prompts)('encodes %j without changing the launch mode', async input => {
       const prompt = input.trim()
-      const managed = await createManagedAgentLaunchPlan(provider, {
+      const command = {
         mode: 'new',
         prompt: input,
         model: null,
@@ -34,21 +38,19 @@ for (const provider of createBuiltinAgentProviderContributions({ runtimePlatform
         agentFullAccess: provider.descriptor.id === 'kimi',
         workspaceDirectory: '/fixture',
         opencodeServer: { hostname: '127.0.0.1', port: 12345 },
-      })
-      let file: string | undefined
+      } as const
+      try {
+        assertProviderInitialPrompt(provider.descriptor.id, prompt)
+      } catch {
+        await expect(createManagedAgentLaunchPlan(provider, command)).rejects.toThrow()
+        return
+      }
+      const managed = await createManagedAgentLaunchPlan(provider, command)
       try {
         const { args } = managed.plan
         expect(managed.plan.launchMode).toBe('new')
         const id = provider.descriptor.id
-        if (id === 'pi' && prompt.startsWith('-')) {
-          expect(args.at(-1)).toMatch(/^@/)
-          file = args.at(-1)!.slice(1)
-          expect(await readFile(file, 'utf8')).toBe(prompt)
-          if (process.platform !== 'win32') {
-            expect((await stat(file)).mode & 0o777).toBe(0o600)
-          }
-          expect(args).not.toContain(prompt)
-        } else if (id === 'opencode') {
+        if (id === 'opencode') {
           expect(args.slice(-(prompt.startsWith('-') ? 2 : 3))).toEqual(
             prompt.startsWith('-') ? [`--prompt=${prompt}`, '.'] : ['--prompt', prompt, '.'],
           )
@@ -62,7 +64,7 @@ for (const provider of createBuiltinAgentProviderContributions({ runtimePlatform
           expect(args.slice(-2)).toEqual(['--prompt', prompt])
         } else {
           expect(args.at(-1)).toBe(prompt)
-          if (id === 'codex' || prompt.startsWith('-')) {
+          if (id === 'codex' || id === 'claude-code') {
             expect(args.at(-2)).toBe('--')
           }
         }
@@ -83,9 +85,6 @@ for (const provider of createBuiltinAgentProviderContributions({ runtimePlatform
       } finally {
         await managed.artifacts.dispose()
       }
-      if (file) {
-        await expect(access(file)).rejects.toThrow()
-      }
     })
     it.each(['', ' \n '])('keeps empty prompt %j out of argv', async prompt => {
       const managed = await createManagedAgentLaunchPlan(provider, {
@@ -103,26 +102,30 @@ for (const provider of createBuiltinAgentProviderContributions({ runtimePlatform
       expect(managed.plan.args).not.toContain('--prompt-interactive')
       expect(managed.plan.args.some(arg => arg.startsWith('@'))).toBe(false)
     })
-    it('keeps trusted resume semantics separate from the ignored initial prompt', async () => {
-      const managed = await createManagedAgentLaunchPlan(provider, {
-        mode: 'resume',
-        prompt: '--approve',
-        model: null,
-        resumeSessionId: '11111111-1111-4111-8111-111111111111',
-        agentFullAccess: false,
-        workspaceDirectory: '/fixture',
-        opencodeServer: { hostname: '127.0.0.1', port: 12345 },
-      })
-      await managed.artifacts.dispose()
-      expect(managed.plan.launchMode).toBe('resume')
-      expect(managed.plan.args).not.toContain('--approve')
-      expect(managed.plan.args.some(arg => arg.startsWith('@'))).toBe(false)
-    })
+    it.each(['--approve', 'plugins\0 explain this project'])(
+      'keeps trusted resume semantics separate from ignored initial prompt %j',
+      async prompt => {
+        const managed = await createManagedAgentLaunchPlan(provider, {
+          mode: 'resume',
+          prompt,
+          model: null,
+          resumeSessionId: '11111111-1111-4111-8111-111111111111',
+          agentFullAccess: false,
+          workspaceDirectory: '/fixture',
+          opencodeServer: { hostname: '127.0.0.1', port: 12345 },
+        })
+        await managed.artifacts.dispose()
+        expect(managed.plan.launchMode).toBe('resume')
+        expect(managed.plan.args).not.toContain('--approve')
+        expect(managed.plan.args).not.toContain(prompt)
+        expect(managed.plan.args.some(arg => arg.startsWith('@'))).toBe(false)
+      },
+    )
   })
 }
 it('covers every registered built-in provider', () => {
   expect(
-    createBuiltinAgentProviderContributions()
+    createBuiltinAgentProviderContributions({ artifactRoot: createTestAgentLaunchArtifactRoot() })
       .map(provider => provider.descriptor.id)
       .sort(),
   ).toEqual([...AGENT_PROVIDER_IDS].sort())
@@ -132,9 +135,9 @@ for (const id of ['opencode', 'gemini'] as const) {
   it.each(['--continue', '--approve', '--dangerously-skip-permissions', '-p'])(
     `${id} keeps the sibling model value %j literal`,
     async model => {
-      const provider = createBuiltinAgentProviderContributions().find(
-        entry => entry.descriptor.id === id,
-      )!
+      const provider = createBuiltinAgentProviderContributions({
+        artifactRoot: createTestAgentLaunchArtifactRoot(),
+      }).find(entry => entry.descriptor.id === id)!
       const managed = await createManagedAgentLaunchPlan(provider, {
         mode: 'new',
         prompt: 'Explain the change',

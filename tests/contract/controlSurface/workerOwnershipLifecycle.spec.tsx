@@ -1,4 +1,3 @@
-/* eslint-disable no-await-in-loop -- Each compatibility case executes sequential lifecycle effects. */
 import { act } from '@testing-library/react'
 import { afterEach, expect, it, vi } from 'vitest'
 import { workerOwnershipCompatibilityCases } from '../../support/workerOwnershipCompatibility'
@@ -156,15 +155,21 @@ it.each(
         agent: createBrowserAgentApi(),
       }
     }
+    // The flush rides on the node write that follows it; the spy sees it as the node store does.
+    const persistFlush = vi.fn()
     const taskContext = {
-      nodesRef: f.nodesRef,
-      spacesRef: f.spacesRef,
-      setNodes: f.setNodes,
+      readDocument: f.readDocument,
+      setNodes: ((updater, options) => {
+        if (options?.flush) {
+          persistFlush()
+        }
+        f.setNodes(updater, options)
+      }) as TaskActionContext['setNodes'],
       workspaceId: 'workspace',
       workspacePath: '/repo',
       agentSettings: DEFAULT_AGENT_SETTINGS,
-      onSpacesChange: vi.fn(),
-      onRequestPersistFlush: vi.fn(),
+      updateCanvasDocument: vi.fn(),
+      updateSpaces: vi.fn(),
       buildAgentNodeTitle: () => 'Agent',
       launchAgentInNode: f.result.current.launchAgentInNode,
       t: (key: string) => key,
@@ -238,8 +243,9 @@ it.each(
         expect(worker.spawn).not.toHaveBeenCalled()
         expect(window.opencoveApi.pty.kill).not.toHaveBeenCalled()
         expect(calls).not.toContain('session.prepareOrRevive')
-        expect(taskContext.onSpacesChange).not.toHaveBeenCalled()
-        expect(taskContext.onRequestPersistFlush).not.toHaveBeenCalled()
+        expect(taskContext.updateCanvasDocument).not.toHaveBeenCalled()
+        expect(taskContext.updateSpaces).not.toHaveBeenCalled()
+        expect(persistFlush).not.toHaveBeenCalled()
         expect(f.nodesRef.current[0].data.agent?.prompt).toBe('fixture')
         if (action === 'relaunch' || action === 'switch') {
           expect(f.nodesRef.current[0].data.lastError).toMatch(/Worker/)

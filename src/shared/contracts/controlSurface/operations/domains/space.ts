@@ -39,6 +39,7 @@ export const spaceCreateChildOperation = defineOperation({
     z.array(z.unknown()),
   ]),
   normalize: normalizeCreateChildPayload,
+  compat: 'control-surface-legacy-validation',
   legacyNormalize: normalizeCreateChildPayload,
   errors: [
     'space.not_found',
@@ -55,6 +56,7 @@ export const spaceCreateChildOperation = defineOperation({
 // Session Desk (#30): plugins create an empty top-level Space beside the canvas content, and
 // rename or recolour one (host.spaces.create/update). Fork ids, apart from upstream's space.create.
 export const spaceCreateEmptyOperation = defineLegacyOperation({
+  compat: 'control-surface-legacy-validation',
   id: 'space.createEmpty',
   kind: 'command',
   scope: 'interact',
@@ -62,6 +64,7 @@ export const spaceCreateEmptyOperation = defineLegacyOperation({
   summary: 'Create an empty top-level space beside the canvas content',
 })
 export const spaceSetAttributesOperation = defineLegacyOperation({
+  compat: 'control-surface-legacy-validation',
   id: 'space.setAttributes',
   kind: 'command',
   scope: 'interact',
@@ -74,9 +77,11 @@ export const spaceGetOperation = defineOperation({
   scope: 'read',
   availability: 'always',
   summary: 'Get a space with its nodes and owning project',
+  // @compat control-surface-legacy-validation
   // Legacy isRecord accepts arrays; raw normalization retains named array properties.
   input: z.union([z.looseObject({ spaceId: z.string() }), z.array(z.unknown())]),
   normalize: normalizeGetSpacePayload,
+  compat: 'control-surface-legacy-validation',
   legacyNormalize: normalizeGetSpacePayload,
   errors: ['space.not_found', 'persistence.unavailable'],
 })
@@ -86,11 +91,13 @@ export const spaceListOperation = defineOperation({
   scope: 'read',
   availability: 'always',
   summary: 'List spaces and their nodes in the selected or active project',
+  // @compat control-surface-legacy-validation
   // Legacy isRecord accepts arrays; raw normalization retains named array properties.
   input: z
     .union([z.looseObject({ projectId: z.string().nullish() }), z.array(z.unknown())])
     .nullish(),
   normalize: normalizeListSpacesPayload,
+  compat: 'control-surface-legacy-validation',
   legacyNormalize: normalizeListSpacesPayload,
   errors: ['persistence.unavailable'],
 })

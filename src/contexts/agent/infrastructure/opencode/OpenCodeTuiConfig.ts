@@ -1,7 +1,8 @@
 import {
-  createTemporaryProviderConfig,
-  type TemporaryProviderConfig,
-} from '../providers/shared/TemporaryProviderConfig'
+  createAgentLaunchArtifactFile,
+  type AgentLaunchArtifactFile,
+  type AgentLaunchArtifactRoot,
+} from '../providers/shared/AgentLaunchArtifactFile'
 
 export const OPENCODE_EMBEDDED_TUI_CONFIG_CONTENTS = `${JSON.stringify(
   {
@@ -13,12 +14,15 @@ export const OPENCODE_EMBEDDED_TUI_CONFIG_CONTENTS = `${JSON.stringify(
 )}\n`
 
 /**
- * Writes the embedded OpenCode TUI config into a fresh private temp directory (0700, file 0600)
+ * Writes the embedded OpenCode TUI config into a fresh private launch directory (0700, file 0600)
  * instead of a fixed, guessable path in the shared temp dir. The caller owns the returned artifact
- * and disposes it with the launch, like the other temporary provider configs.
+ * and disposes it with the launch, like the other agent launch artifacts.
  */
-export async function createOpenCodeEmbeddedTuiConfig(): Promise<TemporaryProviderConfig> {
-  return await createTemporaryProviderConfig(
+export async function createOpenCodeEmbeddedTuiConfig(
+  root: AgentLaunchArtifactRoot,
+): Promise<AgentLaunchArtifactFile> {
+  return await createAgentLaunchArtifactFile(
+    root,
     'opencove-opencode-tui-',
     'tui.json',
     OPENCODE_EMBEDDED_TUI_CONFIG_CONTENTS,

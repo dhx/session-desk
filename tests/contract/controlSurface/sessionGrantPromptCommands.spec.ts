@@ -1,4 +1,5 @@
 // @vitest-environment node
+import { createTestAgentLaunchArtifactRoot } from '../../support/agentLaunchArtifactRoot'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { createControlSurface } from '../../../src/app/main/controlSurface/controlSurface'
 import { registerAgentPromptHandlers } from '../../../src/app/main/controlSurface/handlers/agentPromptHandlers'
@@ -7,6 +8,7 @@ import { createBuiltinAgentProviderContributions } from '../../../src/contexts/a
 import { SessionGrantRegistry } from '../../../src/app/main/controlSurface/http/sessionGrantRegistry'
 import { createControlSurfaceHttpServerContext } from '../../../src/app/main/controlSurface/controlSurfaceHttpServerContext'
 import { promptDeliveryRuntimeFixture } from '../../support/promptDeliveryRuntimeFixture'
+import { selectCodexSkills } from '../../fixtures/provider-argv/stringOptions.mjs'
 import type { AgentProviderId } from '../../../src/shared/contracts/dto'
 
 beforeEach(() => vi.useFakeTimers())
@@ -26,7 +28,11 @@ function fixture(provider: AgentProviderId, caller: 'grant' | 'bearer' | 'cookie
   const service = registerAgentPromptHandlers(
     surface,
     f.hub,
-    new AgentProviderRegistry(createBuiltinAgentProviderContributions()),
+    new AgentProviderRegistry(
+      createBuiltinAgentProviderContributions({
+        artifactRoot: createTestAgentLaunchArtifactRoot(),
+      }),
+    ),
   )
   const { grant } = new SessionGrantRegistry(() => true).issue({
     sessionId: 'caller-session',
@@ -72,12 +78,29 @@ async function probe(f: ReturnType<typeof fixture>, text: string, locator?: obje
 }
 for (const provider of Object.keys(prefixes) as AgentProviderId[]) {
   for (const locator of [{ nodeId: 'n' }, { sessionId: 's' }, { nodeId: '@self' }]) {
-    it.each(prefixes[provider])(
+    it.each([
+      ...prefixes[provider],
+      ...['exit', 'quit', ':q', ':q!', ':wq', ':wq!'].map(word => `\u0085${word}\u001c`),
+      'Please inspect @file',
+      'Explain \\@file',
+      'Explain "@file"',
+      ...(provider === 'codex'
+        ? [
+            'Use $explain please',
+            'Use "$explain" please',
+            'Use \\$explain please',
+            'Use [$explain](skill://explain) please',
+          ]
+        : []),
+    ])(
       `${provider}/${JSON.stringify(locator)} refuses command input %j before PTY input or record allocation`,
       async text => {
         const f = fixture(provider)
         try {
           const result = await probe(f, text, locator)
+          if (provider === 'codex') {
+            expect(selectCodexSkills(f.write.mock.calls.map(call => call[1]).join(''))).toEqual([])
+          }
           expect(result).toMatchObject({
             ok: false,
             error: {
@@ -86,7 +109,24 @@ for (const provider of Object.keys(prefixes) as AgentProviderId[]) {
                 reason: 'field_denied',
                 field: 'text',
                 operationId: 'agent.prompt',
-                message: expect.stringContaining('start with words'),
+                message: expect.stringContaining(
+                  text.includes('@')
+                    ? 'file reference'
+                    : text.includes('$')
+                      ? 'skill mention'
+                      : /exit|quit|:q|:wq/i.test(text)
+                        ? 'exit alias'
+                        : 'provider control',
+                ),
+                hint: expect.stringContaining(
+                  text.includes('@')
+                    ? 'opencove fs read --uri'
+                    : text.includes('$')
+                      ? 'Paste the instructions'
+                      : /exit|quit|:q|:wq/i.test(text)
+                        ? 'Describe your question'
+                        : 'Ask about the control',
+                ),
               },
             },
           })
@@ -188,3 +228,14 @@ it.each(['PermissionRequest', 'UserPromptSubmit'])(
     }
   },
 )
+
+it('negative control: Codex receiver selects inline, quoted, escaped and linked skills', () => {
+  for (const text of [
+    'Use $explain please',
+    'Use "$explain" please',
+    'Use \\$explain please',
+    'Use [$explain](skill://explain) please',
+  ]) {
+    expect(selectCodexSkills(text)).toEqual(['explain'])
+  }
+})

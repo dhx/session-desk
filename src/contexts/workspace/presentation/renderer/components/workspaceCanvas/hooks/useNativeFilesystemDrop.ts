@@ -1,15 +1,9 @@
-import {
-  useCallback,
-  useLayoutEffect,
-  useRef,
-  type DragEvent,
-  type DragEventHandler,
-  type MutableRefObject,
-} from 'react'
+import { useCallback, useLayoutEffect, useRef, type DragEvent, type DragEventHandler } from 'react'
 import { useReactFlow } from '@xyflow/react'
 import { useTranslation } from '@app/renderer/i18n'
 import { CANVAS_IMAGE_MIME_TYPES, type FileSystemStat } from '@shared/contracts/dto'
-import type { Point, WorkspaceSpaceState } from '../../../types'
+import type { Point } from '../../../types'
+import { useReadCanvasDocument } from '../../../store/canvasStoreContext'
 import { getCollapsedNodeSize } from '../../../utils/canvasCollapse'
 import {
   hasFilesystemEntryDragData,
@@ -39,14 +33,12 @@ export interface FilesystemMaterializeOptions {
 export function useNativeFilesystemDrop({
   workspaceId,
   workspacePath,
-  spacesRef,
   materialize,
   onShowMessage,
 }: {
   workspaceId: string
   /** The project root; in the Web UI, dropped files are uploaded into it (or the space's folder). */
   workspacePath?: string
-  spacesRef: MutableRefObject<WorkspaceSpaceState[]>
   materialize: (
     entry: FilesystemEntryDragData,
     anchor: Point,
@@ -57,6 +49,7 @@ export function useNativeFilesystemDrop({
 }) {
   const { t } = useTranslation()
   const reactFlow = useReactFlow()
+  const readDocument = useReadCanvasDocument()
   const lifetime = useRef<object | null>(null)
   useLayoutEffect(() => {
     lifetime.current = {}
@@ -82,12 +75,12 @@ export function useNativeFilesystemDrop({
       ) => Promise<FileSystemStat | null>,
     ) => {
       const anchor = reactFlow.screenToFlowPosition(clientPoint)
-      const targetSpaceId = findContainingSpaceByAnchor(spacesRef.current, anchor)?.id ?? null
+      const targetSpaceId = findContainingSpaceByAnchor(readDocument().spaces, anchor)?.id ?? null
       const epoch = lifetime.current
       const isCurrent = () =>
         epoch !== null &&
         lifetime.current === epoch &&
-        (targetSpaceId === null || spacesRef.current.some(space => space.id === targetSpaceId))
+        (targetSpaceId === null || readDocument().spaces.some(space => space.id === targetSpaceId))
       void (async () => {
         for (const [index, file] of files.entries()) {
           if (!isCurrent()) {
@@ -103,7 +96,6 @@ export function useNativeFilesystemDrop({
             if (entry) {
               const size = getCollapsedNodeSize()
               // Each placement must see the preceding node's published collision geometry.
-              // eslint-disable-next-line no-await-in-loop
               await materialize(
                 entry,
                 {
@@ -125,7 +117,7 @@ export function useNativeFilesystemDrop({
         }
       })()
     },
-    [materialize, onShowMessage, reactFlow, spacesRef, t],
+    [materialize, onShowMessage, reactFlow, readDocument, t],
   )
 
   /** Web UI: upload into the project, then reference the new file (images stay image nodes). */
@@ -151,13 +143,13 @@ export function useNativeFilesystemDrop({
       placeDroppedFiles(files, { x: event.clientX, y: event.clientY }, (file, targetSpaceId) =>
         resolveDroppedFile(file, {
           targetDirectoryPath: resolveBrowserDropDirectory(
-            spacesRef.current.find(space => space.id === targetSpaceId) ?? null,
+            readDocument().spaces.find(space => space.id === targetSpaceId) ?? null,
             workspacePath,
           ),
         }),
       )
     },
-    [onShowMessage, placeDroppedFiles, spacesRef, t, workspacePath],
+    [onShowMessage, placeDroppedFiles, readDocument, t, workspacePath],
   )
 
   const handleNativeDrop = useCallback<DragEventHandler<HTMLDivElement>>(

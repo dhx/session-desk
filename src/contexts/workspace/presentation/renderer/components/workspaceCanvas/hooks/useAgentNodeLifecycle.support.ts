@@ -1,9 +1,11 @@
+import { assertProviderInitialPrompt } from '@contexts/agent/domain/providerInitialPromptPolicy'
+import { toErrorMessage } from '../helpers'
 import type {
   ManagedClaudeLaunchIntent,
   ManagedClaudeLifecycleReceipt,
 } from '@shared/contracts/managedClaudeLaunch'
 import type { Node } from '@xyflow/react'
-import { toFileUri } from '@contexts/filesystem/domain/fileUri'
+import { toFileUri } from '@contexts/filesystem/domain'
 import type { LaunchAgentSessionResult, TerminalRuntimeKind } from '@shared/contracts/dto'
 import { resolveAgentNodeMinSize } from '@contexts/workspace/domain/workspaceNodeSizing'
 import type { TerminalPtyGeometryDisplayMetrics } from '@contexts/workspace/domain/terminalPtyGeometry'
@@ -148,7 +150,7 @@ export async function launchAgentRuntime({
         resumeSessionId: mode === 'resume' ? resumeSessionId : null,
         ...(executablePathOverride ? { executablePathOverride } : {}),
         ...(Object.keys(mergedEnv).length > 0 ? { env: mergedEnv } : {}),
-        agentFullAccess,
+        agentFullAccess: node.data.agent.agentFullAccess ?? agentFullAccess,
         codexReuseRunningAppServer,
         cols: launchGeometry.terminalGeometry.cols,
         rows: launchGeometry.terminalGeometry.rows,
@@ -190,7 +192,7 @@ export async function launchAgentRuntime({
     resumeSessionId: mode === 'resume' ? resumeSessionId : null,
     ...(executablePathOverride ? { executablePathOverride } : {}),
     ...(Object.keys(mergedEnv).length > 0 ? { env: mergedEnv } : {}),
-    agentFullAccess,
+    agentFullAccess: node.data.agent.agentFullAccess ?? agentFullAccess,
     codexReuseRunningAppServer,
     cols: launchGeometry.terminalGeometry.cols,
     rows: launchGeometry.terminalGeometry.rows,
@@ -212,5 +214,35 @@ export async function launchAgentRuntime({
     terminalGeometry: launchGeometry.terminalGeometry,
     frameSize: launchGeometry.frameSize,
     workerBinding: { endpointId: 'local', mountId: null },
+  }
+}
+
+/** Refusal is feedback, not a runtime failure: preserve the existing runtime and its state. */
+export function preflightAgentRelaunch(
+  nodeId: string,
+  mode: 'new' | 'resume',
+  launchData: AgentNodeData,
+  setNodes: (
+    updater: (nodes: Node<TerminalNodeData>[]) => Node<TerminalNodeData>[],
+    options?: { syncLayout?: boolean },
+  ) => void,
+): boolean {
+  if (mode === 'resume') {
+    return true
+  }
+  try {
+    assertProviderInitialPrompt(launchData.provider, launchData.prompt)
+    return true
+  } catch (error) {
+    setNodes(
+      previous =>
+        previous.map(item =>
+          item.id === nodeId
+            ? { ...item, data: { ...item.data, lastError: toErrorMessage(error) } }
+            : item,
+        ),
+      { syncLayout: false },
+    )
+    return false
   }
 }

@@ -1,5 +1,6 @@
 // @vitest-environment node
 import { expect, it, vi } from 'vitest'
+import { singleTokenLaunchPrompts, providerLaunchCommands } from '../../support/sessionGrantCases'
 import { admittedGrantInvocation } from './admittedGrantInvocation.testUtils'
 import { createControlSurface } from '../../../src/app/main/controlSurface/controlSurface'
 import { registerOperation } from '../../../src/app/main/controlSurface/registerOperation'
@@ -31,9 +32,6 @@ const { grant } = new SessionGrantRegistry(() => true).issue({
 })
 const context = { ...base, requestAuth: { kind: 'session-grant' as const, grant } }
 const overrides = [
-  ['agentFullAccess', true],
-  ['agentFullAccess', false],
-  ['agentFullAccess', null],
   ['env', { KEY: 'override' }],
   ['env', null],
   ['executablePathOverride', '/custom/agent'],
@@ -97,7 +95,7 @@ for (const operation of [sessionLaunchAgentOperation, sessionLaunchAgentInMountO
       expect(f.spawn).not.toHaveBeenCalled()
     },
   )
-  it.each(['logout', 'update', 'resume', 'Refactor'])(
+  it.each(singleTokenLaunchPrompts)(
     `${operation.id} preserves single-word %j denial with a genuine internal permit`,
     async prompt => {
       const f = fixture()
@@ -108,20 +106,15 @@ for (const operation of [sessionLaunchAgentOperation, sessionLaunchAgentInMountO
           details: {
             reason: 'field_denied',
             field: 'prompt',
-            message: expect.stringContaining('describe the task in a sentence'),
+            message: `The launch prompt ${JSON.stringify(prompt)} is a single token; a provider may read it as a command.`,
+            hint: expect.stringContaining('Rephrase the task as a sentence'),
           },
         },
       })
       expect(f.spawn).not.toHaveBeenCalled()
     },
   )
-  it.each([
-    '! printenv X',
-    '/permissions change policy',
-    '# note',
-    '& task',
-    '\u0085/permissions change policy',
-  ])(
+  it.each([...providerLaunchCommands, '\u0085/permissions change policy'])(
     `${operation.id} preserves resolved-provider command refusal for %j with a genuine internal permit`,
     async prompt => {
       const f = fixture()
@@ -132,7 +125,8 @@ for (const operation of [sessionLaunchAgentOperation, sessionLaunchAgentInMountO
           details: {
             reason: 'field_denied',
             promptReason: 'provider_command_prefix',
-            message: expect.stringContaining('start with words'),
+            message: expect.stringContaining('provider control'),
+            hint: expect.stringContaining('Ask about the control in a sentence'),
           },
         },
       })

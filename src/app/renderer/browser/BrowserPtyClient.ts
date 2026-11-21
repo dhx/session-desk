@@ -142,6 +142,7 @@ export class BrowserPtyClient {
 
     if (type === 'error') {
       const message = typeof record.message === 'string' ? record.message : 'PTY resize failed'
+      // @compat pty-geometry-legacy-revision
       this.geometryAcks.rejectLegacySession(sessionId, message)
       return
     }
@@ -189,6 +190,7 @@ export class BrowserPtyClient {
       const revision = normalizeBrowserPtyPositiveInt(record.revision)
       const state = this.attachedSessions.get(sessionId)
       if (state && revision !== null) {
+        // @compat pty-geometry-legacy-revision
         state.nextLegacyRevision = Math.max(state.nextLegacyRevision, revision)
       }
 
@@ -204,6 +206,7 @@ export class BrowserPtyClient {
         ...(revision !== null ? { revision } : {}),
       })
       if (revision !== null) {
+        // @compat pty-geometry-legacy-revision
         this.geometryAcks.resolveLegacyGeometry({
           sessionId,
           cols,
@@ -338,6 +341,7 @@ export class BrowserPtyClient {
       payload.sessionId,
     )
     const state = this.attachedSessions.get(payload.sessionId)
+    // @compat pty-geometry-legacy-revision
     const legacyRevision =
       this.geometryAcks.typedAckSupported === false && state
         ? (state.nextLegacyRevision += 1)
@@ -345,6 +349,7 @@ export class BrowserPtyClient {
     const pending = this.geometryAcks.begin({
       sessionId: payload.sessionId,
       operationId: payload.operationId,
+      // @compat pty-geometry-legacy-revision
       legacyRevision,
     })
 
@@ -361,6 +366,7 @@ export class BrowserPtyClient {
             ? { baseGeometryRevision: payload.baseGeometryRevision }
             : {}),
           authorityEpoch: attached.result.authority.epoch,
+          // @compat pty-geometry-legacy-revision
           ...(legacyRevision !== null
             ? { revision: legacyRevision }
             : typeof payload.revision === 'number' && Number.isFinite(payload.revision)
@@ -446,6 +452,7 @@ export class BrowserPtyClient {
     const existing = this.attachedSessions.get(payload.sessionId)
     if (existing) {
       existing.lastSeq = Math.max(existing.lastSeq, snapshot.appliedSeq)
+      // @compat pty-geometry-legacy-revision
       existing.nextLegacyRevision = Math.max(
         existing.nextLegacyRevision,
         snapshot.geometryRevision ?? 0,

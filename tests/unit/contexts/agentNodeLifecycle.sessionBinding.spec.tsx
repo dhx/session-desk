@@ -3,6 +3,11 @@ import { describe, expect, it, vi } from 'vitest'
 import type { Node } from '@xyflow/react'
 import { DEFAULT_AGENT_ENV_BY_PROVIDER } from '../../../src/contexts/settings/domain/agentEnv'
 import type { TerminalNodeData } from '../../../src/contexts/workspace/presentation/renderer/types'
+import {
+  CANVAS_STORE_TEST_WORKSPACE_ID,
+  CanvasStoreTestProvider,
+} from '../../support/canvasStoreTestHarness'
+import { createStoreBackedChannels } from '../../support/workspaceCanvasStoreHarness'
 import { useWorkspaceCanvasAgentNodeLifecycle } from '../../../src/contexts/workspace/presentation/renderer/components/workspaceCanvas/hooks/useAgentNodeLifecycle'
 
 describe('agent relaunch session binding', () => {
@@ -16,6 +21,8 @@ describe('agent relaunch session binding', () => {
   ] as const)(
     'preserves only the owned $provider $mode binding',
     async ({ provider, mode, expected, owned }) => {
+      const agentFullAccess = provider === 'claude-code' ? mode === 'new' : undefined
+      const setting = agentFullAccess === undefined ? true : !agentFullAccess
       const node: Node<TerminalNodeData> = {
         id: 'agent-a',
         position: { x: 0, y: 0 },
@@ -33,6 +40,7 @@ describe('agent relaunch session binding', () => {
           scrollback: null,
           agent: {
             provider,
+            ...(agentFullAccess === undefined ? {} : { agentFullAccess }),
             prompt: 'fixture',
             model: null,
             effectiveModel: null,
@@ -51,7 +59,6 @@ describe('agent relaunch session binding', () => {
           image: null,
         },
       }
-      const nodesRef = { current: [node] }
       const binding = {
         nodeId: node.id,
         activationId: 'owned',
@@ -73,6 +80,10 @@ describe('agent relaunch session binding', () => {
       if (owned) {
         node.data.sessionId = 'old-runtime'
       }
+      const { nodesRef, setNodes } = createStoreBackedChannels({
+        workspaceId: CANVAS_STORE_TEST_WORKSPACE_ID,
+        nodes: [node],
+      })
       window.opencoveApi = {
         ...(provider === 'claude-code'
           ? {
@@ -103,28 +114,29 @@ describe('agent relaunch session binding', () => {
         },
         pty: { kill: vi.fn() },
       } as unknown as typeof window.opencoveApi
-      const { result } = renderHook(() =>
-        useWorkspaceCanvasAgentNodeLifecycle({
-          workspaceId: 'workspace-a',
-          workspacePath: '/repo',
-          nodesRef,
-          spacesRef: { current: [] },
-          onSpacesChange: vi.fn(),
-          setNodes: updater => {
-            nodesRef.current = updater(nodesRef.current)
-          },
-          bumpAgentLaunchToken: () => 1,
-          isAgentLaunchTokenCurrent: () => true,
-          agentFullAccess: false,
-          codexReuseRunningAppServer: false,
-          defaultTerminalProfileId: null,
-          terminalFontSize: 13,
-          terminalDisplayMetrics: { fontSize: 13 },
-          agentEnvByProvider: DEFAULT_AGENT_ENV_BY_PROVIDER,
-        }),
+      const { result } = renderHook(
+        () =>
+          useWorkspaceCanvasAgentNodeLifecycle({
+            workspaceId: 'workspace-a',
+            workspacePath: '/repo',
+            setNodes,
+            bumpAgentLaunchToken: () => 1,
+            isAgentLaunchTokenCurrent: () => true,
+            agentFullAccess: setting,
+            codexReuseRunningAppServer: false,
+            defaultTerminalProfileId: null,
+            terminalFontSize: 13,
+            terminalDisplayMetrics: { fontSize: 13 },
+            agentEnvByProvider: DEFAULT_AGENT_ENV_BY_PROVIDER,
+          }),
+        { wrapper: CanvasStoreTestProvider },
       )
       await act(() => result.current.launchAgentInNode(node.id, mode))
       expect(window.opencoveApi.agent.launch).toHaveBeenCalledOnce()
+      expect(window.opencoveApi.agent.launch).toHaveBeenCalledWith(
+        expect.objectContaining({ agentFullAccess: agentFullAccess ?? setting }),
+      )
+      expect(nodesRef.current[0].data.agent?.agentFullAccess).toBe(agentFullAccess)
       if (owned) {
         expect(window.opencoveApi.pty.kill).not.toHaveBeenCalled()
         expect(window.opencoveApi.agent.launch).toHaveBeenCalledWith(

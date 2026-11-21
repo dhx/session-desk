@@ -81,6 +81,25 @@ command line.
 
 [opencove-image](https://github.com/dhx/opencove-image) runs it in a container with a passkey login in front.
 
+### Coordinate agents from the CLI
+
+```sh
+opencove whoami --fields lineageQuota
+opencove context --fields self.lineageQuota
+opencove agent read --node "Reviewer" --node "Lead"
+opencove agent read --node "Reviewer" --node "Lead" --screen --lines 20
+```
+
+Quota uses the Worker's spawn-admission census: depth ≤3 and up to 6 live agent-created
+runtimes per tree, excluding the user root. Older Workers omit quota fields. Spawn refusals name
+occupying nodes: agents use `opencove agent stop --node <id>`; for terminals, retrieve
+`node.sessionId` with `opencove node get --node <id> --fields sessionId`, then run
+`opencove session kill --session <sessionId>`. Multiple reads (up to 10 selectors) return an ordered
+JSON array with per-target `node`, `ok`, and reply fields or `error`.
+Failures preserve the other results; exit is 0 for all successes, otherwise the first failing target's
+exit code. `--turn` requires a single target; `--expect-turn` is unsupported by `agent read`.
+See [CLI documentation](docs/cli/README.md) or `opencove skill read` for details.
+
 ### Building from Source
 
 #### Prerequisites

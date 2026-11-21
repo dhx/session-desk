@@ -1,8 +1,11 @@
+import { taskMutationAccessErrorPresentation } from './taskMutationAccessError'
+import { taskClaimErrorPresentation } from './taskClaimError'
 import { agentPromptErrorPresentation } from './agentPromptError'
 import { agentSpawnErrorPresentation } from './agentSpawnError'
 import { nodeParentErrorPresentation } from './nodeParentError'
 import { fileSystemErrorReasonMessage } from './filesystemError'
 import { publicTerminalSpawnApplicationError } from './terminalSpawnErrorReasons'
+import { initialPromptErrorPresentation } from './initialPromptFeedback'
 import type { AppErrorCode, AppErrorDescriptor, AppErrorParams } from '../contracts/dto'
 import type { IpcInvokeResult } from '../contracts/ipc'
 
@@ -27,6 +30,7 @@ function createMessageMap(): Record<AppErrorCode, string> {
     'agent.spawn_concurrency_limit':
       'This agent tree has reached its limit of 6 active or starting agent-created runtimes.',
     'node.parent_unavailable': 'The parent node could not be resolved.',
+    'task.already_claimed': 'This task is already claimed.',
     'node.not_found': 'Node not found.',
     'node.unsupported_operation': 'This node operation is not supported.',
     'session.transcript_not_ready': 'Session transcript is not available yet.',
@@ -171,7 +175,7 @@ export function isAppErrorDescriptor(value: unknown): value is AppErrorDescripto
   }
 
   const record = value as Record<string, unknown>
-  return typeof record.code === 'string' && record.code in APP_ERROR_MESSAGES
+  return typeof record.code === 'string' && Object.hasOwn(APP_ERROR_MESSAGES, record.code)
 }
 
 export class OpenCoveAppError extends Error {
@@ -233,6 +237,10 @@ export function toAppErrorDescriptor(
 
 export function formatAppErrorMessage(error: AppErrorDescriptor | OpenCoveAppError): string {
   const descriptor = error instanceof OpenCoveAppError ? error.toDescriptor() : error
+  const initialPrompt = initialPromptErrorPresentation(descriptor)
+  if (initialPrompt) {
+    return `${initialPrompt.message} ${initialPrompt.hint}`
+  }
   const spawnApplication = publicTerminalSpawnApplicationError(descriptor)
   if (spawnApplication) {
     return spawnApplication.debugMessage
@@ -245,6 +253,14 @@ export function formatAppErrorMessage(error: AppErrorDescriptor | OpenCoveAppErr
   if (spawn) {
     return `${spawn.message} ${spawn.hint}`
   }
+  const taskAccess = taskMutationAccessErrorPresentation(descriptor)
+  if (taskAccess) {
+    return taskAccess.message
+  }
+  const claim = taskClaimErrorPresentation(descriptor)
+  if (claim) {
+    return claim.message
+  }
   const parent = nodeParentErrorPresentation(descriptor)
   if (parent) {
     return parent.message
@@ -253,12 +269,6 @@ export function formatAppErrorMessage(error: AppErrorDescriptor | OpenCoveAppErr
   if (descriptor.code.startsWith('filesystem.')) {
     const reason = fileSystemErrorReasonMessage(descriptor.params?.reason)
     return reason ? `${message} ${reason}` : message
-  }
-  if (
-    descriptor.code === 'plugin.operation_failed' &&
-    typeof descriptor.params?.reason === 'string'
-  ) {
-    return `${message} ${descriptor.params.reason.slice(0, 2000)}`
   }
   return message
 }

@@ -132,14 +132,12 @@ export const MAX_UI_FONT_SIZE = 24
 export const MIN_WORKSPACE_SEARCH_PANEL_WIDTH = 320
 export const MAX_WORKSPACE_SEARCH_PANEL_WIDTH = 720
 
+// @compat settings-legacy-fields
 const MIN_LEGACY_UI_FONT_SCALE_PERCENT = 85
+// @compat settings-legacy-fields
 const MAX_LEGACY_UI_FONT_SCALE_PERCENT = 140
 
-export {
-  AGENT_PROVIDER_CAPABILITIES,
-  AGENT_PROVIDER_LABEL,
-  type AgentProviderCapabilities,
-} from './agentSettings.providerMeta'
+export { AGENT_PROVIDER_CAPABILITIES, AGENT_PROVIDER_LABEL } from './agentSettings.providerMeta'
 export { UI_LANGUAGE_NATIVE_LABEL } from './agentSettings.uiLanguage'
 
 export type { TaskPromptTemplate, TaskPromptTemplatesByWorkspaceId } from './taskPromptTemplates'
@@ -209,6 +207,7 @@ export function normalizeAgentSettings(value: unknown): AgentSettings {
 
   const customModelInput = isRecord(value.customModelByProvider) ? value.customModelByProvider : {}
 
+  // @compat settings-legacy-fields
   const legacyModelInput = isRecord(value.modelByProvider) ? value.modelByProvider : {}
 
   const customModelEnabledByProvider = AGENT_PROVIDERS.reduce<
@@ -216,8 +215,10 @@ export function normalizeAgentSettings(value: unknown): AgentSettings {
   >(
     (acc, provider) => {
       const normalizedEnabled = normalizeBoolean(enabledInput[provider])
+      // @compat settings-legacy-fields
       const legacyModel = normalizeTextValue(legacyModelInput[provider])
 
+      // @compat settings-legacy-fields
       acc[provider] = normalizedEnabled === null ? legacyModel.length > 0 : normalizedEnabled
 
       return acc
@@ -227,6 +228,7 @@ export function normalizeAgentSettings(value: unknown): AgentSettings {
 
   const customModelByProvider = AGENT_PROVIDERS.reduce<AgentCustomModelByProvider<AgentProvider>>(
     (acc, provider) => {
+      // @compat settings-legacy-fields
       const current = customModelInput[provider] ?? legacyModelInput[provider]
       acc[provider] = normalizeTextValue(current)
       return acc
@@ -361,12 +363,14 @@ export function normalizeAgentSettings(value: unknown): AgentSettings {
     normalizeBoolean(value.terminalDisplayCalibrationCompensationEnabled) ??
     DEFAULT_AGENT_SETTINGS.terminalDisplayCalibrationCompensationEnabled
   const terminalDisplayReference = normalizeTerminalDisplayReference(value.terminalDisplayReference)
+  // @compat settings-legacy-fields
   const legacyUiFontScalePercent = normalizeIntegerInRange(
     value.uiFontScalePercent,
     Math.round((DEFAULT_AGENT_SETTINGS.uiFontSize / 16) * 100),
     MIN_LEGACY_UI_FONT_SCALE_PERCENT,
     MAX_LEGACY_UI_FONT_SCALE_PERCENT,
   )
+  // @compat settings-legacy-fields
   const fallbackUiFontSize = Math.round((legacyUiFontScalePercent / 100) * 16)
   const uiFontSize = normalizeIntegerInRange(
     value.uiFontSize,

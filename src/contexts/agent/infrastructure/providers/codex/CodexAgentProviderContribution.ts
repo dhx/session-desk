@@ -1,3 +1,5 @@
+import type { AgentLaunchArtifactRoot } from '../shared/AgentLaunchArtifactFile'
+import { AGENT_PROVIDER_DESCRIPTORS } from '../../../../../shared/contracts/agentProviderDescriptors'
 import { managedHookCoverage } from '../shared/ManagedHookCoverage'
 import { connect } from 'node:net'
 import { homedir } from 'node:os'
@@ -31,6 +33,7 @@ const codexHookEvents = [
 ] as const
 
 export interface CodexAgentProviderContributionOptions {
+  readonly artifactRoot: AgentLaunchArtifactRoot
   readonly submitDelayMs?: number
   readonly channel?: AgentHookChannel
   readonly clientVersion?: string | null
@@ -44,7 +47,7 @@ export interface CodexAgentProviderContributionOptions {
 export class CodexAgentProviderContribution implements AgentProviderContribution {
   readonly prompting: { supported: true; submitDelayMs: number }
   readonly descriptor = {
-    displayName: 'Codex',
+    displayName: AGENT_PROVIDER_DESCRIPTORS['codex'].label,
     documentationUrl: 'https://developers.openai.com/codex/cli/',
     id: 'codex',
     launch: {
@@ -82,6 +85,7 @@ export class CodexAgentProviderContribution implements AgentProviderContribution
     },
   }
 
+  private readonly artifactRoot: AgentLaunchArtifactRoot
   private readonly channel?: AgentHookChannel
   private readonly clientVersion: string
   private readonly hookTrustResolver: CodexHookTrustResolver
@@ -89,7 +93,8 @@ export class CodexAgentProviderContribution implements AgentProviderContribution
   private readonly runtimePlatform: NodeJS.Platform
   private readonly sessionDiscovery: CodexSessionFileDiscovery
 
-  constructor(options: CodexAgentProviderContributionOptions = {}) {
+  constructor(options: CodexAgentProviderContributionOptions) {
+    this.artifactRoot = options.artifactRoot
     this.prompting = { supported: true, submitDelayMs: options.submitDelayMs ?? 300 }
     this.channel = options.channel
     this.clientVersion = normalizeCodexClientVersion(options.clientVersion)
@@ -167,6 +172,7 @@ export class CodexAgentProviderContribution implements AgentProviderContribution
       }
     }
     const relay = await createAgentHookRelay({
+      artifactRoot: this.artifactRoot,
       provider: 'codex',
       runtimeExecutable: this.runtimeExecutable,
       runtimePlatform: this.runtimePlatform,
@@ -183,9 +189,10 @@ export class CodexAgentProviderContribution implements AgentProviderContribution
         hookConfigurations: hook.configurations,
         workspaceDirectory: command.workspaceDirectory,
       })
-    } catch {
+    } catch /* @compat codex-legacy-notify-bridge */ {
       // Older Codex versions retain the legacy notify integration below.
     }
+    // @compat codex-legacy-notify-bridge
     const notify = `notify=${serializeCodexTomlStringArray(
       [relay.command, ...relay.args],
       this.runtimePlatform,
@@ -209,8 +216,8 @@ export class CodexAgentProviderContribution implements AgentProviderContribution
       args: [
         ...(trust ? hook.configurations.flatMap(configuration => ['--config', configuration]) : []),
         ...(trust ? ['--config', trust] : []),
-        '--config',
-        notify,
+        /* @compat codex-legacy-notify-bridge */ '--config',
+        /* @compat codex-legacy-notify-bridge */ notify,
       ],
       env: { ...reservation.env },
       hookCoverage: trust ? ('lifecycle' as const) : ('notify_only' as const),

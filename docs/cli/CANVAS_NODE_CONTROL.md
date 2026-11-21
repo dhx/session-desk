@@ -37,7 +37,7 @@ Command:
 opencove node create note [--root-canvas | space locator] [--title <text>] [--text <text>] [--frame <json>] [--focus] [--pretty]
 opencove node create task [--root-canvas | space locator] --requirement <text> [--title <text>] [--priority <low|medium|high|urgent>] [--tag <tag>] [--frame <json>] [--focus] [--pretty]
 opencove node create website [--root-canvas | space locator] --url <url> [--title <text>] [--pinned] [--session-mode <shared|incognito|profile>] [--profile <id>] [--frame <json>] [--focus] [--pretty]
-opencove node create agent [--root-canvas | space locator] [--title <text>] [--prompt <text>] [--provider <id>] [--model <id>] [--frame <json>] [--focus] [--pretty]
+opencove node create agent [--root-canvas | space locator] [--title <text>] [--prompt <text>] [--provider <id>] [--model <id>] [--full-access true|false] [--task <nodeId>] [--frame <json>] [--focus] [--pretty]
 opencove node create terminal [--root-canvas | space locator] [--title <text>] [--shell <path>] [--command <text>] [--profile <id>] [--frame <json>] [--focus] [--pretty]
 opencove node update note --node <id> [--title <text>] [--text <text>] [--frame <json>] [--pretty]
 opencove node update task --node <id> [--title <text>] [--requirement <text>] [--priority <low|medium|high|urgent>] [--status <todo|doing|ai_done|done>] [--tag <tag>] [--frame <json>] [--pretty]
@@ -57,6 +57,49 @@ opencove canvas focus space [space locator] [--pretty]
 3. 返回 node result 和 focus delivery metadata。
 
 Focus 失败不会回滚已创建的 node。显示 root canvas 上的新节点时，用创建命令的 `--focus`，或 `opencove canvas focus node --node <id>`。
+
+## Near placement (V1)
+
+Recommend `--near @self` for agents creating helper notes, terminals or agents:
+
+```sh
+opencove node create note --near @self --text "Progress"
+opencove node create terminal --near @self --title "Checks"
+opencove node create agent --near @self --prompt "Review the tests"
+```
+
+All supported create kinds accept `--near <node selector>` (ID, exact name, unique prefix,
+`@self`, `@parent`). It is explicit opt-in: omitting it preserves existing behavior.
+The reference supplies its current project and direct Space, or root if it has no Space.
+An external caller can supply a reference ID without `--project`. An explicit project or
+Space locator is a consistency constraint; the reference must belong directly to that Space.
+`--root-canvas --near <selector>` overrides membership and searches beside the reference's
+Space in the reference's project. A size-only `--frame '{"width":520,"height":420}'` requests
+that size near the reference. Width-only, height-only and empty frames are also allowed; x/y
+(including null coordinate keys) are refused before mutation. Sizes outside the kind's range
+are adjusted to fit; inspect `appliedFrame` and `frameAdjusted`. Create/update help lists each
+kind's minimum and maximum dimensions from the same shared constants used by runtime enforcement.
+
+Near candidates first prefer no container/ancestor growth, then growth whose resulting container
+and every grown ancestor avoid unrelated Space rectangles, then all other growth. Within each
+tier, candidates keep the compact nearest-edge ordering: right column (top-aligned, then stacking
+down), row below, left column, then further out. Parent/descendant containment is intentional
+and is not treated as a Space collision. Other Space rectangles remain solver obstacles.
+The same pure growth plan is used for ranking and the creation CAS; ranking and size clamping
+are recomputed on every attempt. The CAS inserts membership and grows ancestors together.
+If all candidates require intersecting Space envelopes, placement still uses its last tier;
+this is a preference, not a global non-overlap guarantee. Existing nodes stay fixed. Missing Space
+rectangles use bounds derived from members and child Spaces; only missing target/ancestor
+rectangles are seeded during insertion. Empty unrelated Spaces with no rectangle are ignored.
+Near is an anchor preference, not a distance guarantee; growing Space envelopes can overlap.
+
+The CLI requires `features.nodeNearPlacementV1 === true`, including through `api call`.
+Unsupported Workers fail with `cli.unsupported` (exit 5) and an upgrade hint, without creation.
+The Worker revalidates the reference and target on each CAS attempt; missing references return
+`node.not_found`. Target identity changes fail with existing cleanup and no relaunch.
+References resolve only on the connected Worker; no origin fallback or automatic remote routing.
+Reference selection does not change authenticated creator identity, grants or runtime restrictions.
+Only the final frame and membership persist, with no continuing near relationship.
 
 ## Space Locator
 
@@ -123,6 +166,10 @@ Usecases：
 
 ## Frame results
 
+`node update --frame` grows the node's Space and ancestors with padding in the same update, without shrinking boundaries, moving other nodes or changing membership; explicit coordinates are preserved even when Space boundaries overlap.
+
+中文：`node update --frame` 在同一次更新中扩展所属 Space 和各级祖先并保留留白，不缩小边界、不移动其它节点、不改变归属；即使 Space 边界重叠，也保留指定坐标。
+
 With `--frame`, every supported kind reports `appliedFrame` and `frameAdjusted`
 after create or update. Only explicitly requested components count as adjusted;
 automatic placement does not. Adjustments print one stderr notice naming the kind,
@@ -159,6 +206,13 @@ Website:
 Agent:
 
 - Create 会先通过 session launch path 启动 runtime。
+- 可选 `--task <nodeId>`（`data.taskNodeId`）将新 agent 链接到同一 Space 的现有任务；根画布上的 agent 只能链接根画布任务。省略时 `agent.taskId` 为 `null`，任务不变；传入时必须是非空字符串（`null`、空白或其他类型返回 `common.invalid_input`）。智能体终端也可使用，无新增权限。
+- 启动前验证任务存在于目标 project（否则 `node.not_found`）、类型为 task、位于同一 Space、没有仍存在的已链接 agent（否则 `common.invalid_input`）。指向已删除 agent 的旧链接允许替换。
+- Worker 的 `commitCreatedNode` 在启动成功后基于最新状态再次验证，将 agent 节点、`agent.taskId`、任务的 `linkedAgentNodeId`、`status: 'doing'`、`updatedAt` 和 `lastRunAt` 在同一次 CAS 提交中写入（有 lineage 时使用 `commitCreatedNodeState`）。启动或确定未提交的写入失败不改变任务，后者沿用现有 session 清理；写入结果不确定时沿用读回保护，不误杀可能已提交的 session。
+- 与画布 Run 新建 agent 一致，创建链接不新增 `agentSessions` 历史，保留已有记录；关闭或切换 session 时才归档。`--prompt` 仍由调用方提供，链接不会替换 prompt。
+- 可选 `data.agentFullAccess`（CLI `--full-access true|false`）必须是布尔值；显式值在两个方向覆盖 Settings，仅作用于该 agent，智能体终端也可传入。
+- 显式值保存在 agent 节点，relaunch、resume 和 app-restart recovery 使用 `node.agent.agentFullAccess ?? settings.agentFullAccess`；省略时继续跟随当前 Settings，不修改 Settings，也无需迁移旧数据。
+- `node.update` 不能更改该启动时选择；agent update 只接受名称和 frame。
 - 启动失败时不持久化 agent node。
 - 持久化失败时 best-effort kill 已启动 session。
 
@@ -251,3 +305,18 @@ and prefixes use your session project, or an explicit Space’s project. Without
 the selected project supplies the name lookup context. Use a full ID for a creator outside that context.
 中文：`--project` 只筛选子节点，不要求创建者属于该项目。创建者名称／前缀默认在当前会话项目中查找；
 显式 Space 提供其所属项目作为查找范围。没有会话身份时，使用选定项目查找名称。跨查找范围请用完整 ID。
+
+## Existing-agent task claims and shared notes
+
+Use `task claim --task <selector> [--agent <selector>]` to link an existing agent,
+then `task release --task <selector> --status ai_done` to return the task for
+review. These operations commit task and reciprocal agent changes together and
+never start or stop a session. Use `note append --node <selector> --text <text>`
+(or `--text-file <path|->`) for shared results. Append rechecks current text after
+each revision conflict instead of replacing a body read earlier by the CLI.
+
+The existing Worker persistence path remains the owner of these mutations. A
+genuinely stale tab can still overwrite task fields, and ordinary note
+replacement can overwrite appended text. There is no additional authority layer,
+lease or deduplication ledger. See [task workflows](TASK_WORKFLOWS.md) for holder
+rules, grant constraints, byte limits, output and uncertain-outcome recovery.

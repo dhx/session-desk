@@ -140,6 +140,7 @@ describe('buildAgentLaunchCommand', () => {
       '--dangerously-skip-permissions',
       '--session-id',
       claudeSessionId,
+      '--',
       'review failing tests',
     ])
     expect(command.effectiveModel).toBeNull()
@@ -157,9 +158,57 @@ describe('buildAgentLaunchCommand', () => {
     })
 
     expect(command.command).toBe('claude')
-    expect(command.args).toEqual(['--session-id', claudeSessionId, 'review failing tests'])
+    expect(command.args).toEqual([
+      '--permission-mode',
+      'default',
+      '--session-id',
+      claudeSessionId,
+      '--',
+      'review failing tests',
+    ])
     expect(command.effectiveModel).toBeNull()
     expect(command.resumeSessionId).toBe(claudeSessionId)
+  })
+
+  it('pins claude to its explicit default permission mode on resume when full access is disabled', () => {
+    const command = buildAgentLaunchCommand({
+      provider: 'claude-code',
+      mode: 'resume',
+      model: 'sonnet',
+      resumeSessionId: claudeSessionId,
+      agentFullAccess: false,
+    })
+
+    expect(command.args).toEqual([
+      '--permission-mode',
+      'default',
+      '--model',
+      'sonnet',
+      '--resume',
+      claudeSessionId,
+    ])
+    expect(command.args).not.toContain('--dangerously-skip-permissions')
+    expect(command.launchMode).toBe('resume')
+  })
+
+  it('never combines the bypass flag with an explicit permission mode', () => {
+    const command = buildAgentLaunchCommand({
+      provider: 'claude-code',
+      mode: 'new',
+      prompt: 'review failing tests',
+      model: null,
+      resumeSessionId: claudeSessionId,
+      agentFullAccess: true,
+    })
+
+    expect(command.args).toEqual([
+      '--dangerously-skip-permissions',
+      '--session-id',
+      claudeSessionId,
+      '--',
+      'review failing tests',
+    ])
+    expect(command.args).not.toContain('--permission-mode')
   })
 
   it('builds codex resume command with session id', () => {
@@ -217,6 +266,7 @@ describe('buildAgentLaunchCommand', () => {
     })
 
     expect(command.args).toEqual(['--dangerously-skip-permissions', '--resume', claudeSessionId])
+    expect(command.args).not.toContain('--permission-mode')
     expect(command.resumeSessionId).toBe(claudeSessionId)
     expect(command.launchMode).toBe('resume')
     expect(command.args).not.toContain('--continue')

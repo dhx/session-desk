@@ -1,8 +1,13 @@
 import { repairLegacyCliLaunchers } from './cli/cliPathInstaller'
 import { app, shell, BrowserWindow, nativeImage, Menu } from 'electron'
+import { homedir } from 'node:os'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { hydrateCliEnvironmentForAppLaunch } from '../../platform/os/CliEnvironment'
+import {
+  cleanupLegacyManagedHooksAtStartup,
+  reportLegacyManagedHookCleanupFailures,
+} from '../../contexts/agent/infrastructure/cleanupLegacyManagedHooksAtStartup'
 import { registerIpcHandlers } from './ipc/registerIpcHandlers'
 import {
   configureAppCommandLine,
@@ -12,7 +17,7 @@ import {
 } from './appRuntimeConfig'
 import { setRuntimeIconTestState } from './iconTestHarness'
 import { installSystemNotificationTestHarness } from '../../contexts/system/presentation/main-ipc/systemNotifications'
-import { resolveRuntimeIconPath } from './runtimeIcon'
+import { boundDockIconImage, resolveRuntimeIconPath } from './runtimeIcon'
 import { resolveTitleBarOverlay } from './ipc/registerWindowChromeIpcHandlers'
 import { createApprovedWorkspaceStore } from '../../contexts/workspace/infrastructure/approval/ApprovedWorkspaceStore'
 import { resolveHomeWorkerEndpoint } from './worker/resolveHomeWorkerEndpoint'
@@ -22,7 +27,9 @@ import {
   hasOwnedLocalWorkerProcess,
   stopOwnedLocalWorker,
 } from './worker/localWorkerManager'
-import { createMainRuntimeDiagnosticsLogger } from './runtimeDiagnostics'
+import { createMainRuntimeDiagnosticsLogger, startTestCrashReporter } from './runtimeDiagnostics'
+import { createRendererFailureContext, getProcessFailureContext } from './processFailureDiagnostics'
+import { scheduleRendererRecovery } from './rendererCrashRecovery'
 import { registerQuickPhrasesContextMenu } from './contextMenu/registerQuickPhrasesContextMenu'
 import { registerQuitCoordinator } from './quitCoordinator'
 import { registerApplicationShortcuts } from './applicationShortcuts'
@@ -53,6 +60,25 @@ const OPENCOVE_APP_USER_MODEL_ID = 'dev.deadwave.opencove'
 const OPENCOVE_DEV_APP_USER_MODEL_ID = 'dev.deadwave.opencove.dev'
 const WINDOW_CLOSE_PERSIST_FLUSH_TIMEOUT_MS = 1_500
 let isAppQuitInProgress = false
+const closingWindows = new Set<BrowserWindow>()
+let pendingWindowActivation = false
+
+function activateMainWindow(): void {
+  if (isAppQuitInProgress) {
+    pendingWindowActivation = false
+    return
+  }
+
+  const windows = BrowserWindow.getAllWindows()
+  // A closing window still belongs to Electron until `closed`. Preserve the Dock
+  // request across both the persistence flush and native teardown, without loading
+  // a replacement renderer against state that the old renderer is still flushing.
+  pendingWindowActivation =
+    windows.length > 0 && windows.every(window => closingWindows.has(window))
+  if (windows.length === 0) {
+    createWindow()
+  }
+}
 
 app.commandLine.appendSwitch('force-color-profile', 'srgb')
 
@@ -72,10 +98,19 @@ app.on('before-quit', () => {
 
 configureAppCommandLine()
 configureAppUserDataPath()
+startTestCrashReporter()
 
 const E2E_OFFSCREEN_COORDINATE = -50_000
 const mainWindowRuntimeLogger = createMainRuntimeDiagnosticsLogger('main-window')
 const mainAppRuntimeLogger = createMainRuntimeDiagnosticsLogger('main-app')
+
+// Register before ready so early GPU/utility failures are retained too.
+app.on('child-process-gone', (_event, details) => {
+  mainAppRuntimeLogger.error('child-process-gone', 'Child process gone.', {
+    ...getProcessFailureContext(),
+    ...details,
+  })
+})
 
 function createWindow(): void {
   const devOrigin = is.dev ? resolveDevRendererOrigin() : null
@@ -96,7 +131,6 @@ function createWindow(): void {
   }
   const initialWidth = isTestEnv ? 1440 : 1200
   const initialHeight = isTestEnv ? 900 : 800
-  let hasCoordinatedWindowClose = false
 
   // Create the browser window.
   const mainWindow = new BrowserWindow({
@@ -106,9 +140,7 @@ function createWindow(): void {
     ...(isTestEnv
       ? {
           useContentSize: true,
-          // Electron 41 can clamp background E2E windows to the runner display bounds more eagerly
-          // than earlier versions, which shrinks the effective canvas area and destabilizes layout-
-          // sensitive tests. Keep the requested test surface size even on smaller virtual displays.
+          // macOS requires this to allow the fixed E2E surface beyond the display bounds.
           enableLargerThanScreen: true,
         }
       : {}),
@@ -135,6 +167,13 @@ function createWindow(): void {
     },
   })
 
+  if (isTestEnv) {
+    // Electron 41.7.2+ centers Windows/Linux windows by clamping to the display work area
+    // (electron/electron#51919). Restore the E2E content size after construction, before load.
+    mainWindow.setContentSize(initialWidth, initialHeight)
+  }
+
+  const rendererFailureContext = createRendererFailureContext(mainWindow)
   const disposeApplicationShortcuts = registerApplicationShortcuts(mainWindow)
   broadcastWindowFullScreen(mainWindow)
   broadcastWindowFocus(mainWindow)
@@ -144,7 +183,7 @@ function createWindow(): void {
     workerEndpointResolver: workerEndpointResolverForContextMenu,
   })
   mainWindow.on('close', event => {
-    if (hasCoordinatedWindowClose || isAppQuitInProgress || mainWindow.isDestroyed()) {
+    if (closingWindows.has(mainWindow) || isAppQuitInProgress || mainWindow.isDestroyed()) {
       return
     }
 
@@ -153,7 +192,7 @@ function createWindow(): void {
     }
 
     event.preventDefault()
-    hasCoordinatedWindowClose = true
+    closingWindows.add(mainWindow)
 
     void requestRendererPersistFlush(mainWindow.webContents, WINDOW_CLOSE_PERSIST_FLUSH_TIMEOUT_MS)
       .catch(() => undefined)
@@ -166,8 +205,12 @@ function createWindow(): void {
       })
   })
   mainWindow.on('closed', () => {
+    closingWindows.delete(mainWindow)
     disposeApplicationShortcuts()
     quickPhrasesContextMenuDisposable.dispose()
+    if (pendingWindowActivation) {
+      activateMainWindow()
+    }
   })
 
   const showWindow = (): void => {
@@ -210,12 +253,14 @@ function createWindow(): void {
   // ── Crash recovery: reload the renderer on crash or GPU failure ──
   mainWindow.webContents.on('render-process-gone', (_event, details) => {
     mainWindowRuntimeLogger.error('render-process-gone', 'Renderer process gone.', {
+      ...rendererFailureContext(),
       reason: details.reason,
       exitCode: details.exitCode,
     })
-    if (!mainWindow.isDestroyed()) {
-      mainWindow.webContents.reload()
-    }
+    scheduleRendererRecovery(
+      mainWindow,
+      () => !isAppQuitInProgress && !closingWindows.has(mainWindow),
+    )
   })
 
   mainWindow.on('unresponsive', () => {
@@ -268,9 +313,12 @@ function resolveAppUserModelId(): string {
 
 // Electron ready: create browser windows & IPC.
 app.whenReady().then(async () => {
+  // @compat legacy-cli-launchers
   // Best effort and non-blocking: launcher migration must never delay or break startup.
   void repairLegacyCliLaunchers().catch(() => undefined)
   await hydrateCliEnvironmentForAppLaunch(app.isPackaged === true)
+  // @compat legacy-managed-agent-hooks
+  reportLegacyManagedHookCleanupFailures(await cleanupLegacyManagedHooksAtStartup(homedir()))
 
   // Set app user model id for windows
   electronApp.setAppUserModelId(resolveAppUserModelId())
@@ -320,18 +368,9 @@ app.whenReady().then(async () => {
     optimizer.watchWindowShortcuts(window, { zoom: true, escToCloseWindow: false })
   })
 
-  // Log GPU and child process crashes (these can cause white screens)
-  app.on('child-process-gone', (_event, details) => {
-    mainAppRuntimeLogger.error('child-process-gone', 'Child process gone.', {
-      type: details.type,
-      reason: details.reason,
-      exitCode: details.exitCode,
-    })
-  })
-
   const runtimeIconPath = resolveRuntimeIconPath()
   if (process.platform === 'darwin' && runtimeIconPath) {
-    app.dock?.setIcon(nativeImage.createFromPath(runtimeIconPath))
+    app.dock?.setIcon(boundDockIconImage(nativeImage.createFromPath(runtimeIconPath)))
   }
 
   if (isTruthyEnv(process.env['OPENCOVE_PTY_HOST_POC'])) {
@@ -401,12 +440,7 @@ app.whenReady().then(async () => {
 
   createWindow()
 
-  app.on('activate', function () {
-    // macOS: re-create a window when the dock icon is clicked and no windows are open.
-    if (BrowserWindow.getAllWindows().length === 0) {
-      createWindow()
-    }
-  })
+  app.on('activate', activateMainWindow)
 })
 
 // Quit when all windows are closed (tests must exit on macOS, otherwise Playwright can leave Electron running).

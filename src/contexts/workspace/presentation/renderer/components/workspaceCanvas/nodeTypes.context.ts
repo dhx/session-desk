@@ -4,7 +4,7 @@ import type { BrowserMode, WebsiteWindowSessionMode } from '@shared/contracts/dt
 import type { AgentProvider } from '@contexts/settings/domain/agentSettings'
 import type { BrowserSearchEngineId } from '@contexts/settings/domain/browserSettings'
 import type { NodeLabelColorOverride } from '@shared/types/labelColor'
-import type { NodeFrame, WorkspaceSpaceState } from '../../types'
+import type { NodeFrame } from '../../types'
 import type {
   QuickUpdateTaskRequirement,
   QuickUpdateTaskTitle,
@@ -13,7 +13,6 @@ import type {
   UpdateTaskStatus,
 } from './types'
 export interface WorkspaceCanvasNodeTypesParams {
-  spacesRef: MutableRefObject<WorkspaceSpaceState[]>
   workspacePath: string
   onShowMessage?: ShowWorkspaceCanvasMessage
   agentProviderOrder: AgentProvider[]
@@ -22,7 +21,10 @@ export interface WorkspaceCanvasNodeTypesParams {
   browserSearchEngine: BrowserSearchEngineId
   selectNode: (nodeId: string, options?: { toggle?: boolean }) => void
   convertNoteToTask: (nodeId: string) => boolean
-  setNodeLabelColorOverride: (nodeIds: string[], labelColorOverride: NodeLabelColorOverride) => void
+  setNodeLabelColorOverride: (
+    nodeIds: readonly string[],
+    labelColorOverride: NodeLabelColorOverride,
+  ) => void
   clearNodeSelectionRef: MutableRefObject<() => void>
   closeNodeRef: MutableRefObject<(nodeId: string) => Promise<void>>
   resizeNodeRef: MutableRefObject<(nodeId: string, desiredFrame: NodeFrame) => void>
@@ -44,7 +46,7 @@ export interface WorkspaceCanvasNodeTypesParams {
   runRoleRef: MutableRefObject<(nodeId: string, inputOverride?: string) => Promise<void>>
   updateNodeScrollbackRef: MutableRefObject<UpdateNodeScrollback>
   normalizeViewportForTerminalInteractionRef: MutableRefObject<(nodeId: string) => void>
-  requestNodeDeleteRef: MutableRefObject<(nodeIds: string[]) => void>
+  requestNodeDeleteRef: MutableRefObject<(nodeIds: readonly string[]) => void>
   openTaskEditorRef: MutableRefObject<(nodeId: string) => void>
   quickUpdateTaskTitleRef: MutableRefObject<QuickUpdateTaskTitle>
   quickUpdateTaskRequirementRef: MutableRefObject<QuickUpdateTaskRequirement>
