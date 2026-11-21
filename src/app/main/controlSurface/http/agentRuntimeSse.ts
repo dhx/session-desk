@@ -26,6 +26,8 @@ export function serveAgentRuntimeEvents(options: {
   registry: AgentRunStateRegistry
   clients: Set<ServerResponse>
   listenerClients: Set<ServerResponse>
+  /** Session Desk: an agent terminal only sees agents of its own workspace. */
+  scopeProjectId?: string
 }): void {
   const { req, res, registry, url } = options
   const parsed = querySchema.safeParse({
@@ -67,7 +69,9 @@ export function serveAgentRuntimeEvents(options: {
   }
   req.once('close', cleanup)
   res.once('close', cleanup)
-  unsubscribe = registry.subscribe(cursor, input, event => {
+  const filter =
+    options.scopeProjectId === undefined ? input : { ...input, projectId: options.scopeProjectId }
+  unsubscribe = registry.subscribe(cursor, filter, event => {
     if (res.destroyed) {
       return
     }

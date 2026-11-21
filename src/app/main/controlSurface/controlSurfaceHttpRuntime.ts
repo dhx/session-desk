@@ -28,6 +28,7 @@ import { createPtyStreamService, PTY_STREAM_PROTOCOL_VERSION } from './ptyStream
 import { createMultiEndpointPtyRuntime } from './ptyStream/multiEndpointPtyRuntime'
 import type { RegisterControlSurfaceHttpServerOptions } from './controlSurfaceHttpServerOptions'
 import { createWorkerTopologyStore } from './topology/topologyStore'
+import { createSessionGrantWorkspaceScope } from './sessionGrantWorkspaceScope'
 import { registerControlSurfaceHandlers } from './registerControlSurfaceHandlers'
 import { createManagedSshEndpointRuntime } from './topology/managedSshEndpointRuntime'
 import { createEndpointHealthService } from './topology/endpointHealthService'
@@ -278,6 +279,11 @@ export function createControlSurfaceHttpRuntime(
   })
   const controlSurface = createControlSurface({
     run: (...args) => spawnRuntime.observeRequests(() => canvasSpawnRunner(...args)),
+    grantWorkspaceScope: createSessionGrantWorkspaceScope({
+      getPersistenceStore,
+      listMounts: input => topology.listMounts(input),
+      agentNodeOfSession: sessionId => agentRuns.registry.get({ sessionId })?.nodeId ?? null,
+    }),
     enter: id =>
       maintenance &&
       !id.startsWith('worker.maintenance.') &&

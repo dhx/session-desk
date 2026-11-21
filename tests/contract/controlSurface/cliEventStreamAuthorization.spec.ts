@@ -11,7 +11,7 @@ import {
 import { AgentRunStateRegistry } from '../../../src/contexts/agent/application/AgentRunStateRegistry'
 import { createControlSurface } from '../../../src/app/main/controlSurface/controlSurface'
 import { canonicalSelection } from '../../../src/shared/contracts/dto/eventStream'
-function fixture(tier: 'read' | 'interact' | 'bearer' = 'interact') {
+function fixture(tier: 'read' | 'interact' | 'bearer' = 'interact', format = 'cli-v1') {
   const grants = new SessionGrantRegistry(() => true)
   const issued = grants.issue({
     projectId: 'caller-project',
@@ -33,8 +33,11 @@ function fixture(tier: 'read' | 'interact' | 'bearer' = 'interact') {
     createTurnId: () => 't',
     schedule: () => () => {},
   })
-  const url = new URL('http://fake/events?stream=agent&format=cli-v1')
-  url.searchParams.set('selection', JSON.stringify(canonicalSelection({})))
+  const url = new URL('http://fake/events?stream=agent')
+  if (format) {
+    url.searchParams.set('format', format)
+    url.searchParams.set('selection', JSON.stringify(canonicalSelection({})))
+  }
   const req = Object.assign(new EventEmitter(), {
     url: url.pathname + url.search,
     method: 'GET',
@@ -91,24 +94,54 @@ function fixture(tier: 'read' | 'interact' | 'bearer' = 'interact') {
         isWebUiAuthRevisionCurrent: () => true,
       },
     })
-  const publish = (id: string) =>
+  const publish = (id: string, projectId = 'caller-project') =>
     registry.register({
       sessionId: id,
       nodeId: id,
       provider: 'codex',
       incarnation: id,
-      projectId: 'other-project',
+      projectId,
     })
   return { grants, registry, req, res, readMany, run, publish, deps }
 }
-it.each(['read', 'interact', 'bearer'] as const)(
-  'accepts %s read authority without inventing project isolation',
+it('accepts bearer read authority for every project', async () => {
+  const f = fixture('bearer')
+  await f.run()
+  f.publish('child', 'other-project')
+  await vi.waitFor(() => expect(f.res.write).toHaveBeenCalledTimes(2))
+  expect(f.res.write.mock.calls[1][0]).toContain('other-project')
+  f.req.emit('close')
+})
+// Session Desk: an agent terminal only sees agents of its own workspace
+// (sessionGrantWorkspaceScope.ts); upstream streams every project.
+it.each(['read', 'interact'] as const)(
+  'accepts %s grant authority for its own project only',
   async tier => {
     const f = fixture(tier)
     await f.run()
+    f.publish('elsewhere', 'other-project')
     f.publish('child')
     await vi.waitFor(() => expect(f.res.write).toHaveBeenCalledTimes(2))
-    expect(f.res.write.mock.calls[1][0]).toContain('other-project')
+    await new Promise(r => setTimeout(r, 10))
+    expect(f.res.write).toHaveBeenCalledTimes(2)
+    expect(f.res.write.mock.calls[1][0]).toContain('caller-project')
+    expect(f.res.write.mock.calls[1][0]).not.toContain('other-project')
+    f.req.emit('close')
+  },
+)
+it.each(['bearer', 'interact'] as const)(
+  'scopes the raw agent stream to the project of a %s caller',
+  async tier => {
+    const f = fixture(tier, '')
+    await f.run()
+    f.publish('elsewhere', 'other-project')
+    f.publish('child')
+    await new Promise(r => setTimeout(r, 10))
+    const events = f.res.write.mock.calls
+      .map(call => String(call[0]))
+      .filter(w => w.startsWith('event:'))
+    expect(events.some(w => w.includes('"nodeId":"child"'))).toBe(true)
+    expect(events.some(w => w.includes('"nodeId":"elsewhere"'))).toBe(tier === 'bearer')
     f.req.emit('close')
   },
 )
