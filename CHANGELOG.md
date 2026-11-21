@@ -11,6 +11,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Plugins: `host.spaces.list`, `create` and `update` list Spaces, create an empty top-level Space beside the canvas content and rename or recolour one; open windows show the change at once. (#30)
 - Terminals: an optional libghostty-vt engine for the screen state that restores terminals after a reload or reconnect, chosen with `SESSION_DESK_TERMINAL_ENGINE=libghostty`; xterm stays the default.
 - Terminals: the worker logs which terminal engine it runs and warns about an unknown `SESSION_DESK_TERMINAL_ENGINE` value; a libghostty-vt module that fails to load, or a terminal it cannot create, falls back to xterm instead of leaving the terminal closed.
+
+## [0.5.1] - 2026-11-20
+
+OpenCove 0.5.1 makes it easier for agents to coordinate from the CLI and improves desktop, terminal and workspace recovery.
+
+### Added
+
 - Agents: `opencove node create agent --full-access true|false` (also `node.create` `data.agentFullAccess` and plugin `agents.launch`) sets Full Access for that one agent, even when another agent starts it, without changing Settings; relaunch, resume and recovery keep the choice. (#462, #612)
 - Agents: `opencove node create agent --task <id>` (also `node.create` `data.taskNodeId` and plugin `agents.launch`) links the new agent to a task in the same Space and moves the task to doing, as Run from the task does. (#463)
 - CLI: when OpenCove refuses to start another agent because the lineage quota is full, the refusal lists which nodes hold the slots and how to free one; `opencove whoami` and `context` show the quota. `opencove agent read` reads several agents at once and returns one result per agent. (#614)
