@@ -64,6 +64,32 @@ async function readLog(path: string): Promise<SpikeEvent[]> {
     .map(line => JSON.parse(line) as SpikeEvent)
 }
 
+const pageErrors: string[] = []
+
+function collectErrors(page: Page, label: string): void {
+  page.on('pageerror', error =>
+    pageErrors.push(`${label} pageerror: ${error.message}`.slice(0, 600)),
+  )
+  page.on('console', message => {
+    if (message.type() === 'error') {
+      pageErrors.push(`${label} console: ${message.text()}`.slice(0, 600))
+    }
+  })
+}
+
+async function tileDiagnostics(page: Page) {
+  return await page.evaluate(() => {
+    const layer = document.querySelector('[data-testid="tiling-spike-layer"]')
+    return {
+      hasSpikeApi: typeof window.__opencoveTilingSpike,
+      state: window.__opencoveTilingSpike?.state().tiledNodeId ?? null,
+      layer: layer ? layer.outerHTML.slice(0, 1200) : null,
+      terminalNodes: document.querySelectorAll('.terminal-node').length,
+      xterms: document.querySelectorAll('.xterm').length,
+    }
+  })
+}
+
 async function switchTenTimes(page: Page, marker: string) {
   const toTileMs: number[] = []
   const toCanvasMs: number[] = []
@@ -71,9 +97,16 @@ async function switchTenTimes(page: Page, marker: string) {
     let start = Date.now()
     await page.evaluate(id => window.__opencoveTilingSpike?.tile(id), nodeId)
     const tile = page.locator('[data-testid="tiling-spike-layer"] .terminal-node')
-    await expect(tile.locator('.terminal-node__terminal')).toHaveAttribute('aria-busy', 'false', {
-      timeout: 15_000,
-    })
+    try {
+      await expect(tile.locator('.terminal-node__terminal')).toHaveAttribute('aria-busy', 'false', {
+        timeout: 15_000,
+      })
+    } catch (error) {
+      throw new Error(
+        `tile did not become ready: ${JSON.stringify(await tileDiagnostics(page))} errors=${JSON.stringify(pageErrors.slice(-10))}`,
+        { cause: error },
+      )
+    }
     await expect(tile).toContainText(marker, { timeout: 15_000 })
     toTileMs.push(Date.now() - start)
     await page.waitForTimeout(400)
@@ -182,6 +215,8 @@ test('SPIKE: tiling view switch keeps the PTY session and attaches cleanly', asy
     const marker = `TILING_SPIKE_${Date.now()}`
     await writeMarker(desktop, marker)
     await expect(web.locator('.terminal-node')).toContainText(marker, { timeout: 10_000 })
+    collectErrors(desktop, 'desktop')
+    collectErrors(web, 'web')
     await watchXtermCount(desktop)
     await watchXtermCount(web)
     report['gridBefore'] = { desktop: await gridOf(desktop), web: await gridOf(web) }
@@ -189,7 +224,10 @@ test('SPIKE: tiling view switch keeps the PTY session and attaches cleanly', asy
     report['setupEvents'] = summarise((await readLog(logPath)).slice(0, logStart), sessionId!)
 
     // Phase A: the Web client switches; Desktop stays on the canvas.
-    const webTimings = await switchTenTimes(web, marker)
+    const webTimings = await switchTenTimes(web, marker).catch(error => {
+      report['phaseA_error'] = String(error).slice(0, 4000)
+      throw error
+    })
     const afterA = await readLog(logPath)
     report['phaseA_webSwitches'] = {
       timings: { toTile: stats(webTimings.toTileMs), toCanvas: stats(webTimings.toCanvasMs) },
@@ -200,7 +238,10 @@ test('SPIKE: tiling view switch keeps the PTY session and attaches cleanly', asy
     }
 
     // Phase B: the Desktop client switches; Web stays on the canvas.
-    const desktopTimings = await switchTenTimes(desktop, marker)
+    const desktopTimings = await switchTenTimes(desktop, marker).catch(error => {
+      report['phaseB_error'] = String(error).slice(0, 4000)
+      throw error
+    })
     const afterB = await readLog(logPath)
     report['phaseB_desktopSwitches'] = {
       timings: {
@@ -223,6 +264,7 @@ test('SPIKE: tiling view switch keeps the PTY session and attaches cleanly', asy
     const json = JSON.stringify(report, null, 2)
     await writeFile(testInfo.outputPath('tiling-spike-report.json'), json, 'utf8')
     await testInfo.attach('tiling-spike-report', { body: json, contentType: 'application/json' })
+    report['pageErrors'] = pageErrors.slice(-20)
     const { rawEvents: _raw, ...summary } = report
     process.stdout.write(`TILING_SPIKE_REPORT ${JSON.stringify(summary)}\n`)
     await browser.close()

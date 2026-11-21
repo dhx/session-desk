@@ -62,11 +62,9 @@ export default defineConfig({
   testDir: './tests/e2e',
 
   // 测试文件匹配模式
-  testMatch:
-    configuredTestMatch && (Array.isArray(configuredTestMatch) || configuredTestMatch.length > 0)
-      ? configuredTestMatch
-      : '**/*.spec.ts',
-
+  // SPIKE (never merged): run only the tiling remount measurement, three times.
+  testMatch: ['**/spike.tiling-remount.spec.ts'],
+  repeatEach: 3,
   // 全局超时：每个测试 120 秒 (考虑 Electron 启动时间)
   timeout: 120_000,
 
