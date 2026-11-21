@@ -1,3 +1,4 @@
+import { logTilingSpike } from './ptyStreamDiagnostics'
 import type { WebSocket } from 'ws'
 import type { PtyStreamControllerDto, PtyStreamRole } from './ptyStreamTypes'
 import type {
@@ -145,6 +146,7 @@ export function sendPtyControlChanged(
 }
 
 export function sendPtyResizeResult(ws: WebSocket, result: TerminalGeometryCommitResult): void {
+  logTilingSpike({ event: 'resize_result', ...result })
   sendJson(ws, { type: 'resize_result', ...result })
 }
 

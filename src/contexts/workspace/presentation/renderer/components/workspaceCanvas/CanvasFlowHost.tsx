@@ -6,6 +6,8 @@ import { useCanvasInteraction } from '../../store/canvasStoreContext'
 import { applyLiveNodes } from '../../utils/canvasLiveNodes'
 import { useCanvasCommitProbe } from '../shared/windowCommitProbe'
 import { TerminalDisplayAlignedWorkspaceCanvasView } from './TerminalDisplayAlignedWorkspaceCanvasView'
+import { useTilingSpikeStore } from './spike/tilingSpikeStore'
+import { TilingSpikeLayer } from './spike/TilingSpikeLayer'
 
 type AlignedViewProps = ComponentProps<typeof TerminalDisplayAlignedWorkspaceCanvasView>
 
@@ -31,16 +33,26 @@ export function CanvasFlowHost({
   useCanvasCommitProbe('CanvasFlowHost')
   const liveNodes = useCanvasInteraction(selectLiveNodes)
   const spaceFramePreview = useCanvasInteraction(selectFramePreview)
-  const nodes = useMemo(
+  const tiledNodeId = useTilingSpikeStore(state => state.tiledNodeId)
+  const allNodes = useMemo(
     () => applyLiveNodes(committedNodes, liveNodes),
     [committedNodes, liveNodes],
   )
+  // SPIKE: a tiled window leaves React Flow (unmounting its canvas body) and mounts in the layer.
+  const tiledNode = tiledNodeId ? allNodes.find(node => node.id === tiledNodeId) : undefined
+  const nodes = useMemo(
+    () => (tiledNode ? allNodes.filter(node => node.id !== tiledNode.id) : allNodes),
+    [allNodes, tiledNode],
+  )
 
   return (
-    <TerminalDisplayAlignedWorkspaceCanvasView
-      {...viewProps}
-      nodes={nodes}
-      spaceFramePreview={spaceFramePreview}
-    />
+    <>
+      <TerminalDisplayAlignedWorkspaceCanvasView
+        {...viewProps}
+        nodes={nodes}
+        spaceFramePreview={spaceFramePreview}
+      />
+      {tiledNode ? <TilingSpikeLayer node={tiledNode} nodeTypes={viewProps.nodeTypes} /> : null}
+    </>
   )
 }

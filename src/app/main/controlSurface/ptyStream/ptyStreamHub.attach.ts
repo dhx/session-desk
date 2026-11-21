@@ -1,3 +1,4 @@
+import { logTilingSpike } from './ptyStreamDiagnostics'
 import type { PtyStreamRole } from './ptyStreamTypes'
 import type { ClientState, SessionState } from './ptyStreamState'
 import { setSessionController } from './ptyStreamHub.broadcast'
@@ -57,6 +58,14 @@ export function attachPtyStreamClient(options: {
     }
     const wantsController =
       options.role === 'controller' || options.role === null || options.role === undefined
+    logTilingSpike({
+      event: 'attach',
+      clientId: client.clientId,
+      sessionId: options.sessionId,
+      role: options.role ?? null,
+      alreadySubscribed: session.subscribers.has(client.clientId),
+      subscribersBefore: session.subscribers.size,
+    })
     session.subscribers.add(client.clientId)
     if (wantsController) {
       session.controllerCandidateClientIds.add(client.clientId)
@@ -142,6 +151,7 @@ export function detachPtyStreamClient(options: {
     if (options.sessions.get(options.sessionId) !== session) {
       return
     }
+    logTilingSpike({ event: 'detach', clientId: options.clientId, sessionId: options.sessionId })
     session.subscribers.delete(options.clientId)
     session.controllerCandidateClientIds.delete(options.clientId)
     client.rolesBySessionId.delete(options.sessionId)
