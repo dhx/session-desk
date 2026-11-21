@@ -14,7 +14,11 @@ import {
 } from '@contexts/workspace/presentation/renderer/utils/windowSignal'
 import { resolveNeedsYouSinceMs } from './sidebarAgents'
 
-export type SpaceMinimapStatus = WindowSignal
+/**
+ * A window's live signal, plus `done`: an Agent that ended a turn you have not looked at yet.
+ * Kept apart from `waiting` (blocked on a prompt) so a finished turn reads as finished.
+ */
+export type SpaceMinimapStatus = WindowSignal | 'done'
 
 export interface SpaceMinimapWindow {
   nodeId: string
@@ -82,7 +86,7 @@ const NO_ONE_NEEDS_YOU: ReadonlyMap<string, number> = new Map()
 
 /**
  * Every window in a root Space and its child Spaces, placed in the Space's own frame. An Agent
- * whose turn you have not answered (`needsYou`, as in `buildSidebarAgentItems`) waits for you.
+ * whose turn you have not answered (`needsYou`, as in `buildSidebarAgentItems`) shows as done.
  */
 export function buildSpaceMinimap(
   workspace: WorkspaceState,
@@ -116,7 +120,7 @@ export function buildSpaceMinimap(
       status:
         resolveNeedsYouSinceMs(workspace.id, node, needsYou) === undefined
           ? resolveWindowSignal(node.data)
-          : 'waiting',
+          : 'done',
       left,
       top,
       width: clamp01((rect.x + rect.width - frame.x) / frame.width) - left,
@@ -128,6 +132,8 @@ export function buildSpaceMinimap(
     aspectRatio: Math.min(MAX_ASPECT, Math.max(MIN_ASPECT, frame.width / frame.height)),
     windows,
     workingCount: windows.filter(window => window.status === 'working').length,
-    waitingCount: windows.filter(window => window.status === 'waiting').length,
+    // Both wait for you: a prompt to answer, or a finished turn to look at.
+    waitingCount: windows.filter(window => window.status === 'waiting' || window.status === 'done')
+      .length,
   }
 }

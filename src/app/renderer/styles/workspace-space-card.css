@@ -157,6 +157,14 @@
   opacity: 1;
 }
 
+/* Done keeps the Agent's own colour and rings it: a green fill would read as a shell window. */
+.workspace-space-minimap__window[data-status='done'] {
+  box-shadow:
+    0 0 0 1.5px var(--cove-label-green),
+    0 0 6px var(--cove-label-green);
+  opacity: 1;
+}
+
 .workspace-space-minimap__window[data-status='failed'] {
   background: var(--cove-status-failed, var(--cove-danger));
   opacity: 1;
