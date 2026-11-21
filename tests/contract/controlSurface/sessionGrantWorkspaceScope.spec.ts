@@ -138,13 +138,12 @@ describe('agent terminals stay in their workspace', () => {
     }
   })
 
-  it('refuses anything of another workspace, existing or not, the same way', async () => {
+  it('refuses whatever belongs to another workspace', async () => {
     const { grant } = await setup()
     for (const [id, payload, kind] of [
       ['agent.get', { nodeId: 'node-b' }],
       ['agent.get', { sessionId: 'session-b' }],
       ['agent.get', { sessionId: 'live-b' }],
-      ['agent.get', { nodeId: 'does-not-exist' }],
       ['agent.prompt', { nodeId: 'node-b', text: 'hi' }, 'command'],
       ['agent.list', { projectId: 'project-b' }],
       ['agent.list', { spaceId: 'space-b' }],
@@ -161,6 +160,30 @@ describe('agent terminals stay in their workspace', () => {
         refused,
       )
     }
+  })
+
+  it('leaves names, selectors and unknown IDs to the handler, inside its workspace', async () => {
+    const { grant } = await setup()
+    for (const [id, payload] of [
+      ['agent.get', { nodeId: 'codex · Reviewer' }],
+      ['space.get', { spaceId: 'Main' }],
+      ['node.get', { nodeId: 'does-not-exist' }],
+    ] as const) {
+      expect(await grant(id, payload), `${id} ${JSON.stringify(payload)}`).toMatchObject({
+        ok: true,
+        value: { payload },
+      })
+    }
+    expect(
+      await grant(
+        'node.create',
+        { kind: 'note', space: { kind: 'spaceName', name: 'Main' } },
+        'command',
+      ),
+    ).toMatchObject({
+      ok: true,
+      value: { payload: { space: { kind: 'spaceName', name: 'Main', projectId: 'project-a' } } },
+    })
   })
 
   it('lists only its own workspace', async () => {

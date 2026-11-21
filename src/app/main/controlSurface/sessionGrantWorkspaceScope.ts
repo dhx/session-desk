@@ -5,8 +5,10 @@
  * nodes, notes and Spaces of every workspace on the Worker. When workspaces belong to different
  * clients that leaks one client's work to another client's agents. This scope runs after the
  * grant policy (sessionGrantPolicy.ts):
- * - every node, session, Space, project and mount a request names must belong to the grant's
- *   workspace; anything else is refused the same way, whether it exists or not;
+ * - a node, session, Space or mount a request names that belongs to another workspace is refused,
+ *   and so is any other project; names, selectors and unknown IDs go to the handler, which
+ *   resolves them as before (and answers "not found" for unknown ones);
+ * - Space locators by name, Worker branch or path search the grant's workspace only;
  * - list operations that take a project are limited to the grant's workspace;
  * - list operations without a project filter return only the grant's workspace.
  * Callers with the Worker token or a Web UI session are not affected.
@@ -62,10 +64,12 @@ export interface WorkspaceScopeDeps {
   agentNodeOfSession(sessionId: string): string | null
 }
 
-interface WorkspaceIndex {
-  readonly nodes: ReadonlySet<string>
-  readonly sessions: ReadonlySet<string>
-  readonly spaces: ReadonlySet<string>
+/** Which workspace owns each saved node, session and Space. */
+interface OwnerIndex {
+  readonly projects: readonly string[]
+  readonly nodes: ReadonlyMap<string, string>
+  readonly sessions: ReadonlyMap<string, string>
+  readonly spaces: ReadonlyMap<string, string>
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -74,29 +78,36 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function outOfScope(kind: string): never {
   throw createAppError('common.forbidden', {
-    debugMessage: `This ${kind} is not in this agent's workspace. Agent terminals can only reach nodes, sessions and Spaces of their own workspace.`,
+    debugMessage: `This ${kind} belongs to another workspace. Agent terminals can only reach nodes, sessions, Spaces and mounts of their own workspace.`,
   })
 }
 
-async function readWorkspaceIndex(
-  deps: WorkspaceScopeDeps,
-  projectId: string,
-): Promise<WorkspaceIndex> {
+async function readOwnerIndex(deps: WorkspaceScopeDeps): Promise<OwnerIndex> {
   const state = normalizePersistedAppState(await (await deps.getPersistenceStore()).readAppState())
-  const workspace = state?.workspaces.find(item => item.id === projectId)
-  const nodes = new Set<string>()
-  const sessions = new Set<string>()
-  const spaces = new Set<string>()
-  for (const node of workspace?.nodes ?? []) {
-    nodes.add(node.id)
-    if (typeof node.sessionId === 'string' && node.sessionId) {
-      sessions.add(node.sessionId)
+  const nodes = new Map<string, string>()
+  const sessions = new Map<string, string>()
+  const spaces = new Map<string, string>()
+  for (const workspace of state?.workspaces ?? []) {
+    for (const node of workspace.nodes) {
+      nodes.set(node.id, workspace.id)
+      if (typeof node.sessionId === 'string' && node.sessionId) {
+        sessions.set(node.sessionId, workspace.id)
+      }
+    }
+    for (const space of workspace.spaces) {
+      spaces.set(space.id, workspace.id)
     }
   }
-  for (const space of workspace?.spaces ?? []) {
-    spaces.add(space.id)
+  return { projects: (state?.workspaces ?? []).map(w => w.id), nodes, sessions, spaces }
+}
+
+function sessionOwner(index: OwnerIndex, deps: WorkspaceScopeDeps, id: string): string | null {
+  const saved = index.sessions.get(id)
+  if (saved) {
+    return saved
   }
-  return { nodes, sessions, spaces }
+  const agentNode = deps.agentNodeOfSession(id)
+  return agentNode ? (index.nodes.get(agentNode) ?? null) : null
 }
 
 function collectTargets(value: unknown, out: { key: string; id: string }[], depth = 0): void {
@@ -121,7 +132,7 @@ function collectTargets(value: unknown, out: { key: string; id: string }[], dept
   }
 }
 
-/** Throws common.forbidden when the request names anything outside the grant's workspace. */
+/** Throws common.forbidden when the request names something of another workspace. */
 export async function assertGrantRequestInWorkspace(
   grant: SessionGrant,
   payload: unknown,
@@ -131,49 +142,74 @@ export async function assertGrantRequestInWorkspace(
   collectTargets(payload, targets)
   const relevant = targets.filter(
     ({ key, id }) =>
-      PROJECT_KEYS.has(key) ||
-      SPACE_KEYS.has(key) ||
-      SESSION_KEYS.has(key) ||
-      MOUNT_KEYS.has(key) ||
       // @self, @parent and other selectors are resolved relative to the caller.
-      (NODE_KEYS.has(key) && !id.startsWith('@')),
+      !id.startsWith('@') &&
+      (PROJECT_KEYS.has(key) ||
+        SPACE_KEYS.has(key) ||
+        NODE_KEYS.has(key) ||
+        SESSION_KEYS.has(key) ||
+        MOUNT_KEYS.has(key)),
   )
   if (relevant.length === 0) {
     return
   }
-  let index: WorkspaceIndex | undefined
-  const workspace = async () => (index ??= await readWorkspaceIndex(deps, grant.projectId))
-  let mounts: ReadonlySet<string> | undefined
+  let index: OwnerIndex | undefined
+  const owners = async () => (index ??= await readOwnerIndex(deps))
+  let foreignMounts: ReadonlySet<string> | undefined
   for (const { key, id } of relevant) {
     if (PROJECT_KEYS.has(key)) {
       if (id !== grant.projectId) {
         outOfScope('project')
       }
     } else if (SPACE_KEYS.has(key)) {
-      if (!(await workspace()).spaces.has(id)) {
+      const owner = (await owners()).spaces.get(id)
+      if (owner && owner !== grant.projectId) {
         outOfScope('Space')
       }
     } else if (NODE_KEYS.has(key)) {
-      if (id !== grant.nodeId && !(await workspace()).nodes.has(id)) {
+      const owner = (await owners()).nodes.get(id)
+      if (owner && owner !== grant.projectId) {
         outOfScope('node')
       }
     } else if (SESSION_KEYS.has(key)) {
-      if (id === grant.sessionId || (await workspace()).sessions.has(id)) {
-        continue
-      }
-      const agentNode = deps.agentNodeOfSession(id)
-      if (!agentNode || !(await workspace()).nodes.has(agentNode)) {
+      const owner = sessionOwner(await owners(), deps, id)
+      if (owner && owner !== grant.projectId) {
         outOfScope('session')
       }
     } else if (MOUNT_KEYS.has(key)) {
-      mounts ??= new Set(
-        (await deps.listMounts({ projectId: grant.projectId })).mounts.map(m => m.mountId),
-      )
-      if (!mounts.has(id)) {
+      if (!foreignMounts) {
+        const others = (await owners()).projects.filter(p => p !== grant.projectId)
+        const lists = await Promise.all(others.map(projectId => deps.listMounts({ projectId })))
+        foreignMounts = new Set(lists.flatMap(list => list.mounts.map(m => m.mountId)))
+      }
+      if (foreignMounts.has(id)) {
         outOfScope('mount')
       }
     }
   }
+}
+
+const PROJECT_NARROWED_LOCATORS = new Set(['spaceName', 'workerBranch', 'workerPath'])
+
+/** Space locators by name, Worker branch or path search every project unless they name one. */
+function narrowLocators(grant: SessionGrant, value: unknown, depth = 0): unknown {
+  if (depth > 8) {
+    return value
+  }
+  if (Array.isArray(value)) {
+    return value.map(item => narrowLocators(grant, item, depth + 1))
+  }
+  if (!isRecord(value)) {
+    return value
+  }
+  const next: Record<string, unknown> = {}
+  for (const [key, item] of Object.entries(value)) {
+    next[key] = narrowLocators(grant, item, depth + 1)
+  }
+  if (typeof value.kind === 'string' && PROJECT_NARROWED_LOCATORS.has(value.kind)) {
+    next.projectId = grant.projectId
+  }
+  return next
 }
 
 /** Limits a project-taking list to the grant's workspace. */
@@ -204,17 +240,10 @@ export async function filterGrantListResult(
       projects: value.projects.filter(p => isRecord(p) && p.id === grant.projectId),
     }
   }
-  const index = await readWorkspaceIndex(deps, grant.projectId)
-  const ownSession = (sessionId: unknown) => {
-    if (typeof sessionId !== 'string') {
-      return false
-    }
-    if (sessionId === grant.sessionId || index.sessions.has(sessionId)) {
-      return true
-    }
-    const agentNode = deps.agentNodeOfSession(sessionId)
-    return Boolean(agentNode && index.nodes.has(agentNode))
-  }
+  const index = await readOwnerIndex(deps)
+  const ownSession = (sessionId: unknown) =>
+    typeof sessionId === 'string' &&
+    (sessionId === grant.sessionId || sessionOwner(index, deps, sessionId) === grant.projectId)
   if (operationId === 'session.list' && Array.isArray(value.sessions)) {
     return {
       ...value,
@@ -231,9 +260,10 @@ export function createSessionGrantWorkspaceScope(deps: WorkspaceScopeDeps) {
   return {
     async scopeRequest(grant: SessionGrant, operationId: string, payload: unknown) {
       await assertGrantRequestInWorkspace(grant, payload, deps)
+      const narrowed = narrowLocators(grant, payload)
       return WORKSPACE_SCOPED_LIST_OPERATIONS.has(operationId)
-        ? scopeGrantListPayload(grant, payload)
-        : payload
+        ? scopeGrantListPayload(grant, narrowed)
+        : narrowed
     },
     async scopeResult(grant: SessionGrant, operationId: string, value: unknown) {
       return WORKSPACE_FILTERED_RESULT_OPERATIONS.has(operationId)
