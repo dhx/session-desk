@@ -1,6 +1,8 @@
 // SPIKE (tiling remount feasibility, docs/canvas/TILING_VIEW_SPEC.md §10). Never merged: it
 // measures and reports; it asserts only what the spec requires to stay true.
 import { chromium, expect, test, type Page } from '@playwright/test'
+import { createServer } from 'node:http'
+import { once } from 'node:events'
 import { readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import {
@@ -9,6 +11,11 @@ import {
   createTestUserDataDir,
   launchApp,
 } from './workspace-canvas.helpers'
+import {
+  closeWebsiteTestServer,
+  enableWebsiteWindowPolicy,
+  readWebsiteRuntimeState,
+} from './workspace-canvas.website-window.shared'
 
 const nodeId = 'terminal-tiling-spike'
 const SWITCHES = 10
@@ -269,5 +276,134 @@ test('SPIKE: tiling view switch keeps the PTY session and attaches cleanly', asy
     process.stdout.write(`TILING_SPIKE_REPORT ${JSON.stringify(summary)}\n`)
     await browser.close()
     await electronApp.close()
+  }
+})
+
+const websiteNodeId = 'website-tiling-spike'
+
+type Rect = { x: number; y: number; width: number; height: number }
+
+async function websiteState(electronApp: Parameters<typeof readWebsiteRuntimeState>[0]) {
+  const state = await readWebsiteRuntimeState(electronApp, websiteNodeId)
+  const page = await electronApp.evaluate(async ({ BrowserWindow }, id) => {
+    const win = BrowserWindow.getAllWindows()[0]
+    const runtime = win.__opencoveWebsiteWindowManager?.runtimeByNodeId.get(id) ?? null
+    const contents = runtime?.view?.webContents
+    if (!contents || contents.isDestroyed()) {
+      return null
+    }
+    return {
+      webContentsId: contents.id,
+      timeOrigin: (await contents.executeJavaScript('performance.timeOrigin')) as number,
+      visible: runtime?.view?.getVisible?.() ?? null,
+    }
+  }, websiteNodeId)
+  return { ...state, page }
+}
+
+async function websiteHostRect(page: Page, inTile: boolean): Promise<Rect | null> {
+  return await page.evaluate(tiled => {
+    const scope = tiled
+      ? document.querySelector('[data-testid="tiling-spike-layer"]')
+      : document.querySelector('.react-flow')
+    const node = scope?.querySelector('.website-node') ?? null
+    if (!node) {
+      return null
+    }
+    const rect = node.getBoundingClientRect()
+    return { x: rect.x, y: rect.y, width: rect.width, height: rect.height }
+  }, inTile)
+}
+
+test('SPIKE: a Desktop website view follows the tile and back', async ({
+  browserName: _browserName,
+}, testInfo) => {
+  test.setTimeout(240_000)
+  const server = createServer((_request, response) => {
+    response.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' })
+    response.end(
+      '<!doctype html><html><body style="margin:0;font:24px sans-serif">tiling-spike-site</body></html>',
+    )
+  })
+  server.listen(0, '127.0.0.1')
+  await once(server, 'listening')
+  server.unref()
+  const address = server.address()
+  if (!address || typeof address === 'string') {
+    throw new Error('no server address')
+  }
+  const { electronApp, window: desktop } = await launchApp({ windowMode: 'offscreen' })
+  const report: Record<string, unknown> = {}
+  const samples: unknown[] = []
+  try {
+    await clearAndSeedWorkspace(
+      desktop,
+      [
+        {
+          id: websiteNodeId,
+          title: websiteNodeId,
+          position: { x: 320, y: 120 },
+          width: 920,
+          height: 660,
+          kind: 'website',
+          task: {
+            url: `http://127.0.0.1:${address.port}`,
+            pinned: false,
+            sessionMode: 'shared',
+            profileId: null,
+          },
+        },
+      ],
+      { settings: { websiteWindowPolicy: { enabled: true } } },
+    )
+    const websiteNode = desktop.locator('.website-node').first()
+    await expect(websiteNode).toBeVisible()
+    await enableWebsiteWindowPolicy(desktop)
+    await websiteNode.click({ position: { x: 320, y: 180 }, noWaitAfter: true })
+    await expect
+      .poll(async () => (await readWebsiteRuntimeState(electronApp, websiteNodeId))?.lifecycle, {
+        timeout: 30_000,
+      })
+      .toBe('active')
+    await desktop.waitForTimeout(800)
+    report['viewport'] = await desktop.evaluate(() => ({
+      width: window.innerWidth,
+      height: window.innerHeight,
+    }))
+    report['before'] = {
+      state: await websiteState(electronApp),
+      host: await websiteHostRect(desktop, false),
+    }
+
+    for (let index = 0; index < SWITCHES; index += 1) {
+      await desktop.evaluate(id => window.__opencoveTilingSpike?.tile(id), websiteNodeId)
+      await expect(
+        desktop.locator('[data-testid="tiling-spike-layer"] .website-node'),
+      ).toBeVisible()
+      await desktop.waitForTimeout(800)
+      const inTile = {
+        state: await websiteState(electronApp),
+        host: await websiteHostRect(desktop, true),
+      }
+      await desktop.evaluate(() => window.__opencoveTilingSpike?.untile())
+      await expect(desktop.locator('.react-flow .website-node')).toBeVisible()
+      await desktop.waitForTimeout(800)
+      const onCanvas = {
+        state: await websiteState(electronApp),
+        host: await websiteHostRect(desktop, false),
+      }
+      samples.push({ index, inTile, onCanvas })
+    }
+    report['samples'] = samples
+    report['pageErrors'] = pageErrors.slice(-20)
+  } catch (error) {
+    report['error'] = String(error).slice(0, 4000)
+    throw error
+  } finally {
+    const json = JSON.stringify(report)
+    await writeFile(testInfo.outputPath('tiling-spike-website.json'), json, 'utf8')
+    process.stdout.write(`TILING_SPIKE_WEBSITE ${json}\n`)
+    await electronApp.close()
+    await closeWebsiteTestServer(server)
   }
 })
