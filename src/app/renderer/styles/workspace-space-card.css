@@ -183,6 +183,14 @@
   }
 }
 
+/* Forced colours drop box-shadow, so done needs an outline there to stay apart from the rest. */
+@media (forced-colors: active) {
+  .workspace-space-minimap__window[data-status='done'] {
+    outline: 2px solid Highlight;
+    outline-offset: 1px;
+  }
+}
+
 @media (pointer: coarse) {
   .workspace-space-item--card > .workspace-sidebar__row-more {
     display: inline-flex;
