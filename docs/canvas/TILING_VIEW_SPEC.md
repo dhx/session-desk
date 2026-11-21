@@ -2,7 +2,7 @@
 
 This spec defines a second way to look at a Space: a **tiling view** that arranges the Space's windows as non-overlapping tiles filling the screen, driven mostly by the keyboard. The canvas stays the default and stays untouched.
 
-Status: Proposed (Large change), revision 2 after review. Awaiting approval of this spec, then a feasibility check (section 10), then a plan. Nothing here is implemented yet.
+Status: Proposed (Large change), revision 3 after review. Awaiting approval of this spec, then a feasibility check (section 10), then a plan. Nothing here is implemented yet.
 
 ## Problem Class
 
@@ -47,7 +47,8 @@ What transfers:
 - Every split and group has a **stable id** (generated, unique within the layout). Commands address splits and groups by id, never by path (section 3).
 - Every window of the Space is in exactly one group. A group with one window shows no tab strip, only the window's own header.
 - The layout is **shared**: it belongs to the Space, is stored by the Worker and survives restarts, so every client in Tiling on that Space sees the same arrangement. Canvas positions and sizes are never changed by the tiling view, and the layout is never changed by moving windows on the canvas.
-- When a Space has no layout yet, the first switch to Tiling derives one from the canvas: windows sorted in reading order (rows by top edge, then left edge) and placed in a balanced grid of groups, up to what the screen and minimum sizes allow; the rest become tabs in the last groups. The derived layout is stored only with the person's first tiling command.
+- **The first layout is the Worker's**, not a client's. When a client opens a Space in Tiling and the Worker has no layout for it, the Worker derives one, stores it and returns it, in one insert-if-absent transaction. Two clients opening the same Space at once therefore get the same tree with the same ids, whatever their viewports.
+- The derivation is deterministic and viewport-independent: windows sorted in reading order (rows by top edge, then left edge, then node id); a row-major grid of `ceil(√n)` columns, each cell a group of one window. Each client then **projects** this tree onto its own viewport locally (fold-for-display and scroll, section 1.4), which never changes the stored tree. A narrow client sees the same groups folded into tabs; widening its window unfolds them.
 
 ### 1.3 Windows coming and going
 
@@ -83,6 +84,8 @@ The tiling view is usable without a pointer. Commands are bound under a **prefix
 | `x` | Close the focused window (existing close semantics) |
 | `c` | Switch this client window back to the Canvas |
 
+**Focus.** Exactly one tile has focus. The client remembers the last focused window per Space (client-local, section 2). When the view opens or reloads, it focuses that window's group if the window is still in the Space; if not, or if nothing is remembered, it focuses the group containing the first window in reading order of the layout (depth-first, the same order as `1`–`9`). Focusing on reload never changes the shared active tab.
+
 The application shortcuts of `docs/ui/APPLICATION_SHORTCUTS.md` keep working unchanged. Key choices respect what browsers do not let a page intercept; the Web UI and Desktop share one map.
 
 ### 1.6 Attention and status
@@ -108,21 +111,24 @@ The Worker's terminal authority is unchanged (`docs/terminal/MULTI_CLIENT_ARCHIT
 6. Every window of the Space, and every child Space, is reachable in Tiling by pointer and by keyboard alone, at a viewport of 320 by 480 CSS pixels with the largest terminal font setting.
 7. No tile is drawn below its minimum size or overlapping another; shrinking and restoring the viewport restores the stored layout exactly.
 8. Per terminal, per mount or divider release: at most one accepted resize, sent only by the controller; a viewer sends none.
-9. Reload in Tiling restores the same tiling target, layout, focus and active tabs.
+9. Reload in Tiling restores the same tiling target, layout and active tabs, and focuses the last focused window if it is still in the Space; otherwise the fallback focus (section 1.5).
+10. A wide and a narrow client opening the same Space in Tiling before either edits it receive the same layout revision and the same split and group ids; the narrow one shows it folded.
+11. After a layout-only command or `resetLayout` from one client, and after a window is added or removed on the Canvas by another, a passive client in Tiling on that Space shows the new layout without user action.
 
 ## 2. State Owners and Invariants
 
 | State | Owner | Persisted / synced |
 | --- | --- | --- |
-| View mode, tiling target, zoom, fold-for-display, focused tile, prefix armed, divider drag in progress | Renderer, per client (canvas store slice `tiling`) | View mode and tiling target in client-local UI preferences; the rest runtime only |
+| View mode, tiling target, last focused window per Space | Renderer, per client | Client-local UI preferences |
+| Zoom, fold-for-display, prefix armed, divider drag in progress, the layout as last received | Renderer, per client (canvas store slice `tiling`) | Runtime only |
 | Layout of a Space (splits, groups, ids, weights, tab order, active tab) and its `layoutRevision` | Worker | Own table `workspace_space_tiling_layouts` (Space id, layout JSON, revision); written only by tiling operations (section 3), never by `sync.writeState` |
 | Window membership of a Space | Unchanged: `space.nodeIds` | Unchanged |
 | Terminal session, screen, controller role, canonical geometry | Unchanged: Worker / `PtyStreamHub` | Unchanged |
 
 Invariants:
 
-1. **Membership:** the windows in a Space's layout equal `space.nodeIds`, as read. The Worker normalises on every read and after every tiling command with one function; a stored layout may lag behind membership, but no client ever sees one that does.
-2. **Separation:** no tiling operation writes canvas geometry, and no snapshot write (`sync.writeState`) writes, clears or reorders a layout. A layout is deleted only when its Space is deleted or archived.
+1. **Membership:** the windows in a stored layout equal `space.nodeIds` after every committed transaction. The Worker normalises with one pure function after every tiling command and in the same transaction as every snapshot write that changes membership (section 3.3); a client applies the same function to what it holds until the Worker's update arrives.
+2. **Separation:** no tiling operation writes canvas geometry. A snapshot write (`sync.writeState`) never takes a layout from a client; its only effect on a layout is the Worker's own membership normalisation in the same transaction (section 3.3). A layout is deleted only when its Space is deleted or archived, or by `resetLayout`.
 3. **One client view per window:** in one client, a window's body is mounted in one host at a time, so a terminal has at most one live attachment per window per client.
 
 ## 3. Persistence and Concurrency
@@ -132,8 +138,8 @@ Invariants:
 `sync.writeState` sends the full workspace snapshot and the SQLite writer replaces the Space rows. If the layout were a Space field, an older client could read the latest revision, rename a Space and save a valid snapshot without the layout, erasing it. So the layout is **not part of the snapshot**:
 
 - it lives in its own table keyed by Space id, with a per-Space `layoutRevision`;
-- it is read with `space.readTilingLayout` (or delivered with the Worker's state push) and changed only with `space.applyTilingCommand`, the same pattern scrollback already follows (`sync.readNodeScrollback` / `sync.writeNodeScrollback`);
-- snapshot writes never touch it. Omission cannot be mistaken for a reset, because the snapshot carries no layout field at all. An explicit reset is its own command (`resetLayout`), which deletes the stored layout so the next switch derives a fresh one.
+- it is read with `space.readTilingLayout` (which materialises the first layout, section 1.2) and changed only with `space.applyTilingCommand`, the same pattern scrollback already follows (`sync.readNodeScrollback` / `sync.writeNodeScrollback`);
+- snapshot writes never carry it. Omission cannot be mistaken for a reset, because the snapshot carries no layout field at all. An explicit reset is its own command (`resetLayout`): the Worker replaces the layout with a freshly derived one (section 1.2), with new ids and the next revision.
 - When a snapshot write removes a Space, the Worker deletes that Space's layout in the same transaction.
 
 ### 3.2 Commands, not tree writes
@@ -170,6 +176,22 @@ The Worker applies commands for one Space in order, and **revalidates every targ
 The result is typed, like the terminal resize results: `applied` (with the new layout and revision), `rejected_stale_target`, `space_not_found`. `baseLayoutRevision` is used to tell the client whether its optimistic view was based on the latest layout; a command whose targets still validate is applied even if the revision moved on, so unrelated concurrent edits do not reject each other. After any result the client shows the layout the Worker returned and drops its optimistic state, so a rejected command visibly snaps back.
 
 Divider drags update weights only in the client's interaction slice per frame and send one `setWeights` on release.
+
+### 3.3 How every client learns of a change
+
+Every change to a stored layout increments its `layoutRevision` and, **after the transaction commits**, the Worker emits one event on the existing sync event stream (`SyncEventPayload`, next to `app_state.updated`):
+
+```ts
+{ type: 'tiling.layout_updated'; revision: number; spaceId: string; layoutRevision: number; operationId: string | null }
+```
+
+The causes are exactly three, each in one transaction with its event:
+
+1. an applied `space.applyTilingCommand` (`operationId` is the command's);
+2. `resetLayout` and the first materialisation on read;
+3. **membership normalisation:** when a snapshot write changes the `nodeIds` of a Space that has a stored layout, the Worker runs `normalizeTilingLayout` on it in the same transaction, stores the result if it differs, increments `layoutRevision` and emits the event (`operationId` null). So a window added or removed by any client, including one that knows nothing of tiling, moves the layout revision too, and every client gets the same ids for the new window's group.
+
+A client in Tiling on a Space refetches that Space's layout when an event names it with a `layoutRevision` higher than the one it holds; events for other Spaces are ignored. On `resync_required` or a reconnect, it refetches the layout of its tiling target unconditionally. Between an `app_state.updated` that changes membership and the matching `tiling.layout_updated`, the client applies `normalizeTilingLayout` locally to what it holds, so it never shows a window twice or misses one; the Worker's event then replaces that local result. No polling.
 
 ## 4. Data Model (proposal)
 
@@ -223,9 +245,12 @@ type TilingNode =
   - acceptance 4: a client writes a layout with `applyTilingCommand`; then a snapshot from an older-client fixture (no tiling knowledge, renames the Space) goes through `sync.writeState`; the layout and its revision are unchanged;
   - deleting a Space through a snapshot deletes its layout in the same transaction;
   - acceptance 5: two clients' interleaved commands, including a stale `setWeights`, give `rejected_stale_target` and leave the layout as the other client's command made it;
-  - migration of the new table; reading a Space with no layout returns a derived one without storing it.
+  - migration of the new table;
+  - acceptance 10: two concurrent first reads of a Space with no layout, one from a wide and one from a narrow client fixture, return the same revision and ids, and only one row is stored;
+  - section 3.3: an applied command, a reset, and a snapshot that adds and removes windows each emit exactly one `tiling.layout_updated` after commit with the incremented revision; a snapshot that does not change membership emits none and leaves the revision unchanged.
 - **Type:** the layout and command types are the only shapes the operations accept; there is no operation that takes a whole tree from a client.
-- **E2E (Desktop and Web):** acceptance 1 (ten switches: same session id, attach and detach events strictly alternate for the window, scrollback present), 3 (two clients), 6 (320 by 480 viewport, largest font, every tab and child Space reached by keyboard), 8 (resize count per mount and per release for a controller and a viewer client), 9 (reload). Added to the E2E budget with reasons.
+- **Unit (focus):** the reload focus rule for a remembered window still present, removed, moved to another Space, and nothing remembered.
+- **E2E (Desktop and Web):** acceptance 11 (a passive client updates after a command, a reset, and a Canvas edit in another client); acceptance 1 (ten switches: same session id, attach and detach events strictly alternate for the window, scrollback present), 3 (two clients), 6 (320 by 480 viewport, largest font, every tab and child Space reached by keyboard), 8 (resize count per mount and per release for a controller and a viewer client), 9 (reload). Added to the E2E budget with reasons.
 - **Visual:** screenshots of light, dark and forced-colours themes for the implementation PRs.
 
 ## 10. Feasibility Check (before the plan)
@@ -248,12 +273,15 @@ If remounting is too slow or flickers, the check also prototypes the keep-alive 
 - Closing a tile: `Close Window` with the existing semantics, including save confirmation.
 - Prefix: not `Alt+Space` (Windows system menu); `Ctrl+Shift+Space` proposed, configurable.
 - Child Spaces: reachable in Tiling through a client-local tiling target, the breadcrumb and child list, and keyboard commands.
-- Layout storage: apart from the snapshot, changed only by revalidated commands.
+- Layout storage: apart from the snapshot, changed only by revalidated commands and the Worker's own membership normalisation.
+- First layout: derived and stored by the Worker, projected per viewport by each client.
+- Change notification: a post-commit `tiling.layout_updated` event, no polling.
+- Focus on reload: the last focused window per Space, client-local, validated, with a deterministic fallback.
 
 ## 12. Delivery Slices (sketch, for the plan)
 
 1. Layout model, ids, normaliser, command reducer and property tests (pure, no UI).
-2. Worker table, `space.readTilingLayout` / `space.applyTilingCommand`, snapshot-write isolation and the older-client contract test.
+2. Worker table, `space.readTilingLayout` (with first materialisation) / `space.applyTilingCommand`, membership normalisation on snapshot writes, the `tiling.layout_updated` event, and the older-client, concurrent-first-read and event contract tests.
 3. Tiling host with groups and tabs only (no splits), view switch and tiling target per client, child Space navigation, terminal remount covered by E2E.
 4. Splits, dividers, minimum sizes, fold-for-display and the scroll fallback.
 5. Keyboard prefix, hint line and commands.
