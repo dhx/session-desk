@@ -22,7 +22,10 @@ import {
 } from './preferredRenderer'
 import { registerTerminalDiagnostics } from './registerDiagnostics'
 import { installTerminalEffectiveDevicePixelRatioController } from './effectiveDevicePixelRatio'
-import { installFitAddonDetachedRendererGuard } from './renderServiceSafety'
+import {
+  installFitAddonDetachedRendererGuard,
+  installViewportDetachedRendererGuard,
+} from './renderServiceSafety'
 import type { TerminalThemeMode } from './theme'
 import {
   getOrCreateTerminalAppearanceOwner,
@@ -202,6 +205,7 @@ export function createMountedXtermSession({
       publishTerminalAppearanceSnapshot(container, initialAppearanceSnapshot)
     }
     terminal.open(container)
+    installViewportDetachedRendererGuard(terminal)
     const handleTerminalPointerDown = (event: PointerEvent): void => {
       if (event.button === 0) {
         terminal.focus()
