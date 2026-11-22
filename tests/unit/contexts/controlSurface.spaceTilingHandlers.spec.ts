@@ -3,6 +3,7 @@ import { createControlSurface } from '../../../src/app/main/controlSurface/contr
 import { registerSpaceTilingHandlers } from '../../../src/app/main/controlSurface/handlers/spaceTilingHandlers'
 import { sessionGrantRule } from '../../../src/app/main/controlSurface/http/sessionGrantPolicy'
 import type { ControlSurfaceContext } from '../../../src/app/main/controlSurface/types'
+import { createAppError } from '../../../src/shared/errors/appError'
 import type {
   TilingLayoutStore,
   TilingStoreCommandResult,
@@ -131,4 +132,39 @@ it('reports unavailable persistence when the store keeps no layouts', async () =
 it('lets an agent session read and arrange the layout, like space.update', () => {
   expect(sessionGrantRule('space.readTilingLayout')).toEqual({ access: 'allow' })
   expect(sessionGrantRule('space.applyTilingCommand')).toEqual({ access: 'allow' })
+})
+
+it('checks that the caller is still active after waiting for the store, before any write', async () => {
+  const read = vi.fn(async () => ({ layout, layoutRevision: 1 }))
+  const apply = vi.fn(async () => null)
+  const controlSurface = createControlSurface()
+  let active = true
+  registerSpaceTilingHandlers(controlSurface, async () => {
+    // The credential is revoked while the handler waits for the store.
+    active = false
+    return { tilingLayouts: { read, apply } } as unknown as PersistenceStore
+  })
+  const revocable = {
+    ...ctx,
+    assertActive: () => {
+      if (!active) {
+        throw createAppError('worker.unavailable')
+      }
+    },
+  } as ControlSurfaceContext
+  const readResult = await controlSurface.invoke(revocable, {
+    kind: 'query',
+    id: 'space.readTilingLayout',
+    payload: { spaceId: 'space-1' },
+  })
+  active = true
+  const applyResult = await controlSurface.invoke(revocable, {
+    kind: 'command',
+    id: 'space.applyTilingCommand',
+    payload: applyPayload({ kind: 'resetLayout' }),
+  })
+  expect(readResult).toMatchObject({ ok: false, error: { code: 'worker.unavailable' } })
+  expect(applyResult).toMatchObject({ ok: false, error: { code: 'worker.unavailable' } })
+  expect(read).not.toHaveBeenCalled()
+  expect(apply).not.toHaveBeenCalled()
 })

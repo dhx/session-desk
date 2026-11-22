@@ -219,6 +219,9 @@ Notes settled in slice 2 (`SqliteTilingLayoutStore`, `spaceTilingHandlers`):
 - A read or a command that finds a stored layout whose windows no longer match the Space (a Worker without tiling wrote snapshots in between) normalises it like a snapshot write would: next `layoutRevision`, one event, `operationId` null.
 - A payload that is not one of the commands (an unknown `kind`, a wrong type) is `common.invalid_input` at the control surface; `rejected_invalid_command` is for well-formed commands that can never apply.
 - An agent terminal may call both operations for Spaces and windows of its own workspace (the session grant workspace scope checks `spaceId` and `nodeId`).
+- The sync stream is not filtered by workspace, so `tiling.layout_updated` is not delivered to a stream opened with a session grant, neither live nor on replay. An agent reads the layouts it may see with `space.readTilingLayout`.
+- Both handlers check that the caller is still active after waiting for the store and before the store's transaction; a read counts, because it can store the first layout.
+- `setWeights` scales the two weights before summing them. A ratio that would leave one side a share of zero is `rejected_invalid_command`; the other children of the split never change.
 
 A client in Tiling on a Space refetches that Space's layout when an event names it with a `layoutRevision` higher than the one it holds; events for other Spaces are ignored. On `resync_required` or a reconnect, it refetches the layout of its tiling target unconditionally. Between an `app_state.updated` that changes membership and the matching `tiling.layout_updated`, the client applies `normalizeTilingLayout` locally to what it holds, so it never shows a window twice or misses one; the Worker's event then replaces that local result. No polling.
 

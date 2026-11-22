@@ -68,6 +68,48 @@ describe('applyTilingCommand', () => {
     ).toBe('rejected_invalid_command')
   })
 
+  it('setWeights with huge or unrepresentable weights never touches the other children', () => {
+    const three: TilingLayout = {
+      version: 1,
+      root: {
+        kind: 'split',
+        id: 's1',
+        direction: 'row',
+        children: [
+          { kind: 'group', id: 'g1', nodeIds: ['a'], activeNodeId: 'a' },
+          { kind: 'group', id: 'g2', nodeIds: ['b'], activeNodeId: 'b' },
+          { kind: 'group', id: 'g3', nodeIds: ['c'], activeNodeId: 'c' },
+        ],
+        weights: [0.25, 0.25, 0.5],
+      },
+    }
+    // The two weights are finite, their sum is not.
+    const root = rootOf(
+      apply(
+        {
+          kind: 'setWeights',
+          splitId: 's1',
+          between: ['g1', 'g2'],
+          weights: [Number.MAX_VALUE, Number.MAX_VALUE],
+        },
+        { from: three },
+      ),
+    )
+    expect(root?.kind === 'split' && root.weights).toEqual([0.25, 0.25, 0.5])
+    // A ratio that leaves one side no share at all cannot be stored.
+    expect(
+      apply(
+        {
+          kind: 'setWeights',
+          splitId: 's1',
+          between: ['g1', 'g2'],
+          weights: [Number.MAX_VALUE, Number.MIN_VALUE],
+        },
+        { from: three },
+      ).kind,
+    ).toBe('rejected_invalid_command')
+  })
+
   it('split moves a window into a new group beside, as a sibling in a same-direction split', () => {
     const root = rootOf(apply({ kind: 'split', groupId: 'g2', direction: 'row', nodeId: 'c' }))
     expect(root).toEqual({

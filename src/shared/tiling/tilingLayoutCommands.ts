@@ -108,8 +108,16 @@ function applyToRoot(
         throw stale('the two children are no longer adjacent in that split')
       }
       const pair = split.weights[index]! + split.weights[index + 1]!
-      split.weights[index] = (left / (left + right)) * pair
-      split.weights[index + 1] = (right / (left + right)) * pair
+      // Scaled by the larger one first: the sum of two finite weights can overflow.
+      const scale = Math.max(left, right)
+      const leftShare = left / scale / (left / scale + right / scale)
+      const nextLeft = leftShare * pair
+      const nextRight = pair - nextLeft
+      if (!(nextLeft > 0 && nextRight > 0)) {
+        throw invalid('the ratio of the weights leaves one side no share')
+      }
+      split.weights[index] = nextLeft
+      split.weights[index + 1] = nextRight
       return root
     }
 
