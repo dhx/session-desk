@@ -2,7 +2,7 @@
 
 This spec defines a second way to look at a Space: a **tiling view** that arranges the Space's windows as non-overlapping tiles filling the screen, driven mostly by the keyboard. The canvas stays the default and stays untouched.
 
-Status: Proposed (Large change), revision 4 after review. Awaiting approval of this spec, then a feasibility check (section 10), then a plan. Nothing here is implemented yet.
+Status: Proposed (Large change), revision 5: feasibility check done (§10.1), model details settled while building slice 1. Awaiting approval of this spec, then a feasibility check (section 10), then a plan. Nothing here is implemented yet.
 
 ## Problem Class
 
@@ -104,14 +104,16 @@ The Worker's terminal authority is unchanged (`docs/terminal/MULTI_CLIENT_ARCHIT
 
 ### 1.8 Acceptance criteria
 
-1. Switching a client window with a running Agent terminal between Canvas and Tiling, ten times, keeps the same PTY session id, never has two overlapping attachments for that window in that client, keeps scrollback, and keeps the Agent's status.
+1. Switching a client window with a running Agent terminal between Canvas and Tiling, ten times, keeps the same PTY session id, never has two mounted bodies (renderer subscribers) for that window in that client, keeps scrollback, and keeps the Agent's status. The Worker sees no attach or detach for a view switch: its attachment belongs to the client's runtime coordinator, not to a mounted window (§10.1).
 2. The canvas positions and sizes of every window are byte-identical before and after any sequence of tiling commands.
 3. Two clients in Tiling on one Space see the same layout after either changes it; a third client on the Canvas sees no layout change.
 4. **An older client that does not know tiling saves an unrelated edit** (renames the Space) after a newer client created a layout: the layout is still there afterwards, unchanged.
 5. A divider drag released after another client removed or reordered one of its neighbours changes no other tile: the command is rejected and the dragging client shows the current layout.
 6. Every window of the Space, and every child Space, is reachable in Tiling by pointer and by keyboard alone, at a viewport of 320 by 480 CSS pixels with the largest terminal font setting.
 7. No tile is drawn below its minimum size or overlapping another; shrinking and restoring the viewport restores the stored layout exactly.
-8. Per terminal, per mount or divider release: at most one accepted resize, sent only by the controller; a viewer sends none.
+8. Per terminal, per mount or divider release: at most one accepted resize, sent only by the controller; a viewer sends none. The controller measures after the tile's first layout, so it sends one request, not a superseded one followed by the accepted one (§10.1).
+12. Switching back to the Canvas restores the canvas viewport (pan and zoom) exactly.
+13. A native website view in a tile is shown in the tile's content area, clipped to the tiling host, never over other tiles or the sidebar.
 9. Reload in Tiling restores the same tiling target and the layout at its latest revision, and focuses the group containing the last focused window if that window is still in the Space; otherwise the fallback focus (section 1.5). The group shows its shared active tab, which may be a different window if another client changed it meanwhile.
 10. A wide and a narrow client opening the same Space in Tiling before either edits it receive the same layout revision and the same split and group ids; the narrow one shows it folded.
 11. After a layout-only command or `resetLayout` from one client, and after a window is added or removed on the Canvas by another, a passive client in Tiling on that Space shows the new layout without user action.
@@ -150,13 +152,13 @@ Clients never write a tree. They send one command at a time:
 ```ts
 type TilingCommand =
   | { kind: 'setWeights'; splitId: string; between: [string, string]; weights: [number, number] }
-  | { kind: 'split'; groupId: string; direction: 'row' | 'column'; nodeId?: string }
+  | { kind: 'split'; groupId: string; direction: 'row' | 'column'; nodeId: string }
   | { kind: 'moveWindow'; nodeId: string; toGroupId: string; index?: number }
   | { kind: 'moveToEdge'; nodeId: string; targetId: string; edge: 'top' | 'right' | 'bottom' | 'left' }
   | { kind: 'activate'; groupId: string; nodeId: string }
-  | { kind: 'toggleTabs'; splitId: string }
+  | { kind: 'toggleTabs'; targetId: string; activeNodeId?: string }
   | { kind: 'equalise'; splitId: string }
-  | { kind: 'placeNew'; nodeId: string; nearGroupId: string }
+  | { kind: 'placeNew'; nodeId: string; nearGroupId: string; placement: 'tab' | 'row' | 'column' }
   | { kind: 'resetLayout' }
 
 type ApplyTilingCommand = {
@@ -174,7 +176,15 @@ The Worker applies commands for one Space in order, and **revalidates every targ
 - `placeNew` with a vanished group falls back to the default destination (section 1.3) instead of failing;
 - other commands with a missing target are rejected.
 
-The result is typed, like the terminal resize results: `applied` and `rejected_stale_target` both carry the Space's current layout and `layoutRevision`; `space_not_found` carries neither. `baseLayoutRevision` tells the client whether its optimistic view was based on the latest layout; a command whose targets still validate is applied even if the revision moved on, so unrelated concurrent edits do not reject each other.
+Notes on the commands, settled in slice 1 (`src/contexts/workspace/domain/tiling/`):
+
+- `split` always names the window to move into the new group; a group with one window is `rejected_invalid_command`. "Split and open a new terminal there" (`s` / `v` on a one-window group) is two steps: the client creates the window, then sends `placeNew` with the split direction.
+- `placeNew` carries the client's `placement` (`tab`, or the direction to split in), because only the client knows its viewport and the minimum sizes (§1.3). The client sends it after the snapshot write that adds the window has committed; before that the Worker does not know the window and the command is stale.
+- `toggleTabs` names a split (which becomes one tab group, active tab `activeNodeId` or the first group's) or a group (whose windows become side-by-side groups).
+- `resetLayout` is handled by the Worker with the first-layout derivation, not by the command reducer.
+- The reducer normalises against the Space's windows before and after each command, so a command always sees windows that just arrived at their default destination.
+
+The result is typed, like the terminal resize results: `applied` (with `changed`, false when a valid command left the layout as it was) and `rejected_stale_target` both carry the Space's current layout and `layoutRevision`; `rejected_invalid_command` is for commands that can never apply (bad weights, nothing to split); `space_not_found` carries neither. `baseLayoutRevision` tells the client whether its optimistic view was based on the latest layout; a command whose targets still validate is applied even if the revision moved on, so unrelated concurrent edits do not reject each other.
 
 **Applying what arrives.** Layouts reach a client three ways: command results, refetches after `tiling.layout_updated`, and the first read. They can arrive in any order. The client keeps, for its tiling target only, the `layoutRevision` it displays, and:
 
@@ -222,8 +232,10 @@ type TilingNode =
 
 - A new host component, a sibling of the canvas host, renders the tree with CSS grid/flex and plain dividers (no new layout dependency for v1).
 - Tiles render the existing window bodies (terminal, Agent, note, document, website) through the same node components the canvas uses, without React Flow's node wrapper; window chrome (title, actions, Agent signal) comes from the shared window header.
-- Switching views unmounts a window body in one host and mounts it in the other (invariant 3). The previous attachment is detached before the new one attaches.
-- **Fallback if remounting proves too costly** (decided by the feasibility check): window bodies render into keep-alive containers whose DOM parent never changes, one per window, in a layer above both hosts. The canvas and tiling hosts only report slot rectangles; the container is positioned and clipped over the active host's slot, as native website views already are. A portal whose target element changes would make React recreate its content, and moving an iframe's element reloads it, so neither is used.
+- Switching views unmounts a window body in one host and mounts it in the other (invariant 3). The feasibility check confirmed this works (§10.1), so remounting is the design.
+- **Providers above both hosts.** Window bodies need contexts that today only the canvas view provides: `TerminalDisplayAlignmentProvider` (throws without it; in the check that took the whole canvas down), and the document navigation and filesystem node contexts (missing silently). They move above both hosts. A test renders each window kind in the tiling host.
+- **Native views' clip area.** Native website views are positioned from the window body's DOM rect but clipped to the canvas pane. The tiling host occupies the canvas pane; if it ever covers more, it has to give native views its own clip rect.
+- **Fallback, not needed** (kept for the record): window bodies render into keep-alive containers whose DOM parent never changes, one per window, in a layer above both hosts. The canvas and tiling hosts only report slot rectangles; the container is positioned and clipped over the active host's slot, as native website views already are. A portal whose target element changes would make React recreate its content, and moving an iframe's element reloads it, so neither is used.
 
 ## 6. Accessibility
 
@@ -265,7 +277,7 @@ type TilingNode =
 - **Unit (ordering):** layouts for one Space delivered in reverse order (refetch at revision 9, then the delayed command result at revision 8) leave revision 9 displayed and clear the command's optimistic state; a layout for another Space is ignored.
 - **Unit (empty):** normalising with no windows gives `root: null`; `placeNew` on it gives a single root group; removing that window gives `root: null` again with no reused ids; other commands on the empty layout are rejected.
 - **Unit (focus):** the reload focus rule for a remembered window still present, removed, moved to another Space, and nothing remembered.
-- **E2E (Desktop and Web):** acceptance 11 (a passive client updates after a command, a reset, and a Canvas edit in another client); acceptance 1 (ten switches: same session id, attach and detach events strictly alternate for the window, scrollback present), 3 (two clients), 6 (320 by 480 viewport, largest font, every tab and child Space reached by keyboard), 8 (resize count per mount and per release for a controller and a viewer client), 9 (reload). Added to the E2E budget with reasons.
+- **E2E (Desktop and Web):** acceptance 11 (a passive client updates after a command, a reset, and a Canvas edit in another client); acceptance 1 (ten switches: same session id, never two mounted bodies for the window, no Worker attach or detach, scrollback present), 3 (two clients), 6 (320 by 480 viewport, largest font, every tab and child Space reached by keyboard), 8 (resize count per mount and per release for a controller and a viewer client), 9 (reload). Added to the E2E budget with reasons.
 - **Visual:** screenshots of light, dark and forced-colours themes for the implementation PRs.
 
 ## 10. Feasibility Check (before the plan)
@@ -282,6 +294,19 @@ Measure and report:
 
 If remounting is too slow or flickers, the check also prototypes the keep-alive container fallback (section 5) and compares.
 
+### 10.1 Results
+
+Run on Linux in CI, Desktop as controller and a Web client as viewer, ten switches each way, three repeats (draft PR #60, closed):
+
+- Same PTY session id throughout; at most one mounted body per window per client; scrollback back after every switch.
+- The Worker saw no attach or detach for any switch.
+- Controller: exactly one accepted resize per mount, but also one superseded request per mount. Viewer: no requests; it shows the canonical grid.
+- Canvas to tile ready: 0.3–0.6 s on Web, about 1 s on Desktop (mostly the resize round trip). Tile to canvas: 0.4–0.6 s.
+- Desktop website view: no reload (same `webContents`, same time origin), lifecycle stays active, bounds follow the tile; clipped to the canvas pane.
+- The canvas viewport moved once on the first switch back (a spike artifact of removing and re-adding one node, but worth acceptance 12).
+
+Conclusion: remounting is fine; the keep-alive fallback is not needed.
+
 ## 11. Decisions Taken in Review
 
 - Minimap: keeps the canvas geometry in v1.
@@ -297,8 +322,8 @@ If remounting is too slow or flickers, the check also prototypes the keep-alive 
 
 ## 12. Delivery Slices (sketch, for the plan)
 
-1. Layout model, ids, normaliser, command reducer and property tests (pure, no UI).
-2. Worker table, `space.readTilingLayout` (with first materialisation) / `space.applyTilingCommand`, membership normalisation on snapshot writes, the `tiling.layout_updated` event, and the older-client, concurrent-first-read and event contract tests.
+1. and 2. ship together, because a production file nobody imports fails the dead-code check:
+   layout model, ids, normaliser, first-layout derivation, command reducer and property tests (pure); and the Worker table, `space.readTilingLayout` (with first materialisation) / `space.applyTilingCommand`, membership normalisation on snapshot writes, the `tiling.layout_updated` event, and the older-client, concurrent-first-read and event contract tests.
 3. Tiling host with groups and tabs only (no splits), view switch and tiling target per client, child Space navigation, terminal remount covered by E2E.
 4. Splits, dividers, minimum sizes, fold-for-display and the scroll fallback.
 5. Keyboard prefix, hint line and commands.
