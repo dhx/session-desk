@@ -44,7 +44,12 @@ function fixture(version: number, legacy = false) {
 }
 
 function assertSideTables(f: ReturnType<typeof fixture>) {
-  for (const table of ['managed_claude_resume_bindings', 'retired_managed_nodes', 'node_lineage']) {
+  for (const table of [
+    'managed_claude_resume_bindings',
+    'retired_managed_nodes',
+    'node_lineage',
+    'workspace_space_tiling_layouts',
+  ]) {
     expect(f.tables.has(table), table).toBe(true)
   }
   expect(f.events.indexOf('managed_claude_resume_bindings')).toBeLessThan(
@@ -53,8 +58,16 @@ function assertSideTables(f: ReturnType<typeof fixture>) {
   expect(f.events.indexOf('retired_managed_nodes')).toBeLessThan(f.events.indexOf('node_lineage'))
 }
 
-it('reserves schema 15 for lineage after the managed Claude v14 ledger', () => {
-  expect(DB_SCHEMA_VERSION).toBe(15)
+it('reserves schema 16 for tiling layouts after the v15 lineage and the v14 ledger', () => {
+  expect(DB_SCHEMA_VERSION).toBe(16)
+})
+
+it('models v15 with lineage and without tiling layouts', async () => {
+  const { createInstalledUpgradeState } = await import('./persistenceInstalledUpgradeSupport')
+  const lineage = createInstalledUpgradeState(15).tables
+  expect(lineage.has('node_lineage')).toBe(true)
+  expect(lineage.has('workspace_space_tiling_layouts')).toBe(false)
+  expect(createInstalledUpgradeState(14).tables.has('workspace_space_tiling_layouts')).toBe(false)
 })
 
 it('models v13 without either feature and v14 with only the managed Claude ledger', async () => {
@@ -71,14 +84,14 @@ it('models v13 without either feature and v14 with only the managed Claude ledge
   expect(ledger.has('node_lineage')).toBe(false)
 })
 
-it.each([13, 14, 15])('upgrades or repairs v%s without inferring owner rows', async version => {
+it.each([13, 14, 15, 16])('upgrades or repairs v%s without inferring owner rows', async version => {
   const { migrate } = await import('../../../src/platform/persistence/sqlite/migrate')
   const f = fixture(version)
   migrate(f.db)
-  expect(f.version()).toBe(15)
+  expect(f.version()).toBe(16)
   assertSideTables(f)
   expect(f.statements.join('\n')).not.toMatch(
-    /INSERT\s+INTO\s+(node_lineage|managed_claude_resume_bindings|retired_managed_nodes)/i,
+    /INSERT\s+INTO\s+(workspace_space_tiling_layouts|node_lineage|managed_claude_resume_bindings|retired_managed_nodes)/i,
   )
   expect(writers.state).not.toHaveBeenCalled()
   expect(writers.scrollbacks).not.toHaveBeenCalled()
@@ -99,5 +112,5 @@ it('creates both side-table sets before the v1 legacy writer', async () => {
   )
   expect(writers.scrollbacks).toHaveBeenCalledOnce()
   expect(f.events.indexOf('node_lineage')).toBeLessThan(f.events.indexOf('legacy-writer'))
-  expect(f.version()).toBe(15)
+  expect(f.version()).toBe(16)
 })

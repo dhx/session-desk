@@ -1,6 +1,19 @@
 import type { ServerResponse } from 'node:http'
 import { writeSseEvent, type SyncEventPayload } from './syncSse'
 
+// Streams opened with an agent's session grant. The sync stream is not filtered by workspace, so
+// events that name the objects of a workspace, as `tiling.layout_updated` names a Space, stay off
+// them; an agent reads the layouts it may see with `space.readTilingLayout`.
+const grantScopedClients = new WeakSet<ServerResponse>()
+
+export function markSyncClientGrantScoped(client: ServerResponse): void {
+  grantScopedClients.add(client)
+}
+
+export function syncClientReceives(client: ServerResponse, payload: SyncEventPayload): boolean {
+  return payload.type !== 'tiling.layout_updated' || !grantScopedClients.has(client)
+}
+
 export function publishSyncEvent(options: {
   syncClients: Set<ServerResponse>
   syncEventBuffer: SyncEventPayload[]
@@ -29,6 +42,9 @@ export function publishLiveSyncEvent(options: {
   }
 
   for (const client of options.syncClients) {
+    if (!syncClientReceives(client, options.payload)) {
+      continue
+    }
     try {
       writeSseEvent(client, options.payload)
       deliveredCount += 1

@@ -1,4 +1,5 @@
 import * as z from 'zod'
+import type { TilingCommandDto } from '../../../dto/tiling'
 import { spaceUpdateInput, normalizeSpaceUpdateInput } from '../spaceUpdateInput'
 import { normalizeBootstrapInput } from '../workspaceBootstrapNormalize'
 import { defineLegacyOperation, defineOperation } from '../defineOperation'
@@ -134,8 +135,87 @@ export const spaceUpdateOperation = defineOperation({
   ],
 })
 
+// The tiling layout of a Space (docs/canvas/TILING_VIEW_SPEC.md §3). There is no operation that
+// writes a tree: the Worker owns it and changes it by one command at a time.
+const tilingDirection = z.enum(['row', 'column'])
+const tilingCommand: z.ZodType<TilingCommandDto> = z.discriminatedUnion('kind', [
+  z.object({
+    kind: z.literal('setWeights'),
+    splitId: z.string(),
+    between: z.tuple([z.string(), z.string()]),
+    weights: z.tuple([z.number(), z.number()]),
+  }),
+  z.object({
+    kind: z.literal('split'),
+    groupId: z.string(),
+    direction: tilingDirection,
+    nodeId: z.string(),
+  }),
+  z.object({
+    kind: z.literal('moveWindow'),
+    nodeId: z.string(),
+    toGroupId: z.string(),
+    index: z.number().int().optional(),
+  }),
+  z.object({
+    kind: z.literal('moveToEdge'),
+    nodeId: z.string(),
+    targetId: z.string(),
+    edge: z.enum(['top', 'right', 'bottom', 'left']),
+  }),
+  z.object({ kind: z.literal('activate'), groupId: z.string(), nodeId: z.string() }),
+  z.object({
+    kind: z.literal('toggleTabs'),
+    targetId: z.string(),
+    activeNodeId: z.string().optional(),
+  }),
+  z.object({ kind: z.literal('equalise'), splitId: z.string() }),
+  z.object({
+    kind: z.literal('placeNew'),
+    nodeId: z.string(),
+    nearGroupId: z.string(),
+    placement: z.enum(['tab', 'row', 'column']),
+  }),
+  z.object({ kind: z.literal('resetLayout') }),
+])
+
+export const spaceReadTilingLayoutOperation = defineOperation({
+  id: 'space.readTilingLayout',
+  kind: 'query',
+  scope: 'read',
+  availability: 'always',
+  summary: 'Read the tiling layout of a space, deriving the first one from the canvas',
+  input: z.object({ spaceId: z.string().min(1) }),
+  errors: ['persistence.unavailable', 'persistence.io_failed'],
+})
+
+export const spaceApplyTilingCommandOperation = defineOperation({
+  id: 'space.applyTilingCommand',
+  kind: 'command',
+  scope: 'interact',
+  availability: 'always',
+  summary: 'Apply one command to the tiling layout of a space',
+  input: z.object({
+    spaceId: z.string().min(1),
+    baseLayoutRevision: z
+      .number()
+      .int()
+      .min(0)
+      .describe('The layout revision the client saw; informative, never a reason to reject'),
+    operationId: z
+      .string()
+      .min(1)
+      .max(128)
+      .describe('Chosen by the client; returned in the tiling.layout_updated event'),
+    command: tilingCommand,
+  }),
+  errors: ['persistence.unavailable', 'persistence.io_failed'],
+})
+
 export const spaceOperations = [
   spaceUpdateOperation,
+  spaceReadTilingLayoutOperation,
+  spaceApplyTilingCommandOperation,
   spaceCreateOperation,
   spaceCreateChildOperation,
   spaceCreateEmptyOperation,

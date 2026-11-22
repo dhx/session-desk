@@ -234,6 +234,13 @@ const NOT_WORKSPACE_TARGETS: Record<string, string> = {
   viewId: 'a plugin view the caller was given',
   skillId: 'a skill of a plugin',
   id: 'an operation name (system.operation.describe)',
+  operationId: 'chosen by the caller to recognise its own tiling event',
+  splitId: 'a place in the tiling layout of the Space named next to it',
+  groupId: 'a place in the tiling layout of the Space named next to it',
+  toGroupId: 'a place in the tiling layout of the Space named next to it',
+  nearGroupId: 'a place in the tiling layout of the Space named next to it',
+  targetId: 'a place in the tiling layout of the Space named next to it',
+  activeNodeId: 'a window the tiling layout of the Space named next to it already holds',
 }
 
 it('checks or names every ID field an agent terminal can send', async () => {

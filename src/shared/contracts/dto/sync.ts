@@ -23,6 +23,14 @@ export type SyncEventPayload =
       target: CanvasFocusEventTarget
       createdAt: string
     }
+  /** A Space's stored tiling layout changed; `revision` is the app state revision at that time. */
+  | {
+      type: 'tiling.layout_updated'
+      revision: number
+      spaceId: string
+      layoutRevision: number
+      operationId: string | null
+    }
 
 export interface WriteSyncStateInput {
   state: unknown

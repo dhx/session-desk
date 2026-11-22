@@ -176,7 +176,7 @@ The Worker applies commands for one Space in order, and **revalidates every targ
 - `placeNew` with a vanished group falls back to the default destination (section 1.3) instead of failing;
 - other commands with a missing target are rejected.
 
-Notes on the commands, settled in slice 1 (`src/contexts/workspace/domain/tiling/`):
+Notes on the commands, settled in slice 1 (`src/shared/tiling/`):
 
 - `split` always names the window to move into the new group; a group with one window is `rejected_invalid_command`. "Split and open a new terminal there" (`s` / `v` on a one-window group) is two steps: the client creates the window, then sends `placeNew` with the split direction.
 - `placeNew` carries the client's `placement` (`tab`, or the direction to split in), because only the client knows its viewport and the minimum sizes (§1.3). The client sends it after the snapshot write that adds the window has committed; before that the Worker does not know the window and the command is stale.
@@ -209,6 +209,19 @@ The causes are exactly three, each in one transaction with its event:
 1. an applied `space.applyTilingCommand` (`operationId` is the command's);
 2. `resetLayout` and the first materialisation on read;
 3. **membership normalisation:** when a snapshot write changes the `nodeIds` of a Space that has a stored layout, the Worker runs `normalizeTilingLayout` on it in the same transaction, stores the result if it differs, increments `layoutRevision` and emits the event (`operationId` null). So a window added or removed by any client, including one that knows nothing of tiling, moves the layout revision too, and every client gets the same ids for the new window's group.
+
+Notes settled in slice 2 (`SqliteTilingLayoutStore`, `spaceTilingHandlers`):
+
+- The event's `revision` is the app state revision at the time of the commit. A layout change does not move it, so several layout events can carry the same `revision`; clients order layouts by `layoutRevision` only. The stream's replay cursor is the app state revision, so a reconnecting client may miss layout events and refetches, as below.
+- A snapshot write that changes membership emits `app_state.updated` first, then `tiling.layout_updated`.
+- Membership is compared as a set: reordering `nodeIds` alone changes nothing.
+- A command that arrives before any read materialises the first layout too (its own event, `operationId` null), so the ids in a `rejected_stale_target` answer are the stored ones.
+- A read or a command that finds a stored layout whose windows no longer match the Space (a Worker without tiling wrote snapshots in between) normalises it like a snapshot write would: next `layoutRevision`, one event, `operationId` null.
+- A payload that is not one of the commands (an unknown `kind`, a wrong type) is `common.invalid_input` at the control surface; `rejected_invalid_command` is for well-formed commands that can never apply.
+- An agent terminal may call both operations for Spaces and windows of its own workspace (the session grant workspace scope checks `spaceId` and `nodeId`).
+- The sync stream is not filtered by workspace, so `tiling.layout_updated` is not delivered to a stream opened with a session grant, neither live nor on replay. An agent reads the layouts it may see with `space.readTilingLayout`.
+- Both handlers check that the caller is still active after waiting for the store and before the store's transaction; a read counts, because it can store the first layout.
+- `setWeights` scales the two weights before summing them. A ratio that would leave one side a share of zero is `rejected_invalid_command`; the other children of the split never change.
 
 A client in Tiling on a Space refetches that Space's layout when an event names it with a `layoutRevision` higher than the one it holds; events for other Spaces are ignored. On `resync_required` or a reconnect, it refetches the layout of its tiling target unconditionally. Between an `app_state.updated` that changes membership and the matching `tiling.layout_updated`, the client applies `normalizeTilingLayout` locally to what it holds, so it never shows a window twice or misses one; the Worker's event then replaces that local result. No polling.
 

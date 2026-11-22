@@ -1,4 +1,5 @@
 import type { IncomingMessage, ServerResponse } from 'node:http'
+import { syncClientReceives } from './publishSyncEvent'
 import { writeSseEvent, type SyncEventPayload } from './syncSse'
 
 /** A transport cursor is not an acknowledgement that canonical state was applied. */
@@ -29,7 +30,7 @@ export async function serveSyncEvents(input: {
     // Capture replay before awaiting; commits in the gap are already delivered live.
     if (input.afterRevision !== null) {
       for (const payload of input.buffer) {
-        if (payload.revision > input.afterRevision) {
+        if (payload.revision > input.afterRevision && syncClientReceives(res, payload)) {
           writeSseEvent(res, payload)
         }
       }

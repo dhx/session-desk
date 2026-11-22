@@ -8,11 +8,17 @@ import type { NormalizedPersistedAppState } from './normalize'
 import { normalizeScrollback } from './normalize'
 import { safeJsonStringify } from './utils'
 import { PersistenceRevisionConflict } from './revisionConflict'
+import {
+  reconcileTilingLayoutsWithSpaces,
+  type TilingLayoutChange,
+} from './SqliteTilingLayoutStore'
 
 export interface EffectiveAppStateWrite {
   revision: number
   corrected: boolean
   effectiveState: NormalizedPersistedAppState
+  /** Stored tiling layouts this write normalised, to announce once the outer commit succeeded. */
+  tilingLayoutChanges: TilingLayoutChange[]
 }
 
 export function writeNormalizedAppState(
@@ -234,7 +240,9 @@ export function writeNormalizedAppState(
     )
 
     retireDeletedManagedNodes(db, nextRevision)
-    return { revision: nextRevision, corrected, effectiveState: state }
+    // A snapshot carries no layout; its only effect on one is this membership normalisation.
+    const tilingLayoutChanges = reconcileTilingLayoutsWithSpaces(db)
+    return { revision: nextRevision, corrected, effectiveState: state, tilingLayoutChanges }
   }).immediate
 
   return writeTx()

@@ -31,6 +31,7 @@ import { resolveRequestAuth, type RequestAuth } from './http/requestAuth'
 import { type SyncEventPayload } from './http/syncSse'
 import { tryHandleWebAuthRoutes } from './http/webAuthRoutes'
 import { gateWebUiEntrypoint } from './http/webUiEntryGate'
+import { markSyncClientGrantScoped } from './http/publishSyncEvent'
 import { serveSyncEvents } from './http/serveSyncEvents'
 import { shouldAllowDevWebUiOrigin } from './http/devWebUiOrigin'
 import { buildUnauthorizedResult } from './http/unauthorizedResult'
@@ -343,6 +344,9 @@ export function createControlSurfaceHttpRequestHandler(
         res.setHeader('x-accel-buffering', 'no')
         res.write(':\n\n')
 
+        if (auth.kind === 'session-grant') {
+          markSyncClientGrantScoped(res)
+        }
         await serveSyncEvents({
           req,
           res,

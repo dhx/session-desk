@@ -11,6 +11,8 @@ import {
 } from '../../../contexts/workspace/infrastructure/nodeLineage/SqliteNodeLineageRepository'
 import type { NodeLineageRecord } from '../../../contexts/workspace/domain/nodeLineage'
 import type { NodeLineageRepository } from '../../../contexts/workspace/application/nodeLineage/NodeLineageRepository'
+import type { TilingLayoutStore } from '../../../shared/tiling/TilingLayoutStore'
+import { createSqliteTilingLayoutStore, type TilingLayoutChange } from './SqliteTilingLayoutStore'
 import { mkdir } from 'node:fs/promises'
 import { dirname } from 'node:path'
 import Database from 'better-sqlite3'
@@ -48,6 +50,8 @@ export interface PersistenceStore {
   activateManagedClaudeRuntime?: ManagedClaudeResumeBindingStore['activateManagedClaudeRuntime']
   onAppStateCommitted?: (listener: (event: AppStateCommittedObservation) => void) => () => void
   nodeLineage?: NodeLineageRepository
+  /** Tiling layouts live apart from the snapshot; `writeAppState` never carries one. */
+  tilingLayouts?: TilingLayoutStore
   commitCreatedNodeState?: (
     state: unknown,
     options: { expectedRevision: number; lineage: NodeLineageRecord },
@@ -179,6 +183,14 @@ export async function createPersistenceStore(storeOptions: {
   }
   const db = drizzle(sqlite)
   const commits = createAppStateCommitObservation(sqlite)
+  const tilingLayouts = createSqliteTilingLayoutStore(sqlite, () =>
+    readAppStateRevisionFromDb(sqlite),
+  )
+  const publishTilingLayoutChanges = (revision: number, changes: TilingLayoutChange[]): void => {
+    for (const change of changes) {
+      tilingLayouts.publish({ ...change, revision, operationId: null })
+    }
+  }
 
   const readAppState = async (): Promise<unknown | null> => {
     try {
@@ -246,15 +258,23 @@ export async function createPersistenceStore(storeOptions: {
     }
 
     try {
-      const { result, event } = sqlite
+      const { result, event, tilingLayoutChanges } = sqlite
         .transaction(() => {
           const before = commits.capture()
-          const written = writeNormalizedAppState(sqlite, normalized)
+          const { tilingLayoutChanges: layoutChanges, ...written } = writeNormalizedAppState(
+            sqlite,
+            normalized,
+          )
           writeNormalizedScrollbacks(sqlite, written.effectiveState)
-          return { result: written, event: commits.describe(before, written.revision) }
+          return {
+            result: written,
+            event: commits.describe(before, written.revision),
+            tilingLayoutChanges: layoutChanges,
+          }
         })
         .immediate()
       commits.publish(event)
+      publishTilingLayoutChanges(result.revision, tilingLayoutChanges)
       return { ok: true, level: 'full', bytes: rawBytes, ...result }
     } catch (error) {
       if (
@@ -296,10 +316,14 @@ export async function createPersistenceStore(storeOptions: {
     }
 
     try {
-      const { result, event } = sqlite
+      const { result, event, tilingLayoutChanges } = sqlite
         .transaction(() => {
           const before = commits.capture()
-          const written = writeNormalizedAppState(sqlite, normalized, options?.expectedRevision)
+          const { tilingLayoutChanges: layoutChanges, ...written } = writeNormalizedAppState(
+            sqlite,
+            normalized,
+            options?.expectedRevision,
+          )
           if (lineage) {
             if (
               !written.effectiveState.workspaces.some(w =>
@@ -310,10 +334,15 @@ export async function createPersistenceStore(storeOptions: {
             }
             insertNodeLineage(sqlite, lineage)
           }
-          return { result: written, event: commits.describe(before, written.revision) }
+          return {
+            result: written,
+            event: commits.describe(before, written.revision),
+            tilingLayoutChanges: layoutChanges,
+          }
         })
         .immediate()
       commits.publish(event)
+      publishTilingLayoutChanges(result.revision, tilingLayoutChanges)
       const bytes = utf8ByteLength(safeJsonStringify(result.effectiveState))
       return { ok: true, level: 'full', bytes, ...result }
     } catch (error) {
@@ -350,6 +379,11 @@ export async function createPersistenceStore(storeOptions: {
 
   return {
     nodeLineage: createSqliteNodeLineageRepository(sqlite),
+    tilingLayouts: {
+      read: atCleanBoundary(tilingLayouts.read),
+      apply: atCleanBoundary(tilingLayouts.apply),
+      onCommitted: tilingLayouts.onCommitted,
+    },
     commitCreatedNodeState: atCleanBoundary((state, options) =>
       persistAppState(state, { expectedRevision: options.expectedRevision }, options.lineage),
     ),
