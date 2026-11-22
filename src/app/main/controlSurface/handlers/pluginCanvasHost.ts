@@ -9,6 +9,7 @@ import type {
   PluginObservationType,
   PluginSessionState,
 } from '../../../../contexts/plugins/domain/pluginCanvasTypes'
+import { pluginAgentConversation } from '../../../../contexts/plugins/domain/pluginAgentConversation'
 import {
   pluginRecord,
   pluginString,
@@ -113,7 +114,8 @@ export function createPluginCanvasHost(
     nodeId: string,
     kind: 'terminal' | 'agent',
   ): Promise<PluginSessionState> {
-    const item = await node(authority, nodeId)
+    const found = await invoke<GetNodeResult>(authority, 'node.get', 'query', { nodeId })
+    const item = found.node
     if (item.kind !== kind) {
       throw new Error(`Expected ${kind === 'agent' ? 'an agent' : 'a terminal'} node.`)
     }
@@ -123,6 +125,8 @@ export function createPluginCanvasHost(
       node: item,
       session: current,
       agentState: current ? deps.ptyStreamHub.observeAgentState(current.sessionId) : null,
+      conversation:
+        kind === 'agent' ? pluginAgentConversation(found.managedClaudeBinding, current) : null,
     }
   }
   async function create(

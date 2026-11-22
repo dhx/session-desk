@@ -299,6 +299,8 @@ describe('plugin canvas routing over two authenticated Workers', () => {
       expect(await host('agents.get', { nodeId: agent.node.id })).toMatchObject({
         node: { id: agent.node.id },
         session: { status: 'running' },
+        // Session Desk: only a Claude window with a Worker-confirmed conversation names one.
+        conversation: null,
       })
       await host('nodes.focus', { nodeId: note.node.id })
       await expect
