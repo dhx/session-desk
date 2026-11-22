@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import type { TilingLayout } from '../../../src/contexts/workspace/domain/tiling/tilingLayout'
+import type { TilingLayout } from '../../../src/shared/tiling/tilingLayout'
 import {
   applyTilingCommand,
   type TilingCommand,
   type TilingCommandResult,
-} from '../../../src/contexts/workspace/domain/tiling/tilingLayoutCommands'
+} from '../../../src/shared/tiling/tilingLayoutCommands'
 
 function counter(prefix = 'n') {
   let next = 0

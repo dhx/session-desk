@@ -4,13 +4,13 @@ import {
   listTilingGroups,
   listTilingWindowIds,
   type TilingLayout,
-} from '../../../src/contexts/workspace/domain/tiling/tilingLayout'
+} from '../../../src/shared/tiling/tilingLayout'
 import {
   applyTilingCommand,
   type TilingCommand,
-} from '../../../src/contexts/workspace/domain/tiling/tilingLayoutCommands'
-import { deriveInitialTilingLayout } from '../../../src/contexts/workspace/domain/tiling/tilingLayoutDerive'
-import { normalizeTilingLayout } from '../../../src/contexts/workspace/domain/tiling/tilingLayoutNormalize'
+} from '../../../src/shared/tiling/tilingLayoutCommands'
+import { deriveInitialTilingLayout } from '../../../src/shared/tiling/tilingLayoutDerive'
+import { normalizeTilingLayout } from '../../../src/shared/tiling/tilingLayoutNormalize'
 
 /** Seeded PRNG (mulberry32), so a failing run can be replayed from its seed. */
 function random(seed: number) {

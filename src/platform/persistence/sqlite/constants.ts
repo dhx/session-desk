@@ -1,4 +1,4 @@
-export const DB_SCHEMA_VERSION = 15
+export const DB_SCHEMA_VERSION = 16
 
 // @compat sqlite-workspace-state-kv
 export const LEGACY_WORKSPACE_STATE_KEY = 'workspace-state-raw'

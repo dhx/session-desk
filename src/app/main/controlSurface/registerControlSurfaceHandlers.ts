@@ -17,6 +17,7 @@ import { registerSystemHandlers } from './handlers/systemHandlers'
 import { registerProjectHandlers } from './handlers/projectHandlers'
 import { registerSpaceHandlers } from './handlers/spaceHandlers'
 import { registerSpaceMutationHandlers } from './handlers/spaceMutationHandlers'
+import { registerSpaceTilingHandlers } from './handlers/spaceTilingHandlers'
 import { registerFilesystemHandlers } from './handlers/filesystemHandlers'
 import { registerFilesystemMountHandlers } from './handlers/filesystemMountHandlers'
 import { registerGitWorktreeHandlers } from './handlers/gitWorktreeHandlers'
@@ -123,6 +124,7 @@ export function registerControlSurfaceHandlers(
   registerProjectHandlers(controlSurface, deps.getPersistenceStore)
   registerWorkspaceBootstrapHandlers(controlSurface, deps)
   registerSpaceHandlers(controlSurface, deps.getPersistenceStore)
+  registerSpaceTilingHandlers(controlSurface, deps.getPersistenceStore)
   registerSpaceMutationHandlers(controlSurface, {
     getPersistenceStore: deps.getPersistenceStore,
     topology: deps.topology,

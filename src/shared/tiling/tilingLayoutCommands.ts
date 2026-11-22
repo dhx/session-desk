@@ -86,15 +86,15 @@ export function applyTilingCommand(
 }
 
 function applyToRoot(
-  source: TilingNode | null,
+  currentRoot: TilingNode | null,
   command: TilingCommand,
   context: TilingCommandContext,
 ): TilingNode | null {
-  if (!source) {
+  if (!currentRoot) {
     throw stale('the layout is empty')
   }
   // Work on a copy; the helpers below mutate it freely.
-  const root = structuredClone(source)
+  const root = structuredClone(currentRoot)
 
   switch (command.kind) {
     case 'setWeights': {

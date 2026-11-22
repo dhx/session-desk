@@ -1,4 +1,5 @@
 import type { ServerResponse } from 'node:http'
+import type { TilingLayoutCommitted } from '../../../../shared/tiling/TilingLayoutStore'
 import type { PersistenceStore } from '../../../../platform/persistence/sqlite/PersistenceStore'
 import type { SyncEventPayload } from './syncSse'
 import { publishSyncEvent } from './publishSyncEvent'
@@ -32,6 +33,19 @@ export function createCommittedStatePublisher(input: {
       },
     })
   }
+  // One event per committed layout change; a client tells its own by `operationId` (spec §3.2).
+  const publishTilingLayout = (event: TilingLayoutCommitted) => {
+    if (disposed) {
+      return
+    }
+    publishSyncEvent({
+      syncClients: input.syncClients,
+      syncEventBuffer: input.buffer,
+      maxBufferSize: 256,
+      desktopSink: input.desktopSink,
+      payload: { type: 'tiling.layout_updated', ...event },
+    })
+  }
   return {
     publish,
     getStore: async () => {
@@ -40,6 +54,9 @@ export function createCommittedStatePublisher(input: {
         observed.add(store)
         if (store.onAppStateCommitted) {
           subscriptions.push(store.onAppStateCommitted(publish))
+        }
+        if (store.tilingLayouts) {
+          subscriptions.push(store.tilingLayouts.onCommitted(publishTilingLayout))
         }
       }
       return store

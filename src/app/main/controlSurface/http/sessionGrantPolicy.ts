@@ -219,11 +219,13 @@ export const SESSION_GRANT_POLICY = {
   'session.writeNode': deny(
     'send messages with opencove agent prompt; only the user can answer permission prompts and dialogs in OpenCove',
   ),
+  'space.applyTilingCommand': allow,
   'space.create': allow,
   'space.createChild': allow,
   'space.createEmpty': allow, // Session Desk (#30), like space.create
   'space.get': allow,
   'space.list': allow,
+  'space.readTilingLayout': allow,
   'space.setAttributes': allow, // Session Desk (#30), like space.update
   'space.update': allow,
   'sync.readAgentNodePlaceholderScrollback': allow,

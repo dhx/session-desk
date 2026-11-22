@@ -3,7 +3,6 @@ import {
   listTilingGroups,
   normalizeTilingWeights,
   type CreateTilingId,
-  type TilingGroup,
   type TilingLayout,
   type TilingNode,
 } from './tilingLayout'
@@ -118,9 +117,4 @@ export function replaceTilingNode(root: TilingNode, id: string, next: TilingNode
     return root
   }
   return { ...root, children: root.children.map(child => replaceTilingNode(child, id, next)) }
-}
-
-/** The default destination for a window that arrives without a placement (spec §1.3). */
-export function resolveTilingDefaultDestination(layout: TilingLayout): TilingGroup | null {
-  return listTilingGroups(layout.root).at(-1) ?? null
 }

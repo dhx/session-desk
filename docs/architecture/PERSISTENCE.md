@@ -10,8 +10,8 @@ SQLite:
 - Store：`src/platform/persistence/sqlite/PersistenceStore.ts`
 - Schema：`src/platform/persistence/sqlite/schema.ts`
 - Migration：`src/platform/persistence/sqlite/migrate.ts`
-- 当前 `DB_SCHEMA_VERSION = 15`
-- schema 14：managed Claude resume ledger 与 retired IDs；schema 15：node lineage
+- 当前 `DB_SCHEMA_VERSION = 16`
+- schema 14：managed Claude resume ledger 与 retired IDs；schema 15：node lineage；schema 16：tiling layouts
 - Agent/Terminal node Worker binding：`nodes.worker_binding_json`
 - Terminal durable recovery：`terminal_recovery_records`
 - Legacy terminal presentation/scrollback mirror：`node_scrollback`（兼容读取，不是独立 truth owner）
@@ -412,6 +412,27 @@ Snapshot export 不含血缘，数据库备份包含血缘。降级仅尽力兼�
 repository 与 creation commit。node-less standalone grant 不记录血缘；standalone Worker
 仍使用完整 SQLite store。Desktop/Web/remote clients 将创建命令交给 owning Worker。
 本节为现有 owner/边界的说明：no executable-rule impact。
+
+## Tiling layout（schema 16）
+
+规格见 `docs/canvas/TILING_VIEW_SPEC.md` §3。`workspace_space_tiling_layouts` 以 Space id 为主键，
+保存 `layout_json` 与每个 Space 自己的 `layout_revision`（≥ 1）。无 FK：snapshot writer 会替换 Space 行。
+迁移和 schema-current repair 只创建表，不为已有 Space 预先生成 layout；v15 profile 可升级到 v16。
+DDL 与读写都在 `src/platform/persistence/sqlite/SqliteTilingLayoutStore.ts`（`ensureTilingLayoutSchema`），
+纯模型在 `src/shared/tiling/`；该表不经 drizzle 访问，因此 `schema.ts` 没有对应定义。
+
+- Layout 不属于 snapshot：`writeAppState` / `writeWorkspaceStateRaw` 不携带它，不认识 tiling 的旧客户端
+  保存 snapshot 也无法清掉它。唯一的读写入口是 `PersistenceStore.tilingLayouts`
+  （`space.readTilingLayout` / `space.applyTilingCommand`），没有写入整棵树的接口。
+- 首次读取在一个 immediate 事务内推导并写入 revision 1（空 Space 为 `root: null`）；并发的首次读取得到同一行。
+- 命令针对当前 layout 逐条校验目标后应用；`baseLayoutRevision` 不参与拒绝。无变化的命令不提升 revision。
+- Snapshot writer 在自己的事务内调用 `reconcileTilingLayoutsWithSpaces`：删除已不存在 Space 的 layout；
+  Space 的 `nodeIds` 集合变化时 normalise 并将 `layout_revision` 加一。只改名等不影响成员的写入不触碰 layout。
+- 读取或命令遇到成员与 Space 不一致的行（例如降级后的旧 Worker 写过 snapshot）时同样 normalise 并加一。
+- 每次已提交的 layout 变化在事务提交后通知一次（`tilingLayouts.onCommitted`），sync stream 以
+  `tiling.layout_updated` 发布；snapshot 引起的变化排在该次 `app_state.updated` 之后。事件里的 `revision`
+  是当时的 app state revision，layout 变化本身不提升它。rollback 无通知。
+- Snapshot export 不含 layout，数据库备份包含。
 
 ### Managed Claude 提交通知与恢复
 

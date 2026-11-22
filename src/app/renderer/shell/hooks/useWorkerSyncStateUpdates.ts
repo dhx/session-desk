@@ -179,6 +179,10 @@ export function useWorkerSyncStateUpdates(options: { enabled: boolean }): void {
               return
             }
 
+            if (event.type === 'tiling.layout_updated') {
+              // The layout lives apart from the app state; its revision here is only context.
+              return
+            }
             if (event.type === 'resync_required') {
               requestCanonicalRefresh({ reason: 'connect', minimumRevision: event.revision })
               return

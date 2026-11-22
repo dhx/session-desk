@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import type { TilingLayout } from '../../../src/contexts/workspace/domain/tiling/tilingLayout'
-import { normalizeTilingLayout } from '../../../src/contexts/workspace/domain/tiling/tilingLayoutNormalize'
-import { deriveInitialTilingLayout } from '../../../src/contexts/workspace/domain/tiling/tilingLayoutDerive'
+import type { TilingLayout } from '../../../src/shared/tiling/tilingLayout'
+import { normalizeTilingLayout } from '../../../src/shared/tiling/tilingLayoutNormalize'
+import { deriveInitialTilingLayout } from '../../../src/shared/tiling/tilingLayoutDerive'
 
 function counter(prefix = 'n') {
   let next = 0
