@@ -99,7 +99,7 @@ describe('buildSpaceMinimap', () => {
     expect(model.workingCount).toBe(0)
   })
 
-  it('marks an Agent in standby that you have not answered as waiting, and no other', () => {
+  it('marks an Agent in standby that you have not answered as done, and no other', () => {
     const root = space('build', ['unanswered', 'answered', 'exited'], null)
     const needsYou = new Map([
       [agentAttentionKey('project', 'unanswered'), 1_000],
@@ -119,7 +119,8 @@ describe('buildSpaceMinimap', () => {
       needsYou,
     )
 
-    expect(model.windows.map(window => window.status)).toEqual(['waiting', null, null])
+    expect(model.windows.map(window => window.status)).toEqual(['done', null, null])
+    // A finished turn waits for you as much as a blocked prompt does: both count as waiting.
     expect(model.waitingCount).toBe(1)
   })
 

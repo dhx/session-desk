@@ -157,6 +157,14 @@
   opacity: 1;
 }
 
+/* Done keeps the Agent's own colour and rings it: a green fill would read as a shell window. */
+.workspace-space-minimap__window[data-status='done'] {
+  box-shadow:
+    0 0 0 1.5px var(--cove-label-green),
+    0 0 6px var(--cove-label-green);
+  opacity: 1;
+}
+
 .workspace-space-minimap__window[data-status='failed'] {
   background: var(--cove-status-failed, var(--cove-danger));
   opacity: 1;
@@ -172,6 +180,14 @@
   100% {
     opacity: 0.72;
     filter: none;
+  }
+}
+
+/* Forced colours drop box-shadow, so done needs an outline there to stay apart from the rest. */
+@media (forced-colors: active) {
+  .workspace-space-minimap__window[data-status='done'] {
+    outline: 2px solid Highlight;
+    outline-offset: 1px;
   }
 }
 
