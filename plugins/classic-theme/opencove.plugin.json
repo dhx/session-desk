@@ -1,0 +1,49 @@
+{
+  "apiVersion": 1,
+  "id": "session-desk-classic",
+  "version": "1.0.0",
+  "displayName": "Session Desk Classic",
+  "description": "The plain look: line icons, flat rounded frames and no pixel effects, in dark and light.",
+  "author": "dhx/session-desk",
+  "readme": "README.md",
+  "contributes": {
+    "themes": [
+      {
+        "id": "dark",
+        "title": "Classic Dark",
+        "appearance": "dark",
+        "extends": "dark",
+        "icons": "line",
+        "stylesheet": "classic.css",
+        "tokens": {
+          "--cove-node-background-image": "none",
+          "--cove-terminal-background": "#090e12"
+        },
+        "motion": {
+          "background": { "preset": "none" },
+          "creation": { "preset": "none" },
+          "closing": { "preset": "none" },
+          "working": { "preset": "none" }
+        }
+      },
+      {
+        "id": "light",
+        "title": "Classic Light",
+        "appearance": "light",
+        "extends": "light",
+        "icons": "line",
+        "stylesheet": "classic.css",
+        "tokens": {
+          "--cove-node-background-image": "none",
+          "--cove-terminal-background": "#f9fcfe"
+        },
+        "motion": {
+          "background": { "preset": "none" },
+          "creation": { "preset": "none" },
+          "closing": { "preset": "none" },
+          "working": { "preset": "none" }
+        }
+      }
+    ]
+  }
+}

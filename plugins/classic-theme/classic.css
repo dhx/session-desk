@@ -1,0 +1,66 @@
+/*
+ * Session Desk Classic: Cove's colours without the pixel chrome. The host scopes every selector
+ * to the selected theme; only public parts, attributes and custom properties are used
+ * (docs/plugins/THEMES.md).
+ */
+
+/* Pixel primitives become plain ones: no stepped corners, no lit and shaded edges, a solid rule. */
+:root {
+  --cove-pixel-corners: none;
+  --cove-pixel-corners-lg: none;
+  --cove-pixel-raised: none;
+  --cove-pixel-pressed: none;
+  --cove-pixel-dots: linear-gradient(var(--cove-border-subtle) 0 0);
+
+  /* Window glass: no sheen, grain or lit rim; text sits on a neutral plate, not a kind tint. */
+  --cove-glass-sheen: transparent;
+  --cove-glass-grain: none;
+  --cove-acrylic-grain: none;
+  --cove-chrome-background-image: none;
+  --cove-node-rim: none;
+  --cove-reading-plate: var(--cove-neutral-1);
+  --cove-kind-ai-plate: var(--cove-neutral-1);
+  --cove-kind-shell-plate: var(--cove-neutral-1);
+  --cove-kind-plan-plate: var(--cove-neutral-1);
+  --cove-kind-knowledge-plate: var(--cove-neutral-1);
+  --cove-kind-media-plate: var(--cove-neutral-1);
+  --cove-kind-neutral-plate: var(--cove-neutral-1);
+}
+
+/* Panels that stand on their own: a hairline, round corners and a soft shadow. */
+[data-cove-frame='standalone'] {
+  clip-path: none;
+  border: 1px solid var(--cove-border);
+  border-radius: 10px;
+  box-shadow: 0 12px 32px rgb(0 0 0 / 0.28);
+  animation: none;
+}
+
+[data-cove-frame='standalone']::before {
+  display: none;
+}
+
+[data-cove-frame='standalone']:focus-visible {
+  outline: 2px solid var(--cove-focus-ring);
+  outline-offset: 2px;
+}
+
+/* Shared controls: round corners instead of steps. */
+[data-cove-part='button'],
+[data-cove-part='icon-button'],
+[data-cove-part='chip'],
+[data-cove-part='text-field'],
+[data-cove-part='segmented-control'],
+[data-cove-part='menu-item'] {
+  border-radius: 6px;
+}
+
+[data-cove-part='menu'],
+[data-cove-part='popover'] {
+  border-radius: 8px;
+}
+
+/* A toggle tile's face is its first, decorative child. */
+[data-cove-part='toggle-tile'] > [aria-hidden='true'] {
+  border-radius: 8px;
+}
