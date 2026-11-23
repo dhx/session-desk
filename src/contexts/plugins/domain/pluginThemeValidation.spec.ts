@@ -27,6 +27,17 @@ describe('advanced theme contract', () => {
       ])[0],
     ).toMatchObject({ stylesheet: 'skin.css', metrics: { headerHeight: 42 } })
   })
+  it('lets a theme choose the icon drawing, and nothing but the known sets', () => {
+    expect(normalizePluginThemes([{ ...theme, icons: 'line' }])[0]).toMatchObject({ icons: 'line' })
+    expect(normalizePluginThemes([theme])[0]).not.toHaveProperty('icons')
+    // Icons alone are a visual contribution.
+    expect(
+      normalizePluginThemes([{ id: 'plain', title: 'Plain', appearance: 'dark', icons: 'line' }]),
+    ).toHaveLength(1)
+    expect(() => normalizePluginThemes([{ ...theme, icons: 'sketch' }])).toThrow(
+      'icons must be pixel or line',
+    )
+  })
   it.each([
     ['ember', 'dark', 'dark'],
     ['ember-light', 'light', 'light'],

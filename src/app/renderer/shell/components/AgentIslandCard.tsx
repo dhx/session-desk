@@ -156,6 +156,7 @@ export function AgentIslandCard({
   return (
     <div
       className="app-notification agent-island-card cove-pixel-window"
+      data-cove-frame="standalone"
       data-testid={`app-notification-${id}`}
       data-island-card={cardKey}
       data-tucked={layout.isTucked ? 'true' : undefined}
