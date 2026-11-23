@@ -1,5 +1,8 @@
 import React, { memo } from 'react'
 import { classNames } from './classNames'
+import { useIconSet } from './iconSet'
+import { LINE_GLYPHS } from './lineIcons'
+import { LINE_ICON_STROKE } from './PixelIcon'
 import { pixelGlyphRuns, type PixelGlyphName } from './pixelGlyphs'
 
 /**
@@ -14,6 +17,22 @@ export const PixelGlyph = memo(function PixelGlyph({
   name: PixelGlyphName
   className?: string
 } & { [key: `data-${string}`]: string | undefined }): React.JSX.Element {
+  const iconSet = useIconSet()
+  if (iconSet === 'line') {
+    // CSS sizes a glyph, as it does the pixel art; the library's own size only fills the gap.
+    const LineGlyph = LINE_GLYPHS[name]
+    return (
+      <LineGlyph
+        className={classNames('cove-pixel-glyph', 'cove-line-icon', className)}
+        strokeWidth={LINE_ICON_STROKE}
+        aria-hidden="true"
+        focusable="false"
+        data-cove-pixel-glyph={name}
+        data-cove-icon-set="line"
+        {...data}
+      />
+    )
+  }
   return (
     <svg
       className={classNames('cove-pixel-glyph', className)}

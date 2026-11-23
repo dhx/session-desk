@@ -259,6 +259,7 @@ export function ControlCenter({
     <Dialog
       {...surfaceProps}
       className="control-center control-center--sheet cove-pixel-window"
+      data-cove-frame="standalone"
       backdropClassName="control-center-backdrop"
       backdropTestId="control-center-backdrop"
       initialFocusRef={initialFocusRef}
@@ -274,6 +275,7 @@ export function ControlCenter({
       align="end"
       offset={8}
       className="control-center cove-pixel-window"
+      data-cove-frame="standalone"
       role="dialog"
     >
       {content}

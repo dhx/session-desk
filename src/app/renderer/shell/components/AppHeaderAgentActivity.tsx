@@ -195,6 +195,7 @@ export function AppHeaderAgentActivity({
         side="bottom"
         align="end"
         className="cove-pixel-window agent-activity-list"
+        data-cove-frame="standalone"
         data-testid="app-header-agent-activity-list"
         aria-label={t('agentActivity.title')}
         // A hover only previews: Escape stays with whatever has focus, and focus stays put.

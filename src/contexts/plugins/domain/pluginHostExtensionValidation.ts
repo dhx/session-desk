@@ -1,5 +1,11 @@
 import { RETIRED_UI_THEMES } from '../../settings/domain/uiSettings'
-import { PLUGIN_THEME_TOKENS, PLUGIN_THEME_BASES, type PluginThemeBase } from './pluginThemeTypes'
+import {
+  PLUGIN_THEME_TOKENS,
+  PLUGIN_THEME_BASES,
+  PLUGIN_THEME_ICON_SETS,
+  type PluginThemeBase,
+  type PluginThemeIconSet,
+} from './pluginThemeTypes'
 import { normalizePluginThemeMetrics, normalizePluginThemeTypography } from './pluginThemeMetrics'
 import { normalizePluginThemeMotion } from './pluginThemeMotion'
 import { normalizePluginThemePalette } from './pluginThemePalette'
@@ -155,7 +161,23 @@ export function normalizePluginThemes(value: unknown): PluginThemeDeclaration[] 
     const typography = normalizePluginThemeTypography(raw.typography)
     const metrics = normalizePluginThemeMetrics(raw.metrics)
     const motion = normalizePluginThemeMotion(raw.motion)
-    if (!base && !palette && !entries.length && !stylesheet && !typography && !metrics && !motion) {
+    if (
+      raw.icons !== undefined &&
+      !(PLUGIN_THEME_ICON_SETS as readonly unknown[]).includes(raw.icons)
+    ) {
+      throw new Error('Plugin theme icons must be pixel or line.')
+    }
+    const icons = raw.icons as PluginThemeIconSet | undefined
+    if (
+      !base &&
+      !palette &&
+      !entries.length &&
+      !stylesheet &&
+      !typography &&
+      !metrics &&
+      !motion &&
+      !icons
+    ) {
       throw new Error('Plugin theme requires a foundation or visual contribution.')
     }
     return {
@@ -169,6 +191,7 @@ export function normalizePluginThemes(value: unknown): PluginThemeDeclaration[] 
       ...(typography ? { typography } : {}),
       ...(metrics ? { metrics } : {}),
       ...(motion ? { motion } : {}),
+      ...(icons ? { icons } : {}),
     }
   })
 }

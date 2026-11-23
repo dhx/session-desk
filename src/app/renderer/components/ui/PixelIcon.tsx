@@ -1,5 +1,7 @@
 import React, { memo } from 'react'
 import { classNames } from './classNames'
+import { useIconSet } from './iconSet'
+import { LINE_ICONS } from './lineIcons'
 import { PIXEL_ICON_GRID, pixelIconRows, type PixelIconName } from './pixelIconArt'
 
 /**
@@ -17,6 +19,9 @@ export type PixelIconProps = Omit<
 }
 
 export type PixelIconComponent = React.NamedExoticComponent<PixelIconProps>
+
+/** Line icons are drawn a little lighter than their library default, to sit beside 12–13px text. */
+export const LINE_ICON_STROKE = 1.75
 
 const paths = new Map<PixelIconName, string>()
 
@@ -57,6 +62,25 @@ export const PixelIcon = memo(function PixelIcon({
   ...svgProps
 }: PixelIconProps & { name: PixelIconName }): React.JSX.Element {
   const labelled = svgProps['aria-label'] !== undefined || svgProps['aria-labelledby'] !== undefined
+  const iconSet = useIconSet()
+  if (iconSet === 'line') {
+    // The same box, name and label as the pixel art, so layout, tests and theme selectors that
+    // address an icon keep working whichever drawing the theme shows.
+    const LineIcon = LINE_ICONS[name]
+    return (
+      <LineIcon
+        aria-hidden={labelled ? undefined : true}
+        focusable="false"
+        role={labelled ? 'img' : undefined}
+        {...svgProps}
+        className={classNames('cove-pixel-icon', 'cove-line-icon', className)}
+        size={size}
+        strokeWidth={LINE_ICON_STROKE}
+        data-cove-pixel-icon={name}
+        data-cove-icon-set="line"
+      />
+    )
+  }
   return (
     <svg
       aria-hidden={labelled ? undefined : true}

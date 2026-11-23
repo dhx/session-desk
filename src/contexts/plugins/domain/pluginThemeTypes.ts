@@ -63,6 +63,10 @@ export type PluginThemeToken = (typeof PLUGIN_THEME_TOKENS)[number]
 export const PLUGIN_THEME_BASES = ['light', 'dark'] as const
 export type PluginThemeBase = (typeof PLUGIN_THEME_BASES)[number]
 
+/** How the app's icons are drawn: Cove's pixel art (the default) or line icons. */
+export const PLUGIN_THEME_ICON_SETS = ['pixel', 'line'] as const
+export type PluginThemeIconSet = (typeof PLUGIN_THEME_ICON_SETS)[number]
+
 export interface PluginThemeDeclaration {
   id: string
   title: string
@@ -77,4 +81,6 @@ export interface PluginThemeDeclaration {
   typography?: PluginThemeTypography
   metrics?: PluginThemeMetrics
   motion?: PluginThemeMotion
+  /** The icon drawing this theme shows; absent means the pixel art. */
+  icons?: PluginThemeIconSet
 }

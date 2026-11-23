@@ -13,6 +13,32 @@
   flex: none;
 }
 
+/*
+ * Line icons: the other drawing of the same icons, shown when the active theme asks for it
+ * (`icons: "line"`). They keep the pixel icon's box; only the strokes differ.
+ */
+.cove-line-icon {
+  fill: none;
+  stroke: currentColor;
+}
+
+/* A line spinner turns smoothly; the pixel one steps (below). */
+.cove-line-spinner {
+  animation: cove-line-spinner-turn 900ms linear infinite;
+}
+
+@keyframes cove-line-spinner-turn {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cove-line-spinner {
+    animation-duration: 2700ms;
+  }
+}
+
 /* Busy: the lit block steps round the ring; the three behind it trail off. */
 .cove-pixel-spinner__block {
   /* Each block's place in the ring, 0–7; PixelSpinner sets it on the block. */
