@@ -105,9 +105,9 @@ describe('independent persisted Pixel effect settings', () => {
   })
 
   it.each([undefined, null, {}, { uiTheme: 'invalid' }])(
-    'starts unconfigured users in Cove with all effects: %j',
+    'starts unconfigured users on the fork default theme with all effect switches on: %j',
     raw => {
-      expect(normalizeAgentSettings(raw).uiTheme).toBe('dark')
+      expect(normalizeAgentSettings(raw).uiTheme).toBe('plugin:session-desk-classic:dark')
       expect(effects(normalizeAgentSettings(raw))).toEqual(enabled)
       expect(effects(normalizeAgentSettings(raw))).toEqual(effects(DEFAULT_AGENT_SETTINGS))
     },
