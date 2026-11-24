@@ -63,6 +63,8 @@ async function chooseVoiceBoss(window: Page, bossNodeId: string): Promise<void> 
   const target = window.getByTestId('voice-target-button')
   await expect(target).toHaveText('Choose agent')
   await target.click()
+  // Playwright scrolls to what it clicks, so a menu left off screen has to be caught here.
+  await expect(window.getByTestId('voice-target-menu')).toBeInViewport()
   await window.getByTestId(`voice-target-option-${bossNodeId}`).click()
   await expect(window.getByTestId('voice-target-menu')).toHaveCount(0)
   await expect(target).not.toHaveText('Choose agent')
