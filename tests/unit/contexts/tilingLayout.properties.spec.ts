@@ -29,6 +29,16 @@ function random(seed: number) {
   }
 }
 
+/**
+ * A plain check instead of `expect`: the property test below makes several hundred thousand of
+ * them, and `expect` made it take seconds, close to the test timeout on a loaded CI runner.
+ */
+function must(condition: boolean, context: string, what: string): void {
+  if (!condition) {
+    throw new Error(`${context}: ${what}`)
+  }
+}
+
 /** Checks spec §2 invariant 1 and the structural rules of §4; returns every id in the layout. */
 function expectValid(
   layout: TilingLayout,
@@ -36,27 +46,42 @@ function expectValid(
   context: string,
 ): Set<string> {
   const windows = listTilingWindowIds(layout.root)
-  expect([...windows].sort(), context).toEqual([...new Set(nodeIds)].sort())
-  expect(new Set(windows).size, context).toBe(windows.length)
-  expect(layout.root === null, context).toBe(nodeIds.length === 0)
+  const members = new Set(nodeIds)
+  must(new Set(windows).size === windows.length, context, 'a window is placed twice')
+  must(
+    windows.length === members.size && windows.every(id => members.has(id)),
+    context,
+    `windows [${windows.join(', ')}] are not the members [${[...members].join(', ')}]`,
+  )
+  must((layout.root === null) === (nodeIds.length === 0), context, 'root does not match emptiness')
   const ids = new Set<string>()
   forEachTilingNode(layout.root, node => {
-    expect(ids.has(node.id), `${context}: repeated id ${node.id}`).toBe(false)
+    must(!ids.has(node.id), context, `repeated id ${node.id}`)
     ids.add(node.id)
     if (node.kind === 'group') {
-      expect(node.nodeIds.length, context).toBeGreaterThan(0)
-      expect(node.nodeIds, context).toContain(node.activeNodeId)
+      must(node.nodeIds.length > 0, context, `group ${node.id} is empty`)
+      must(
+        node.nodeIds.includes(node.activeNodeId),
+        context,
+        `group ${node.id} has an active window that is not in it`,
+      )
     } else {
-      expect(node.children.length, context).toBeGreaterThanOrEqual(2)
-      expect(node.weights.length, context).toBe(node.children.length)
-      expect(
+      must(node.children.length >= 2, context, `split ${node.id} has fewer than two children`)
+      must(
+        node.weights.length === node.children.length,
+        context,
+        `split ${node.id} has ${node.weights.length} weights for ${node.children.length} children`,
+      )
+      must(
         node.weights.every(weight => weight > 0),
         context,
-      ).toBe(true)
-      expect(
-        Math.abs(node.weights.reduce((sum, weight) => sum + weight, 0) - 1),
+        `split ${node.id} has a weight that is not positive`,
+      )
+      must(
+        Math.abs(node.weights.reduce((sum, weight) => sum + weight, 0) - 1) < 1e-9,
         context,
-      ).toBeLessThan(1e-9)
+        `the weights of split ${node.id} do not sum to 1`,
+      )
     }
   })
   return ids
@@ -161,7 +186,7 @@ describe('tiling layout properties', () => {
         for (const id of afterIds) {
           // An id is either one that was there just before, or brand new: never a removed one back.
           if (!beforeIds.has(id)) {
-            expect(everSeen.has(id), `${context}: reused id ${id}`).toBe(false)
+            must(!everSeen.has(id), context, `reused id ${id}`)
           }
           everSeen.add(id)
         }
