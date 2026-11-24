@@ -21,6 +21,8 @@ opencove plugin install ./plugins/classic-theme
 ```
 
 or from the repository: `opencove plugin install-git https://github.com/dhx/session-desk --directory plugins/classic-theme --ref <tag>`.
-The Session Desk image installs it and selects it for people who have not chosen a theme.
+The server bundle carries it in `plugins/classic-theme`, and the Session Desk image installs it
+from there. Classic Dark is the theme of anyone who has not chosen one; without the plugin the
+app shows Cove dark.
 
 On an OpenCove without theme icon sets the theme still applies; its icons stay pixel art.
