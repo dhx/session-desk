@@ -28,6 +28,8 @@ describe('VoiceTargetPicker', () => {
     fireEvent.click(trigger)
     const current = await screen.findByRole('menuitemcheckbox', { name: 'Board' })
     expect(current.getAttribute('aria-checked')).toBe('true')
+    // Only a surface that counts as a menu is placed on screen; a plain one falls below the page.
+    expect(screen.getByTestId('voice-target-menu').getAttribute('data-cove-part')).toBe('menu')
     fireEvent.click(screen.getByRole('menuitemcheckbox', { name: 'Desk' }))
 
     expect(onPick).toHaveBeenCalledWith('b')

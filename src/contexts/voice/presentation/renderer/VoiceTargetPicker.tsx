@@ -58,6 +58,8 @@ export function VoiceTargetPicker({
       <ViewportMenuSurface
         open={point !== null}
         role="menu"
+        // The class is what makes the surface a menu: fixed position, focus, the sheet on a phone.
+        className="workspace-context-menu"
         aria-label={t('voice.target.menuLabel')}
         mobileTitle={t('voice.target.menuLabel')}
         data-testid="voice-target-menu"
