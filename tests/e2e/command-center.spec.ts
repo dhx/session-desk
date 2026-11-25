@@ -1,6 +1,5 @@
 import { expect, test } from '@playwright/test'
 import { setFrameMotion } from './workspace-canvas.frame-signals.helpers'
-import { setMotionSignals } from './workspace-canvas.pixel-effects.helpers'
 import {
   launchApp,
   readCanvasViewport,
@@ -400,7 +399,6 @@ test.describe('Command Center', () => {
 
       // Navigation feedback is static and remains available with decorative signals disabled.
       await setFrameMotion(window, true)
-      await setMotionSignals(window, false)
       await window.keyboard.press(`${commandCenterModifier}+P`)
       await input.fill('Scratch')
       await window.keyboard.press('Enter')

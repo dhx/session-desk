@@ -276,6 +276,49 @@ export const webTargetSkips: WebTargetSkip[] = [
   },
   // By design in this fork
   {
+    file: 'workspace-canvas.drag-commits.spec.ts',
+    category: 'by-design',
+    reason: NO_PIXEL_LOOK,
+  },
+  {
+    file: 'settings.terminal-preview.spec.ts',
+    category: 'by-design',
+    reason: NO_PIXEL_LOOK,
+  },
+  {
+    file: 'workspace-canvas.completion-signals.spec.ts',
+    category: 'by-design',
+    reason: NO_PIXEL_LOOK,
+  },
+  {
+    file: 'settings.reorganization.spec.ts',
+    title:
+      'previews appearance without creating live sessions and keeps typography and Shell on the Terminal page',
+    category: 'by-design',
+    reason: NO_PIXEL_LOOK,
+  },
+  {
+    file: 'workspace-canvas.light-appearance.spec.ts',
+    title:
+      'switches existing work into a readable light canvas and terminal without replacing editors',
+    category: 'by-design',
+    reason: NO_PIXEL_LOOK,
+  },
+  {
+    file: 'workspace-canvas.light-appearance.spec.ts',
+    title:
+      'persists the light appearance from Control Center while respecting independent effects and reduced motion',
+    category: 'by-design',
+    reason: NO_PIXEL_LOOK,
+  },
+  {
+    file: 'workspace-canvas.window-plate-kinds.spec.ts',
+    title:
+      'each kind of window reads on its own plate, and on the theme plate with kind colours off',
+    category: 'by-design',
+    reason: NO_PIXEL_LOOK,
+  },
+  {
     file: 'app-shell.pixel-icons.spec.ts',
     category: 'by-design',
     reason: NO_PIXEL_LOOK,

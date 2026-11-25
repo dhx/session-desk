@@ -47,9 +47,11 @@ test.describe('Managed SSH cold bootstrap progress', () => {
           contentType: 'image/png',
         })
         await window.emulateMedia({ reducedMotion: 'reduce' })
+        // This fork: a line spinner, which turns (slower under reduced motion); upstream's
+        // pixel spinner animates its blocks, not itself.
         await expect(card.locator('.remote-endpoint-status__spinner')).toHaveCSS(
           'animation-name',
-          'none',
+          'cove-line-spinner-turn',
         )
         await h.release('installing_runtime')
         await h.waitForPhase('starting_runtime')

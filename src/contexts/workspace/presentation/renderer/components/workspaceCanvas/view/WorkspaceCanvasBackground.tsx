@@ -65,11 +65,10 @@ export const WorkspaceCanvasBackground = React.memo(function WorkspaceCanvasBack
           signals={settings.agentWorkingPixelEffectEnabled}
         />
       )}
-      <WorkspaceWindowSignals
-        nodes={nodes}
-        canvasRef={canvasRef}
-        enabled={settings.agentWorkingPixelEffectEnabled}
-      />
+      {/* This fork: the frame signals (waiting halo, completion and failure frames, edge beacon
+          pulse) say which session needs the person, so they are always on. Upstream ties them
+          to the pixel working effect, which this fork has switched off for good. */}
+      <WorkspaceWindowSignals nodes={nodes} canvasRef={canvasRef} enabled />
       {style !== 'pixel' && (
         <Background
           variant={BackgroundVariant.Dots}

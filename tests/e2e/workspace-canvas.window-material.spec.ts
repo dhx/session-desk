@@ -64,7 +64,8 @@ test('the window material turns glass solid from Settings, the control center an
     expect(glass.attribute).toBe('full')
     expect(glass.alpha).toBeLessThan(1)
     expect(glass.blurred).toBeGreaterThan(0)
-    expect(glass.lit).toBe(true)
+    // This fork: glass is translucent and blurred, without upstream's sheen, grain and rim.
+    expect(glass.lit).toBe(false)
 
     await window.getByTestId('app-header-settings').click()
     await window.getByTestId('settings-section-nav-appearance').click()
