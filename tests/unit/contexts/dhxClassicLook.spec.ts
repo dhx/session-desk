@@ -62,6 +62,6 @@ describe('Session Desk has no pixel look', () => {
   it('loads the fork stylesheet last in the app layer, after the styles it replaces', () => {
     const styles = readFileSync(resolve(__dirname, '../../../src/app/renderer/styles.css'), 'utf8')
     const layered = [...styles.matchAll(/@import '(.+?)' layer\(opencove\);/g)].map(m => m[1])
-    expect(layered.at(-1)).toBe('./styles/dhx-classic.css')
+    expect(layered.at(-1)).toBe('./styles/themes/dhx-classic.css')
   })
 })

@@ -32,6 +32,25 @@
   --cove-kind-neutral-plate: var(--cove-neutral-1);
 }
 
+/*
+ * A dark terminal redeclares the kind plates on its own window (generated cove.css), so the neutral
+ * plate has to be set there too. Under the dark shell that is the shell's own neutral; a dark
+ * terminal under the light shell takes the dark scope's untinted plate, the one upstream uses when
+ * kind colours are off.
+ */
+:root[data-cove-family='cove'][data-cove-theme='dark']
+  .terminal-node[data-cove-terminal-node-theme='dark'] {
+  --cove-kind-shell-plate: var(--cove-neutral-1);
+  --cove-kind-ai-plate: var(--cove-neutral-1);
+  --cove-kind-neutral-plate: var(--cove-neutral-1);
+}
+
+:root[data-cove-family='cove'][data-cove-theme='light']
+  .terminal-node[data-cove-terminal-node-theme='dark'] {
+  --cove-kind-shell-plate: var(--cove-kind-neutral-plate);
+  --cove-kind-ai-plate: var(--cove-kind-neutral-plate);
+}
+
 /* Panels that stand on their own: a hairline, round corners and a soft shadow. */
 :root[data-cove-family='cove'] [data-cove-frame='standalone'] {
   clip-path: none;
