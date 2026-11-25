@@ -2,7 +2,6 @@ import { useEffect, useMemo } from 'react'
 import { usePluginRegistry } from '@contexts/plugins/presentation/renderer/usePluginRegistry'
 import { usePluginDetails } from '@contexts/plugins/presentation/renderer/usePluginDetails'
 import { publishThemeApplication } from '@contexts/plugins/presentation/renderer/themeApplication'
-import { applyIconSet, DEFAULT_ICON_SET } from '@app/renderer/components/ui/iconSet'
 import { applyThemeMotion } from '@contexts/plugins/presentation/renderer/themeMotion'
 import { pluginThemePaletteCss } from '@contexts/plugins/presentation/renderer/themePalette'
 import { resolveHostTheme } from '@contexts/plugins/domain/pluginThemes'
@@ -66,10 +65,6 @@ export function useApplyUiTheme(uiTheme: UiTheme): void {
       root.style.setProperty(name, value)
     }
     const disposeMotion = applyThemeMotion(theme?.motion)
-    // Built-in themes and a theme that is loading or failed show Cove's pixel icons.
-    const iconSet = theme?.icons ?? DEFAULT_ICON_SET
-    applyIconSet(iconSet)
-    root.dataset.coveIcons = iconSet
     let disposed = false
     const emit = () => {
       if (!disposed) {

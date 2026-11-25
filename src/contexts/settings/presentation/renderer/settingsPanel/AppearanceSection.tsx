@@ -6,21 +6,14 @@ import {
   MAX_UI_FONT_SIZE,
   MIN_UI_FONT_SIZE,
   type AgentSettings,
-  type CanvasBackgroundStyle,
-  type PixelEffectSettings,
-  type PixelEffectToggle,
   type UiTheme,
 } from '@contexts/settings/domain/agentSettings'
 import { SettingsGroup, SettingsGroupBody } from './SettingsGroup'
-import { PixelEffectsSection } from './PixelEffectsSection'
 import { ThemeGallery } from './ThemeGallery'
 import { WindowAppearanceSection } from './WindowAppearanceSection'
 
 export function AppearanceSection({
   uiTheme,
-  pixelEffects,
-  onChangePixelEffect,
-  onChangeCanvasBackgroundStyle,
   uiFontSize,
   windowKindColorsEnabled,
   windowMaterial,
@@ -32,9 +25,6 @@ export function AppearanceSection({
   onChangeCanvasFarView,
 }: {
   uiTheme: UiTheme
-  pixelEffects: PixelEffectSettings
-  onChangePixelEffect: (key: PixelEffectToggle, enabled: boolean) => void
-  onChangeCanvasBackgroundStyle: (style: CanvasBackgroundStyle) => void
   uiFontSize: number
   onChangeUiTheme: (theme: UiTheme) => void
   onChangeUiFontSize: (size: number) => void
@@ -61,11 +51,6 @@ export function AppearanceSection({
         onChangeWindowMaterial={onChangeWindowMaterial}
         canvasFarViewEnabled={canvasFarViewEnabled}
         onChangeCanvasFarView={onChangeCanvasFarView}
-      />
-      <PixelEffectsSection
-        effects={pixelEffects}
-        onChange={onChangePixelEffect}
-        onChangeBackgroundStyle={onChangeCanvasBackgroundStyle}
       />
       <SettingsGroup
         id="settings-section-interface-text"

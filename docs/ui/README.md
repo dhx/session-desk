@@ -251,10 +251,9 @@
   2×2 块依次点亮；减少动态效果时放慢到三分之一，不静止。
 - 窗口类别仍用 9 格的 `PixelGlyph`（`NodeKindIcon`、`KindTile`）。Dock 的新建按钮用同一套类别字形
   （18px），和新建出来的窗口一致；Agent 按钮用提供方标记，插件按钮用插件声明的图标。
-- 主题可以改用线条图标（本 fork）：主题声明里写 `"icons": "line"`，同一批组件就按
-  `components/ui/lineIcons.ts` 画 lucide 线条图标，盒子尺寸、`data-cove-pixel-icon` 名称和标签不变
-  （见 `docs/plugins/THEMES.md` 的 Icons）。新增图标时两种画法都要补；业务代码仍只从
-  `pixelIcons.ts` 取图标，不直接引用 lucide。
+- 本 fork 只有朴素外观，不提供像素外观（`docs/dhx/RELEASES.md`）：同一批组件按
+  `components/ui/lineIcons.ts` 画 lucide 线条图标，盒子尺寸、`data-cove-pixel-icon` 名称和标签不变。
+  新增图标时要补线条画法；业务代码仍只从 `pixelIcons.ts` 取图标，不直接引用 lucide。
 - `tests/e2e/app-shell.pixel-icons.spec.ts` 在工作区、画布菜单和设置各页检查：没有 lucide 图标，
   每个可见的像素图标都是正方形且尺寸在上述几档。`PixelIcon.spec.tsx` 检查画稿、路径和每个导出组件。
 - 像素基础件在 `styles/ui-pixel.css`：2px 台阶圆角（`--cove-pixel-corners`，`clip-path` 用）、

@@ -8,7 +8,7 @@ import {
   type PixelGlyphName,
 } from '@app/renderer/components/ui/pixelGlyphs'
 
-it('renders every 9×9 glyph as decorative rect runs covering exactly its filled cells', () => {
+it('keeps every 9×9 glyph on its grid, and renders each as a decorative line icon (this fork)', () => {
   for (const name of Object.keys(PIXEL_GLYPHS) as PixelGlyphName[]) {
     const rows = PIXEL_GLYPHS[name]
     expect(rows).toHaveLength(9)
@@ -32,21 +32,14 @@ it('renders every 9×9 glyph as decorative rect runs covering exactly its filled
     const svg = container.querySelector('svg')!
     expect(svg).toHaveClass('cove-pixel-glyph', 'test-glyph')
     expect(svg).toHaveAttribute('data-cove-pixel-glyph', name)
-    expect(svg).toHaveAttribute('viewBox', '0 0 9 9')
-    expect(svg).toHaveAttribute('shape-rendering', 'crispEdges')
-    expect(svg).toHaveAttribute('fill', 'currentColor')
+    expect(svg).toHaveClass('cove-line-icon')
+    expect(svg).toHaveAttribute('data-cove-icon-set', 'line')
+    expect(svg).not.toHaveAttribute('shape-rendering')
+    expect(svg).toHaveAttribute('stroke', 'currentColor')
     expect(svg).toHaveAttribute('aria-hidden', 'true')
     expect(svg).toHaveAttribute('focusable', 'false')
     expect(svg).not.toHaveAttribute('tabindex')
-    expect(
-      Array.from(svg.children, rect => ({
-        tag: rect.tagName,
-        x: Number(rect.getAttribute('x')),
-        y: Number(rect.getAttribute('y')),
-        width: Number(rect.getAttribute('width')),
-        height: Number(rect.getAttribute('height')),
-      })),
-    ).toEqual(runs.map(run => ({ tag: 'rect', ...run, height: 1 })))
+    expect(svg.querySelectorAll('rect[height="1"]')).toHaveLength(0)
     unmount()
   }
 })

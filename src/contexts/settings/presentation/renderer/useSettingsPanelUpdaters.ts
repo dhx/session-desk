@@ -6,8 +6,6 @@ import type {
   CanvasWheelZoomModifier,
   FocusNodeTargetZoom,
   NotificationSettings,
-  CanvasBackgroundStyle,
-  PixelEffectToggle,
   StandardWindowSizeBucket,
   TaskTitleProvider,
   UiLanguage,
@@ -79,10 +77,6 @@ export function createSettingsPanelUpdaters({
         'pluginContributions',
         setPluginContributionEnabled(settings, pluginId, contribution, enabled),
       ),
-    updatePixelEffect: (key: PixelEffectToggle, enabled: boolean): void =>
-      updateSetting(key, enabled),
-    updateCanvasBackgroundStyle: (style: CanvasBackgroundStyle): void =>
-      updateSetting('canvasBackgroundStyle', style),
     updateAgentResidentContext: (mode: AgentSettings['agentResidentContext']): void =>
       updateSetting('agentResidentContext', mode),
     updateCodexReuseRunningAppServer: (enabled: boolean): void =>

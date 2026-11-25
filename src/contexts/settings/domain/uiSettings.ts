@@ -27,14 +27,6 @@ export const UI_THEME_DESCRIPTORS: Record<BuiltinUiTheme, UiThemeDescriptor> = {
 export const DEFAULT_UI_THEME: BuiltinUiTheme = 'dark'
 
 /**
- * What someone who has never chosen a theme gets (this fork): Session Desk Classic, the plain look
- * from `plugins/classic-theme`. It is a plugin theme, so where that plugin is not installed the
- * theme resolver shows `DEFAULT_UI_THEME` instead, without touching the stored choice. A saved
- * theme, the earlier default `dark` included, is never replaced by this.
- */
-export const DEFAULT_UI_THEME_CHOICE: UiTheme = 'plugin:session-desk-classic:dark'
-
-/**
  * Retired built-in themes and the Cove theme of the same appearance that replaces them. Pixel's
  * pixel look now belongs to Cove itself (the wall, the frames, the icons), so only its palette went.
  */
@@ -43,6 +35,9 @@ export const RETIRED_UI_THEMES: Readonly<Record<string, 'dark' | 'light'>> = {
   'ember-light': 'light',
   pixel: 'dark',
   'pixel-light': 'light',
+  // This fork: Session Desk Classic was a theme plugin before its look became the built-in one.
+  'plugin:session-desk-classic:dark': 'dark',
+  'plugin:session-desk-classic:light': 'light',
 }
 
 export function isBuiltinUiTheme(value: unknown): value is BuiltinUiTheme {

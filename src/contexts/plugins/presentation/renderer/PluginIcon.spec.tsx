@@ -51,7 +51,7 @@ describe('PluginIcon declarations', () => {
     expect(icons[1]).toHaveClass('cove-node-kind-icon')
     for (const icon of icons) {
       expect(icon).toHaveAttribute('data-cove-pixel-icon', 'extension')
-      expect(icon).toHaveAttribute('fill', 'currentColor')
+      expect(icon).toHaveAttribute('stroke', 'currentColor')
     }
   })
 

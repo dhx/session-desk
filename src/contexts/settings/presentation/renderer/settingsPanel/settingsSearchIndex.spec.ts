@@ -64,23 +64,18 @@ describe('settingsSearchIndex', () => {
   })
 
   it.each([
-    ['Node Creation Effect', en, 'settings-node-creation-pixel-effect'],
-    ['Node Closing Effect', en, 'settings-node-close-pixel-effect'],
-    ['Background Twinkle', en, 'settings-canvas-background-twinkle'],
-    ['Minimal', en, 'settings-canvas-background-style'],
-    ['创建效果', zhCN, 'settings-node-creation-pixel-effect'],
-    ['关闭效果', zhCN, 'settings-node-close-pixel-effect'],
-    ['背景闪烁', zhCN, 'settings-canvas-background-twinkle'],
-    ['简约', zhCN, 'settings-canvas-background-style'],
-  ] as const)('finds the independent effect control %s', (query, dictionary, anchorId) => {
+    ['Node Creation Effect', en],
+    ['Background Twinkle', en],
+    ['创建效果', zhCN],
+    ['背景闪烁', zhCN],
+  ] as const)('has no pixel effect control to find (this fork): %s', (query, dictionary) => {
     const entries = createSettingsSearchEntries({
       t: createTranslator(dictionary),
       workspaces: [],
     })
-    expect(searchSettingsEntries(entries, query)[0]).toMatchObject({
-      pageId: 'appearance',
-      anchorId,
-    })
+    expect(
+      searchSettingsEntries(entries, query).filter(entry => /pixel|twinkle/.test(entry.anchorId)),
+    ).toEqual([])
   })
 
   it('finds a localized settings entry by Chinese label', () => {

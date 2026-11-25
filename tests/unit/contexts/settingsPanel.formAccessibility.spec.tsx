@@ -133,8 +133,6 @@ describe('Settings form accessible names', () => {
       <>
         <AppearanceSection
           uiTheme="system"
-          pixelEffects={DEFAULT_AGENT_SETTINGS}
-          onChangePixelEffect={noop}
           uiFontSize={16}
           onChangeUiTheme={noop}
           onChangeUiFontSize={noop}
@@ -158,12 +156,9 @@ describe('Settings form accessible names', () => {
     expectNamedTestId('settings-ui-theme-mode-dark', 'Dark')
     expectNamedTestId('settings-ui-theme-mode', 'Appearance')
     expectNamedTestId('settings-ui-theme-mode-system', 'Follow System')
-    expectNamedTestId('settings-node-creation-pixel-effect', 'Node Creation Effect')
-    expectNamedTestId('settings-node-close-pixel-effect', 'Node Closing Effect')
-    expectNamedTestId('settings-canvas-background-twinkle', 'Background Twinkle')
-    expect(screen.getByTestId('settings-canvas-background-style')).toHaveAccessibleName(
-      'Background',
-    )
+    // This fork has no pixel effects, so Appearance has no controls for them.
+    expect(screen.queryByTestId('settings-node-creation-pixel-effect')).toBeNull()
+    expect(screen.queryByTestId('settings-canvas-background-style')).toBeNull()
     expectNamedTestId('settings-ui-font-size', 'Interface Font Size')
     expectNamedTestId('settings-terminal-font-size', 'Terminal Font Size')
     expectNamedTestId('settings-terminal-font-family', 'Terminal Font')

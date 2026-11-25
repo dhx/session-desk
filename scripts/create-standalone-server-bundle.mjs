@@ -336,9 +336,6 @@ await rebuildAndVerifyNativeModules({
   bundledNodeExecutable: resolve(bundleRoot, relativePaths.nodeRelativePath),
   runtime: nodeRuntime,
 })
-// This fork's own plugins (plugins/README.md) travel with the server, so a deployment can install
-// the ones it wants from the bundle it runs, at the version that matches the app.
-await cp(resolve(rootDir, 'plugins'), resolve(bundleRoot, 'plugins'), { recursive: true })
 await writeFile(
   resolve(bundleRoot, 'opencove-runtime.env'),
   [
@@ -362,10 +359,6 @@ await writeFile(
     '',
     "  OPENCOVE_WORKER_TOKEN='<token>' OPENCOVE_WEB_UI_PASSWORD='<password>' \\",
     '    runtime/node/bin/node app/src/app/cli/opencove.mjs worker start --hostname 0.0.0.0',
-    '',
-    'Plugins that come with this build are in plugins/. Install one into a running worker with:',
-    '',
-    '  runtime/node/bin/node app/src/app/cli/opencove.mjs plugin install plugins/classic-theme',
     '',
   ].join('\n'),
   'utf8',

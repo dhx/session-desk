@@ -2,7 +2,6 @@ import { cleanup, render } from '@testing-library/react'
 import { afterEach, expect, it, vi } from 'vitest'
 import type { UiTheme } from '@contexts/settings/domain/uiSettings'
 import type { PluginManifest } from '@contexts/plugins/domain/pluginTypes'
-import { readIconSet } from '@app/renderer/components/ui/iconSet'
 import { useApplyUiTheme } from './useApplyUiTheme'
 
 const state = vi.hoisted(() => ({ plugins: [] as PluginManifest[] }))
@@ -45,7 +44,7 @@ afterEach(() => {
   cleanup()
   state.plugins = []
   document.documentElement.removeAttribute('style')
-  for (const key of ['coveTheme', 'coveThemeId', 'coveThemeBase', 'coveFamily', 'coveIcons']) {
+  for (const key of ['coveTheme', 'coveThemeId', 'coveThemeBase', 'coveFamily']) {
     delete document.documentElement.dataset[key]
   }
 })
@@ -69,34 +68,4 @@ it('generates a palette theme on the Cove family and removes it on switch', () =
   rerender(<Hook theme="dark" />)
   expect(document.querySelector('style[data-cove-theme-palette]')).toBeNull()
   expect(root.style.getPropertyValue('--cove-focus-ring')).toBe('')
-})
-
-it('shows the icon drawing the theme asks for, and pixel art for every other theme', () => {
-  state.plugins = [
-    { ...plugin, themes: [{ ...plugin.themes![0]!, icons: 'line' }] },
-    {
-      ...plugin,
-      id: 'other',
-      themes: [{ id: 'plain', title: 'Plain', appearance: 'dark', extends: 'dark', tokens: {} }],
-    },
-  ]
-  const root = document.documentElement
-  const { rerender } = render(<Hook theme="dark" />)
-  expect(readIconSet()).toBe('pixel')
-  expect(root.dataset.coveIcons).toBe('pixel')
-
-  rerender(<Hook theme="plugin:studio:dusk" />)
-  expect(readIconSet()).toBe('line')
-  expect(root.dataset.coveIcons).toBe('line')
-
-  rerender(<Hook theme="plugin:other:plain" />)
-  expect(readIconSet()).toBe('pixel')
-
-  rerender(<Hook theme="plugin:studio:dusk" />)
-  expect(readIconSet()).toBe('line')
-  // The theme went away (disabled or uninstalled): the fallback is a built-in look.
-  state.plugins = []
-  rerender(<Hook theme="plugin:studio:dusk" />)
-  expect(readIconSet()).toBe('pixel')
-  expect(root.dataset.coveIcons).toBe('pixel')
 })
