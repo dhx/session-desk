@@ -2,12 +2,12 @@ import {
   areLaunchOverridesAllowed,
   resolveAgentFullAccessPolicy,
   resolveEffectiveAgentFullAccess,
-} from '../../../../contexts/agent/application/agentLaunchPolicy'
+} from '../../../../contexts/agent/application'
 import {
   normalizeAgentSettings,
   resolveAgentExecutablePathOverride,
   resolveAgentLaunchEnv,
-} from '../../../../contexts/settings/domain/agentSettings'
+} from '../../../../contexts/settings/domain'
 import {
   normalizePersistedAppState,
   type NormalizedPersistedAppState,

@@ -1,5 +1,10 @@
 import { useEffect, type RefObject } from 'react'
 import type { Terminal } from '@xterm/xterm'
+import {
+  canUploadDroppedFiles,
+  getDroppedFileFilesystem,
+  type DroppedFileFilesystem,
+} from '../../utils/fileDropApi'
 
 function quoteShellPath(path: string): string {
   return /^[a-zA-Z0-9_./-]+$/.test(path) ? path : "'" + path.replace(/'/g, "'\\''") + "'"
@@ -12,7 +17,7 @@ function quoteShellPath(path: string): string {
  */
 export async function resolveDroppedFilePaths(
   files: File[],
-  filesystem: Pick<Window['opencoveApi']['filesystem'], 'getPathForFile' | 'uploadDroppedFile'>,
+  filesystem: DroppedFileFilesystem,
 ): Promise<string[]> {
   const paths = await Promise.all(
     files.map(async file => {
@@ -40,7 +45,7 @@ export function useTerminalFileDropPaste({
     }
 
     const pasteFiles = (files: File[]): void => {
-      void resolveDroppedFilePaths(files, window.opencoveApi.filesystem)
+      void resolveDroppedFilePaths(files, getDroppedFileFilesystem())
         .then(paths => {
           if (paths.length > 0) {
             terminalRef.current?.paste(paths.map(quoteShellPath).join(' '))
@@ -75,7 +80,7 @@ export function useTerminalFileDropPaste({
     // it (upload it); text pastes and the desktop app's own paste handling stay as they are.
     const handlePaste = (event: ClipboardEvent): void => {
       const files = Array.from(event.clipboardData?.files ?? [])
-      if (files.length === 0 || !window.opencoveApi.filesystem.uploadDroppedFile) {
+      if (files.length === 0 || !canUploadDroppedFiles()) {
         return
       }
       event.preventDefault()

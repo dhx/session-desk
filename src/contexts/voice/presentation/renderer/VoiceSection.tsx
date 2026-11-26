@@ -6,8 +6,8 @@ import {
   SettingsGroup,
   SettingsGroupBody,
 } from '@contexts/settings/presentation/renderer/settingsPanel/SettingsGroup'
-import { formatKeyChord, resolveCommandKeybinding } from '@contexts/settings/domain/keybindings'
-import type { AgentSettings } from '@contexts/settings/domain/agentSettings'
+import { formatKeyChord, resolveCommandKeybinding } from '@contexts/settings/domain'
+import type { AgentSettings } from '@contexts/settings/domain'
 import type { WorkspaceState } from '@contexts/workspace/presentation/renderer/types'
 import type { VoiceEngineStatus } from '@shared/contracts/dto'
 import {
@@ -15,7 +15,7 @@ import {
   type VoiceEngineId,
   type VoiceLanguageSetting,
   type VoiceSettings,
-} from '../../domain/voiceSettings'
+} from '@contexts/settings/domain'
 import { listVoiceBossAgents } from './bossChannel'
 import { getPlatform, getVoiceBridge } from './voiceApi'
 

@@ -1,16 +1,13 @@
 import { createHash } from 'node:crypto'
-import type { PluginHostAuthority } from '../../../../contexts/plugins/domain/pluginHostTypes'
-import type { PluginObservationType } from '../../../../contexts/plugins/domain/pluginCanvasTypes'
-import type { PluginObservationSnapshot } from '../../../../contexts/plugins/application/PluginStateObservations'
-import type { PluginInstallationManager } from '../../../../contexts/plugins/application/PluginInstallationManager'
-import {
-  isReadableNodeKind,
-  toCanvasNodeSummary,
-} from '../../../../contexts/workspace/application/nodeControl/nodeDtos'
+import type { PluginHostAuthority } from '../../../../contexts/plugins/domain'
+import type { PluginObservationType } from '../../../../contexts/plugins/domain'
+import type { PluginObservationSnapshot } from '../../../../contexts/plugins/application'
+import type { PluginInstallationManager } from '../../../../contexts/plugins/application'
+import { isReadableNodeKind, toCanvasNodeSummary } from '../../../../contexts/workspace/application'
 import { normalizePersistedAppState } from '../../../../platform/persistence/sqlite/normalize'
 import type { PersistenceStore } from '../../../../platform/persistence/sqlite/PersistenceStore'
 import type { PtyStreamHub } from '../ptyStream/ptyStreamHub'
-import { pluginAgentConversation } from '../../../../contexts/plugins/domain/pluginAgentConversation'
+import { pluginAgentConversation, pluginSessionNodeKind } from '../../../../contexts/plugins/domain'
 
 export function createPluginCanvasObservationSnapshot(deps: {
   getPersistenceStore(): Promise<PersistenceStore>
@@ -85,13 +82,12 @@ export function createPluginCanvasObservationSnapshot(deps: {
                   state: deps.ptyStreamHub.observeAgentState(node.sessionId!),
                   // Session Desk: a /clear rebind keeps PTY and arguments, so the conversation
                   // agents.get reports must be part of what a change is detected on.
-                  conversation:
-                    node.kind === 'agent'
-                      ? pluginAgentConversation(
-                          store.observeManagedClaudeNode?.(node.id).binding,
-                          session,
-                        )
-                      : null,
+                  conversation: pluginSessionNodeKind(node.kind)?.hasConversation
+                    ? pluginAgentConversation(
+                        store.observeManagedClaudeNode?.(node.id).binding,
+                        session,
+                      )
+                    : null,
                 },
               ]
             }) ?? [],

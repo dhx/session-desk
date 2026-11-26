@@ -8,10 +8,11 @@ import type {
 } from '../../../application/ports/AgentProviderContribution'
 import { ClaudeCodeAgentProviderContribution } from '../claude-code/ClaudeCodeAgentProviderContribution'
 import { CodexAgentProviderContribution } from '../codex/CodexAgentProviderContribution'
+import { createOpenCodeLaunchEnv } from '../../opencode/OpenCodeLaunchEnv'
 import type { CodexSessionFileDiscovery } from '../../cli/CodexSessionFileDiscovery'
 import { KimiAgentProviderContribution } from '../kimi/KimiAgentProviderContribution'
 import { PiAgentProviderContribution } from '../pi/PiAgentProviderContribution'
-import { CatalogTerminalCliProvider } from './CatalogTerminalCliProvider'
+import { CatalogTerminalCliProvider, type CatalogLaunchEnv } from './CatalogTerminalCliProvider'
 import type { BuiltinAgentCommandProviderId } from '../../cli/AgentCommandFactory'
 import type { AgentLaunchArtifactRoot } from '../shared/AgentLaunchArtifactFile'
 
@@ -29,6 +30,11 @@ export interface BuiltinAgentProviderCatalogOptions {
   readonly runtimeExecutable?: string
   readonly runtimePlatform?: NodeJS.Platform
   readonly codexSessionDiscovery?: CodexSessionFileDiscovery
+}
+
+/** Launch environment of catalog providers that need one, by provider id. */
+const CATALOG_LAUNCH_ENV: Partial<Record<AgentProviderId, CatalogLaunchEnv>> = {
+  opencode: createOpenCodeLaunchEnv,
 }
 
 const genericDescriptors = [
@@ -73,7 +79,10 @@ export function createBuiltinAgentProviderContributions(
   const generic = new Map<AgentProviderId, AgentProviderContribution>(
     genericDescriptors.map(entry => [
       entry.id,
-      new CatalogTerminalCliProvider(entry, { artifactRoot: options.artifactRoot }),
+      new CatalogTerminalCliProvider(entry, {
+        artifactRoot: options.artifactRoot,
+        launchEnv: CATALOG_LAUNCH_ENV[entry.id],
+      }),
     ]),
   )
   return resolveAgentProviderCatalog(AGENT_PROVIDER_IDS, formal, generic)

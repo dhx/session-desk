@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react'
-import type { AgentSettings } from '@contexts/settings/domain/agentSettings'
-import type { WorkspaceState } from '@contexts/workspace/presentation/renderer/types'
-import { VoiceAssistant } from '@contexts/voice/presentation/renderer/VoiceAssistant'
+import type { AgentSettings } from '@contexts/settings/domain'
+import type { WorkspaceState } from '@contexts/workspace/presentation/renderer'
+import { VoiceAssistant } from '@contexts/voice/presentation/renderer'
 import type { FloatingMessageState } from '../hooks/useFloatingMessage'
 import type { AgentNotificationTarget } from '../hooks/useAgentStandbyNotifications'
 import { AppMessage } from './AppMessage'
@@ -9,8 +9,8 @@ import type { AgentActivitySummary } from '../utils/agentActivitySummary'
 import type { AgentStandbyNotification } from '../utils/agentStandbyNotification'
 import { AgentIsland } from './AgentIsland'
 import { ControlCenter } from './ControlCenter'
-import { formatKeyChord, resolveCommandKeybinding } from '@contexts/settings/domain/keybindings'
-import type { SettingsPageId } from '@contexts/settings/presentation/renderer/SettingsPanel.shared'
+import { formatKeyChord, resolveCommandKeybinding } from '@contexts/settings/domain'
+import type { SettingsPageId } from '@contexts/settings/presentation/renderer'
 
 type SetStateAction<T> = T | ((prev: T) => T)
 

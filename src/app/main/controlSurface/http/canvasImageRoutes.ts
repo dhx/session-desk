@@ -4,13 +4,13 @@ import {
   normalizeDeleteCanvasImagePayload,
   normalizeReadCanvasImagePayload,
   normalizeWriteCanvasImagePayload,
-} from '../../../../contexts/workspace/presentation/main-ipc/validate'
+} from '../../../../contexts/workspace/presentation/main-ipc'
 import {
   deleteCanvasImageFile,
   readCanvasImageFile,
   sniffCanvasImageMimeType,
   writeCanvasImageFile,
-} from '../../../../contexts/workspace/infrastructure/canvasImages/canvasImageStore'
+} from '../../../../contexts/workspace/infrastructure'
 import { sendJson } from './httpJson'
 
 /**

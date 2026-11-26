@@ -1,6 +1,7 @@
 import type { PluginNodeHeaderState } from '../../domain/pluginNodeHeader'
 import type { PluginManifest } from '../../domain/pluginTypes'
 import { getPluginManifest } from './usePluginRegistry'
+import { queryPluginNodeHeaderState } from './pluginNodeHeaderApi'
 
 /**
  * One poller per (plugin revision, button, project), shared by every window header that shows
@@ -68,20 +69,14 @@ async function refresh(poller: Poller): Promise<void> {
   }
   poller.pending = true
   try {
-    const result = await window.opencoveApi.controlSurface.invoke<{
-      nodes: PluginNodeHeaderState
-    }>({
-      kind: 'query',
-      id: 'plugin.nodeHeader.state',
-      payload: {
-        pluginId: poller.plugin.id,
-        buttonId: poller.buttonId,
-        projectId: poller.projectId,
-        expectedRevision: poller.plugin.revision,
-        expectedRuntimeGeneration: poller.plugin.runtimeGeneration,
-      },
+    const nodes = await queryPluginNodeHeaderState({
+      pluginId: poller.plugin.id,
+      buttonId: poller.buttonId,
+      projectId: poller.projectId,
+      expectedRevision: poller.plugin.revision,
+      expectedRuntimeGeneration: poller.plugin.runtimeGeneration,
     })
-    publish(poller, isCurrent(poller) ? (result.nodes ?? EMPTY) : EMPTY)
+    publish(poller, isCurrent(poller) ? (nodes ?? EMPTY) : EMPTY)
   } catch {
     // The plugin is unreachable or changed: show the button disabled, try again next tick.
     publish(poller, EMPTY)

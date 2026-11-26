@@ -4,7 +4,7 @@ import { pipeline } from 'node:stream/promises'
 import { basename, extname, isAbsolute, join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import type { IncomingMessage, ServerResponse } from 'node:http'
-import type { ApprovedWorkspaceStore } from '../../../../contexts/workspace/infrastructure/approval/ApprovedWorkspaceStore'
+import type { ApprovedWorkspaceStore } from '../../../../contexts/workspace/infrastructure'
 import { sendJson } from './httpJson'
 
 /**

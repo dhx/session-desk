@@ -1,4 +1,5 @@
 import type { TerminalForegroundEvent } from '../contracts/dto'
+import { isForegroundRecognizedProvider } from '../contracts/agentProviderDescriptors'
 
 function normalizeOptionalFiniteInt(value: unknown): number | null {
   return typeof value === 'number' && Number.isFinite(value) ? Math.floor(value) : null
@@ -29,7 +30,8 @@ export function parseTerminalForegroundEvent(
     record.availability === 'available' || record.availability === 'unavailable'
       ? record.availability
       : null
-  const agent = record.agent === 'codex' || record.agent === null ? record.agent : undefined
+  const agent =
+    isForegroundRecognizedProvider(record.agent) || record.agent === null ? record.agent : undefined
   const exitCode = record.exitCode === null ? null : normalizeOptionalFiniteInt(record.exitCode)
   if (
     !sessionId ||

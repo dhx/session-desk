@@ -13,6 +13,8 @@ export interface AgentProviderCapabilities {
   readonly experimental: boolean
   /** The terminal reports this provider's activity through the launch shim. */
   readonly terminalActivityShim: boolean
+  /** The terminal recognizes this provider as its foreground process (terminal foreground events). */
+  readonly foregroundProcessRecognition: boolean
 }
 
 export interface AgentProviderStaticDescriptor {
@@ -50,6 +52,7 @@ export const AGENT_PROVIDER_DESCRIPTORS = {
       runtimeObservation: 'jsonl',
       experimental: false,
       terminalActivityShim: true,
+      foregroundProcessRecognition: false,
     },
   },
   codex: {
@@ -68,6 +71,7 @@ export const AGENT_PROVIDER_DESCRIPTORS = {
       runtimeObservation: 'jsonl',
       experimental: false,
       terminalActivityShim: true,
+      foregroundProcessRecognition: true,
     },
   },
   opencode: {
@@ -86,6 +90,7 @@ export const AGENT_PROVIDER_DESCRIPTORS = {
       runtimeObservation: 'provider-api',
       experimental: false,
       terminalActivityShim: false,
+      foregroundProcessRecognition: false,
     },
   },
   gemini: {
@@ -104,6 +109,7 @@ export const AGENT_PROVIDER_DESCRIPTORS = {
       runtimeObservation: 'none',
       experimental: false,
       terminalActivityShim: false,
+      foregroundProcessRecognition: false,
     },
   },
   pi: {
@@ -122,6 +128,7 @@ export const AGENT_PROVIDER_DESCRIPTORS = {
       runtimeObservation: 'jsonl',
       experimental: false,
       terminalActivityShim: true,
+      foregroundProcessRecognition: false,
     },
   },
   kimi: {
@@ -140,6 +147,7 @@ export const AGENT_PROVIDER_DESCRIPTORS = {
       runtimeObservation: 'jsonl',
       experimental: false,
       terminalActivityShim: false,
+      foregroundProcessRecognition: false,
     },
   },
 } as const satisfies Readonly<Record<AgentProviderId, AgentProviderStaticDescriptor>>
@@ -162,5 +170,21 @@ export type TerminalAgentShimProvider = {
 export function isTerminalAgentShimProvider(value: unknown): value is TerminalAgentShimProvider {
   return (
     isAgentProviderId(value) && AGENT_PROVIDER_DESCRIPTORS[value].capabilities.terminalActivityShim
+  )
+}
+
+/** Providers the terminal recognizes as its foreground process, derived from the table. */
+export type ForegroundRecognizedProvider = {
+  [Id in AgentProviderId]: (typeof AGENT_PROVIDER_DESCRIPTORS)[Id]['capabilities']['foregroundProcessRecognition'] extends true
+    ? Id
+    : never
+}[AgentProviderId]
+
+export function isForegroundRecognizedProvider(
+  value: unknown,
+): value is ForegroundRecognizedProvider {
+  return (
+    isAgentProviderId(value) &&
+    AGENT_PROVIDER_DESCRIPTORS[value].capabilities.foregroundProcessRecognition
   )
 }

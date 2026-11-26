@@ -1,7 +1,7 @@
 import { mkdir } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { resolve } from 'node:path'
-import type { ApprovedWorkspaceStore } from '../../../../contexts/workspace/infrastructure/approval/ApprovedWorkspaceStoreCore'
+import type { ApprovedWorkspaceStore } from '../../../../contexts/workspace/infrastructure'
 import {
   workspaceAllocateProjectPlaceholderOperation,
   workspaceApproveRootOperation,
@@ -10,7 +10,7 @@ import {
 import { createAppError } from '../../../../shared/errors/appError'
 import type { ControlSurface } from '../controlSurface'
 import { registerOperation } from '../registerOperation'
-import { findWorkspaceRootRefusal } from '../../../../contexts/workspace/infrastructure/approval/workspaceRootGuard'
+import { findWorkspaceRootRefusal } from '../../../../contexts/workspace/infrastructure'
 
 export async function assertApprovableWorkspaceRoot(
   rootPath: string,
