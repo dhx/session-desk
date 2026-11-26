@@ -5,7 +5,6 @@ import {
   subscribeThemeMotion,
 } from '@contexts/plugins/presentation/renderer/themeMotion'
 import type { AgentSettings } from '@contexts/settings/domain/agentSettings'
-import { useShowcaseMode } from '@app/renderer/shell/showcase/showcaseMode'
 import type { TerminalNodeData } from '../../../types'
 import { WorkspacePixelLayer } from './WorkspacePixelLayer'
 import { WorkspacePixelWall } from './WorkspacePixelWall'
@@ -41,9 +40,8 @@ export const WorkspaceCanvasBackground = React.memo(function WorkspaceCanvasBack
     })
     return () => bindWorkspaceCanvasSetZoomTestAction(null)
   }, [zoomTo])
-  // Showcase mode always shows the pixel background, whatever the saved style (Tide 6.1).
-  const showcase = useShowcaseMode()
-  const style = showcase ? 'pixel' : settings.canvasBackgroundStyle
+  // This fork has no pixel wall, in showcase mode either (docs/dhx/RELEASES.md).
+  const style = settings.canvasBackgroundStyle
   const effects = {
     // Received-output pixels are an event signal: kept by 「简约」, gone with 「关闭」.
     background: style !== 'off',
@@ -67,11 +65,10 @@ export const WorkspaceCanvasBackground = React.memo(function WorkspaceCanvasBack
           signals={settings.agentWorkingPixelEffectEnabled}
         />
       )}
-      <WorkspaceWindowSignals
-        nodes={nodes}
-        canvasRef={canvasRef}
-        enabled={settings.agentWorkingPixelEffectEnabled}
-      />
+      {/* This fork: the frame signals (waiting halo, completion and failure frames, edge beacon
+          pulse) say which session needs the person, so they are always on. Upstream ties them
+          to the pixel working effect, which this fork has switched off for good. */}
+      <WorkspaceWindowSignals nodes={nodes} canvasRef={canvasRef} enabled />
       {style !== 'pixel' && (
         <Background
           variant={BackgroundVariant.Dots}

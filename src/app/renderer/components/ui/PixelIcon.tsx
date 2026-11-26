@@ -1,8 +1,7 @@
 import React, { memo } from 'react'
 import { classNames } from './classNames'
-import { useIconSet } from './iconSet'
 import { LINE_ICONS } from './lineIcons'
-import { PIXEL_ICON_GRID, pixelIconRows, type PixelIconName } from './pixelIconArt'
+import { pixelIconRows, type PixelIconName } from './pixelIconArt'
 
 /**
  * Pixel icons are drawn only at whole multiples of half their grid, so every cell lands on whole
@@ -62,41 +61,21 @@ export const PixelIcon = memo(function PixelIcon({
   ...svgProps
 }: PixelIconProps & { name: PixelIconName }): React.JSX.Element {
   const labelled = svgProps['aria-label'] !== undefined || svgProps['aria-labelledby'] !== undefined
-  const iconSet = useIconSet()
-  if (iconSet === 'line') {
-    // The same box, name and label as the pixel art, so layout, tests and theme selectors that
-    // address an icon keep working whichever drawing the theme shows.
-    const LineIcon = LINE_ICONS[name]
-    return (
-      <LineIcon
-        aria-hidden={labelled ? undefined : true}
-        focusable="false"
-        role={labelled ? 'img' : undefined}
-        {...svgProps}
-        className={classNames('cove-pixel-icon', 'cove-line-icon', className)}
-        size={size}
-        strokeWidth={LINE_ICON_STROKE}
-        data-cove-pixel-icon={name}
-        data-cove-icon-set="line"
-      />
-    )
-  }
+  // This fork draws line icons, not Cove's pixel art (docs/dhx/RELEASES.md). The box, the name
+  // attribute and the labelling are the pixel icon's, so layout and selectors are unchanged.
+  const LineIcon = LINE_ICONS[name]
   return (
-    <svg
+    <LineIcon
       aria-hidden={labelled ? undefined : true}
       focusable="false"
       role={labelled ? 'img' : undefined}
       {...svgProps}
-      className={classNames('cove-pixel-icon', className)}
-      width={size}
-      height={size}
-      viewBox={`0 0 ${PIXEL_ICON_GRID} ${PIXEL_ICON_GRID}`}
-      shapeRendering="crispEdges"
-      fill="currentColor"
+      className={classNames('cove-pixel-icon', 'cove-line-icon', className)}
+      size={size}
+      strokeWidth={LINE_ICON_STROKE}
       data-cove-pixel-icon={name}
-    >
-      <path d={pixelIconPath(name)} />
-    </svg>
+      data-cove-icon-set="line"
+    />
   )
 })
 

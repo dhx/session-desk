@@ -180,7 +180,7 @@ describe('window collapse presentation', () => {
     expect(value.toggleNode).toHaveBeenCalledTimes(3)
   })
 
-  it('stops pixel work animation for degraded and restoring Agent observations', () => {
+  it('never animates pixel work on a collapsed Agent (this fork), whatever its observation', () => {
     const data = nodeData({
       kind: 'agent',
       status: 'running',
@@ -210,7 +210,7 @@ describe('window collapse presentation', () => {
     )
     const { rerender } = render(view(data))
     const icon = screen.getByTestId('collapsed-node-agent')
-    expect(icon).toHaveAttribute('data-animated', 'true')
+    expect(icon).not.toHaveAttribute('data-animated')
     expect(icon).toHaveAttribute('data-status', 'running')
     expect(icon.querySelector('.cove-collapsed-window__status')).toBeNull()
     expect(icon.querySelector('.cove-collapsed-window__message')).toBeNull()

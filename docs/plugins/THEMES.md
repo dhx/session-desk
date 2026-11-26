@@ -266,28 +266,11 @@ starting styles, keyframes and font faces are supported. Budgets per package:
 256KiB CSS, 8MiB unique assets, 12MiB compiled resource expansion. A failed install
 or reload leaves the last working version active.
 
-## Icons
-
-Cove draws its icons as pixel art. A theme for a calmer look can show line icons
-instead:
-
-```json
-{ "id": "night", "title": "Studio Night", "appearance": "dark", "extends": "dark", "icons": "line" }
-```
-
-`icons` is `pixel` (the default) or `line`. It covers the app's own icons, the
-window-kind glyphs and the busy spinner. Each keeps its box, its
-`data-cove-pixel-icon` / `data-cove-pixel-glyph` name and its label; a line icon
-also carries `data-cove-icon-set="line"`, and the root element carries
-`data-cove-icons`. Brand marks of agent providers and plugin icons are not
-redrawn. A host without this field ignores it and shows pixel icons.
-
 ## Standalone frames
 
 The panels that stand on their own over the app (the Control Center, the agent
-activity list and the agent cards) carry `data-cove-frame="standalone"`. Cove
-gives them stepped pixel corners through a `clip-path` and a ring drawn by
-`::before`; a theme that wants a plain panel resets both:
+activity list and the agent cards) carry `data-cove-frame="standalone"`, the
+hook for restyling them. Session Desk draws them as plain rounded panels:
 
 ```css
 [data-cove-frame='standalone'] {

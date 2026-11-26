@@ -97,8 +97,6 @@ export function SettingsPanelContent({
     updateWindowKindColors,
     updateWindowMaterial,
     updateCanvasFarView,
-    updatePixelEffect,
-    updateCanvasBackgroundStyle,
     updatePluginEnabled,
     updatePluginContributionEnabled,
     updateAgentFullAccess,
@@ -172,7 +170,6 @@ export function SettingsPanelContent({
       {canonicalPageId === 'appearance' ? (
         <AppearanceSection
           uiTheme={settings.uiTheme}
-          pixelEffects={settings}
           uiFontSize={settings.uiFontSize}
           windowKindColorsEnabled={settings.windowKindColorsEnabled}
           onChangeWindowKindColors={updateWindowKindColors}
@@ -181,8 +178,6 @@ export function SettingsPanelContent({
           canvasFarViewEnabled={settings.canvasFarViewEnabled}
           onChangeCanvasFarView={updateCanvasFarView}
           onChangeUiTheme={updateUiTheme}
-          onChangePixelEffect={updatePixelEffect}
-          onChangeCanvasBackgroundStyle={updateCanvasBackgroundStyle}
           onChangeUiFontSize={updateUiFontSize}
         />
       ) : null}

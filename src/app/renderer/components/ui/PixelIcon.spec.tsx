@@ -2,6 +2,8 @@ import { render } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import { PixelIcon, pixelIconPath } from './PixelIcon'
 import { PixelSpinner } from './PixelSpinner'
+import { LINE_GLYPHS, LINE_ICONS } from './lineIcons'
+import { PIXEL_GLYPHS } from './pixelGlyphs'
 import * as pixelIcons from './pixelIcons'
 import { PIXEL_ICON_ART, PIXEL_ICON_GRID, pixelIconRows, type PixelIconName } from './pixelIconArt'
 import { PIXEL_ICON_ART_ACTIONS } from './pixelIconArt/pixelIconArt.actions'
@@ -61,7 +63,7 @@ describe('pixel icon art', () => {
 })
 
 describe('PixelIcon', () => {
-  it('is a decorative, crisp, currentColor icon at a grid size', () => {
+  it("is a decorative line icon at a grid size, under the pixel icon's name (this fork)", () => {
     const { container } = render(<PixelIcon name="close" className="extra" />)
     const svg = container.querySelector('svg')!
     expect(svg).toHaveAttribute('aria-hidden', 'true')
@@ -69,11 +71,11 @@ describe('PixelIcon', () => {
     expect(svg).toHaveClass('cove-pixel-icon', 'extra')
     expect(svg).toHaveAttribute('width', '18')
     expect(svg).toHaveAttribute('height', '18')
-    expect(svg).toHaveAttribute('viewBox', '0 0 12 12')
-    expect(svg).toHaveAttribute('shape-rendering', 'crispEdges')
-    expect(svg).toHaveAttribute('fill', 'currentColor')
+    expect(svg).toHaveClass('cove-line-icon')
+    expect(svg).toHaveAttribute('data-cove-icon-set', 'line')
+    expect(svg).not.toHaveAttribute('shape-rendering')
+    expect(svg).toHaveAttribute('stroke', 'currentColor')
     expect(svg).toHaveAttribute('data-cove-pixel-icon', 'close')
-    expect(svg.querySelectorAll('path')).toHaveLength(1)
   })
 
   it('becomes an image when it is given a label', () => {
@@ -101,26 +103,20 @@ describe('PixelIcon', () => {
 })
 
 describe('PixelSpinner', () => {
-  it('lights eight 2×2 blocks round a ring in turn, on the grid', () => {
+  it('is a turning line spinner at a grid size (this fork)', () => {
     const { container } = render(<PixelSpinner size={12} />)
     const svg = container.querySelector('svg')!
     expect(svg).toHaveAttribute('aria-hidden', 'true')
-    expect(svg).toHaveClass('cove-pixel-icon', 'cove-pixel-spinner')
+    expect(svg).toHaveClass('cove-pixel-icon', 'cove-line-icon', 'cove-line-spinner')
     expect(svg).toHaveAttribute('width', '12')
-    const blocks = [...svg.querySelectorAll('rect.cove-pixel-spinner__block')]
-    expect(blocks).toHaveLength(8)
-    const steps = blocks.map(block =>
-      Number((block as SVGRectElement).style.getPropertyValue('--cove-pixel-spinner-step')),
-    )
-    expect(steps).toEqual([0, 1, 2, 3, 4, 5, 6, 7])
-    for (const block of blocks) {
-      const x = Number(block.getAttribute('x'))
-      const y = Number(block.getAttribute('y'))
-      expect(Number.isInteger(x) && Number.isInteger(y)).toBe(true)
-      expect(block).toHaveAttribute('width', '2')
-      expect(block).toHaveAttribute('height', '2')
-      expect(x + 2).toBeLessThanOrEqual(PIXEL_ICON_GRID)
-      expect(y + 2).toBeLessThanOrEqual(PIXEL_ICON_GRID)
-    }
+    expect(svg).toHaveAttribute('data-cove-pixel-icon', 'spinner')
+    expect(svg.querySelectorAll('rect')).toHaveLength(0)
+  })
+})
+
+describe('line drawings (this fork)', () => {
+  it('exist for every pixel icon and every kind glyph, and for nothing else', () => {
+    expect(Object.keys(LINE_ICONS).sort()).toEqual(Object.keys(PIXEL_ICON_ART).sort())
+    expect(Object.keys(LINE_GLYPHS).sort()).toEqual(Object.keys(PIXEL_GLYPHS).sort())
   })
 })

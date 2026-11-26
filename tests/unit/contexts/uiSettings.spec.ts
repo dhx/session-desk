@@ -69,10 +69,10 @@ describe('named UI themes', () => {
   })
 
   it.each([{}, { uiTheme: null }, { uiTheme: 'future-theme' }])(
-    'defaults to Classic Dark (this fork) for missing or unrecognized theme settings: %j',
+    'defaults to Cove dark for missing or unrecognized theme settings: %j',
     value => {
-      expect(normalizeAgentSettings(value).uiTheme).toBe('plugin:session-desk-classic:dark')
-      expect(DEFAULT_AGENT_SETTINGS.uiTheme).toBe('plugin:session-desk-classic:dark')
+      expect(normalizeAgentSettings(value).uiTheme).toBe('dark')
+      expect(DEFAULT_AGENT_SETTINGS.uiTheme).toBe('dark')
     },
   )
 

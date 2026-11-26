@@ -32,6 +32,9 @@ export interface WebTargetSkip {
   reason: string
 }
 
+// docs/dhx/RELEASES.md, "one look": line icons, flat frames, and no pixel wall or pixel effects.
+const NO_PIXEL_LOOK =
+  'Asserts the pixel look (pixel icons, wall or effects), which this fork does not have: its one look is the plain one'
 const WEBSITE_WINDOW =
   'Native website windows (Electron WebContentsView); the Web UI shows websites in iframes'
 const CANVAS_IMAGE_SEED =
@@ -272,6 +275,119 @@ export const webTargetSkips: WebTargetSkip[] = [
     reason: 'Opening a folder in the local file manager is a desktop action',
   },
   // By design in this fork
+  {
+    file: 'workspace-canvas.drag-commits.spec.ts',
+    category: 'by-design',
+    reason: NO_PIXEL_LOOK,
+  },
+  {
+    file: 'settings.terminal-preview.spec.ts',
+    category: 'by-design',
+    reason: NO_PIXEL_LOOK,
+  },
+  {
+    file: 'workspace-canvas.completion-signals.spec.ts',
+    category: 'by-design',
+    reason: NO_PIXEL_LOOK,
+  },
+  {
+    file: 'settings.reorganization.spec.ts',
+    title:
+      'previews appearance without creating live sessions and keeps typography and Shell on the Terminal page',
+    category: 'by-design',
+    reason: NO_PIXEL_LOOK,
+  },
+  {
+    file: 'workspace-canvas.light-appearance.spec.ts',
+    title:
+      'switches existing work into a readable light canvas and terminal without replacing editors',
+    category: 'by-design',
+    reason: NO_PIXEL_LOOK,
+  },
+  {
+    file: 'workspace-canvas.light-appearance.spec.ts',
+    title:
+      'persists the light appearance from Control Center while respecting independent effects and reduced motion',
+    category: 'by-design',
+    reason: NO_PIXEL_LOOK,
+  },
+  {
+    file: 'workspace-canvas.window-plate-kinds.spec.ts',
+    title:
+      'each kind of window reads on its own plate, and on the theme plate with kind colours off',
+    category: 'by-design',
+    reason: NO_PIXEL_LOOK,
+  },
+  {
+    file: 'app-shell.pixel-icons.spec.ts',
+    category: 'by-design',
+    reason: NO_PIXEL_LOOK,
+  },
+  {
+    file: 'workspace-canvas.pixel-effects-settings.spec.ts',
+    category: 'by-design',
+    reason: NO_PIXEL_LOOK,
+  },
+  {
+    file: 'workspace-canvas.pixel-ripples.spec.ts',
+    category: 'by-design',
+    reason: NO_PIXEL_LOOK,
+  },
+  {
+    file: 'workspace-canvas.pixel-sparks.spec.ts',
+    category: 'by-design',
+    reason: NO_PIXEL_LOOK,
+  },
+  {
+    file: 'workspace-canvas.pixel-spotlight.spec.ts',
+    category: 'by-design',
+    reason: NO_PIXEL_LOOK,
+  },
+  {
+    file: 'workspace-canvas.pixel-wall-shell.spec.ts',
+    category: 'by-design',
+    reason: NO_PIXEL_LOOK,
+  },
+  {
+    file: 'workspace-canvas.pixel-wall.spec.ts',
+    category: 'by-design',
+    reason: NO_PIXEL_LOOK,
+  },
+  {
+    file: 'workspace-canvas.showcase-mode.spec.ts',
+    category: 'by-design',
+    reason: NO_PIXEL_LOOK,
+  },
+  {
+    file: 'workspace-canvas.spatial-pixel.close.spec.ts',
+    category: 'by-design',
+    reason: NO_PIXEL_LOOK,
+  },
+  {
+    file: 'workspace-canvas.spatial-pixel.materials.spec.ts',
+    category: 'by-design',
+    reason: NO_PIXEL_LOOK,
+  },
+  {
+    file: 'workspace-canvas.spatial-pixel.motion.spec.ts',
+    category: 'by-design',
+    reason: NO_PIXEL_LOOK,
+  },
+  {
+    file: 'workspace-canvas.spatial-pixel.reveal.spec.ts',
+    category: 'by-design',
+    reason: NO_PIXEL_LOOK,
+  },
+  {
+    file: 'workspace-canvas.spatial-pixel.spec.ts',
+    category: 'by-design',
+    reason: NO_PIXEL_LOOK,
+  },
+  {
+    file: 'workspace-canvas.working-pixels.spec.ts',
+    category: 'by-design',
+    reason: NO_PIXEL_LOOK,
+  },
   {
     file: 'recovery.claude-session-ownership.spec.ts',
     category: 'by-design',

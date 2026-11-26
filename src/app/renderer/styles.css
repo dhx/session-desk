@@ -113,6 +113,8 @@
 @import './styles/workspace-space-collapse.css' layer(opencove);
 
 @import './styles/theme-components.css' layer(opencove);
+/* This fork's plain look: last in the layer, so it replaces the pixel chrome above (dhx-classic.css). */
+@import './styles/themes/dhx-classic.css' layer(opencove);
 
 /* Monaco injects unlayered vendor CSS lazily; these private integration rules
    preserve its canvas host geometry without changing public theme precedence. */

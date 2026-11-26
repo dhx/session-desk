@@ -82,9 +82,9 @@ test.describe('Control Center', () => {
       })
       expect(visuals.width).toBeCloseTo(312, 0)
       expect(visuals.height).toBeLessThanOrEqual(600)
-      expect(visuals.clipPath).toContain('polygon')
-      expect(visuals.radius).toBe('0px')
-      expect(visuals.ring).toContain('inset')
+      // This fork: a plain rounded panel, not a stepped pixel window (docs/dhx/RELEASES.md).
+      expect(visuals.clipPath).toBe('none')
+      expect(visuals.radius).toBe('10px')
       expect(visuals.overflow).toBe(false)
       expect(visuals.rules[0]).toBe('none')
       expect(visuals.rules.slice(1).every(rule => rule.includes('linear-gradient'))).toBe(true)
@@ -94,7 +94,6 @@ test.describe('Control Center', () => {
         [44, 44],
         [44, 44],
       ])
-      expect(visuals.thumbnailsRendering).toEqual(['crispEdges', 'crispEdges', 'crispEdges'])
 
       // Only Cove's appearances; the look's finer choices live in Settings.
       await expect(controlCenter.getByRole('radio')).toHaveCount(3)

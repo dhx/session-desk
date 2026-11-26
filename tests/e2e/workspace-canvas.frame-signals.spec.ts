@@ -1,6 +1,5 @@
 import { expect, test } from '@playwright/test'
 import { launchFrameSignals, setFrameMotion } from './workspace-canvas.frame-signals.helpers'
-import { setMotionSignals } from './workspace-canvas.pixel-effects.helpers'
 
 test('waiting frames pulse only opacity and retain static status with motion or signals off', async () => {
   const { window, node, send, close } = await launchFrameSignals()
@@ -41,10 +40,8 @@ test('waiting frames pulse only opacity and retain static status with motion or 
     await setFrameMotion(window, true)
     await expect(halo).toHaveCSS('animation-name', 'none')
     await expect(halo).toHaveCSS('opacity', '0.8')
+    // This fork has no switch that turns the signals off; reduced motion above is the static case.
     await setFrameMotion(window, false)
-    await setMotionSignals(window, false)
-    await expect(halo).toHaveCSS('animation-name', 'none')
-    await expect(halo).toHaveCSS('opacity', '0.8')
     await expect(node.locator('.terminal-node')).toHaveCSS('border-color', border)
     await send('<test-frame-fail>')
     await expect(node).toHaveAttribute('data-cove-window-status', 'failed')
@@ -73,16 +70,15 @@ type FrameRecord = {
 }
 type ProbeWindow = Window & { __frameSignals?: FrameRecord[] }
 
-for (const mode of ['animated', 'reduced', 'off'] as const) {
+// This fork has no 'off' mode: the frame signals cannot be switched off.
+const modes: Array<'animated' | 'reduced' | 'off'> = ['animated', 'reduced']
+for (const mode of modes) {
   test(`completion and failure retain their frame evidence (${mode})`, async ({
     browserName: _,
   }, testInfo) => {
     const { window, node, id, send, close } = await launchFrameSignals()
     try {
       await setFrameMotion(window, mode === 'reduced')
-      if (mode === 'off') {
-        await setMotionSignals(window, false)
-      }
       await send('<test-hook-initial-working>')
       await expect(node.locator('.terminal-node')).toHaveAttribute(
         'data-agent-state-source',
