@@ -1,10 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import type { AgentSettings } from '@contexts/settings/domain/agentSettings'
-import {
-  isModifierCode,
-  resolveCommandKeybinding,
-  type KeyChord,
-} from '@contexts/settings/domain/keybindings'
+import type { AgentSettings } from '@contexts/settings/domain'
+import { isModifierCode, resolveCommandKeybinding, type KeyChord } from '@contexts/settings/domain'
 import { useAppStore } from '@app/renderer/shell/store/useAppStore'
 import { getPtyEventHub } from '@app/renderer/shell/utils/ptyEventHub'
 import type { VoiceEngineStatus, VoiceLanguage } from '@shared/contracts/dto'
@@ -12,7 +8,7 @@ import {
   createVoiceTurnController,
   type VoiceTurnController,
 } from '../../application/voiceTurnController'
-import { resolveReplyLanguage } from '../../domain/voiceSettings'
+import { resolveReplyLanguage } from '@contexts/settings/domain'
 import { IDLE_VOICE_TURN, type VoiceTurnState } from '../../domain/voiceTurn'
 import { askBoss, listVoiceBossAgents, type VoiceBossAgent } from './bossChannel'
 import { createMicRecorder } from './micRecorder'

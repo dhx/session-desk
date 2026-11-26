@@ -1,0 +1,1 @@
+export { VoiceAssistant } from './VoiceAssistant'

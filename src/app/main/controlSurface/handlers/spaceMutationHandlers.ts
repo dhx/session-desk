@@ -23,11 +23,11 @@ import {
   createTopLevelSpace,
   resolveEmptySpaceSize,
   updateSpaceAttributes,
-} from '../../../../contexts/space/application/createTopLevelSpace'
-import { resolveSpaceMountContext } from '../../../../contexts/space/application/resolveSpaceMountContext'
-import { isPathInsideOrEqual } from '../../../../contexts/space/application/spaceBoundaryPolicy'
-import { normalizeAgentSettings } from '../../../../contexts/settings/domain/agentSettings'
-import { resolveAgentNodeSize } from '../../../../contexts/workspace/domain/workspaceNodeSizing'
+} from '../../../../contexts/space/application'
+import { resolveSpaceMountContext } from '../../../../contexts/space/application'
+import { isPathInsideOrEqual } from '../../../../contexts/space/application'
+import { normalizeAgentSettings } from '../../../../contexts/settings/domain'
+import { resolveAgentNodeSize } from '../../../../contexts/workspace/domain'
 
 const MAX_WRITE_ATTEMPTS = 3
 

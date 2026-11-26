@@ -1,8 +1,4 @@
-import {
-  isRecord,
-  normalizeBoolean,
-  normalizeTextValue,
-} from '../../settings/domain/settingsNormalization'
+import { isRecord, normalizeBoolean, normalizeTextValue } from './settingsNormalization'
 import { VOICE_LANGUAGES, type VoiceLanguage } from '../../../shared/contracts/dto'
 
 export const VOICE_ENGINE_IDS = ['local', 'openai-realtime'] as const

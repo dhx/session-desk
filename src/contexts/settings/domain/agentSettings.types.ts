@@ -33,7 +33,7 @@ import type { CanvasBackgroundStyle } from './canvasBackgroundSettings'
 import type { TerminalDisplayReference } from './terminalDisplayCalibration'
 import type { UiLanguage, UiTheme } from './uiSettings'
 import type { PluginContributionPreferences } from './pluginSettings'
-import type { VoiceSettings } from '../../voice/domain/voiceSettings'
+import type { VoiceSettings } from './voiceSettings'
 
 export type TaskTitleProvider = 'default' | TaskTitleAgentProvider
 export type TerminalProfileId = string | null

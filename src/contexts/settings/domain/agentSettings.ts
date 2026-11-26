@@ -55,7 +55,7 @@ import { normalizeWebsiteWindowPolicy } from './websiteWindowSettings'
 import { normalizeBrowserMode, normalizeBrowserSearchEngineId } from './browserSettings'
 import { DEFAULT_AGENT_SETTINGS } from './agentSettings.defaults'
 import { normalizeTerminalDisplayReference } from './terminalDisplayCalibration'
-import { normalizeVoiceSettings } from '../../voice/domain/voiceSettings'
+import { normalizeVoiceSettings } from './voiceSettings'
 import type { AgentSettings, TaskTitleProvider } from './agentSettings.types'
 
 export {

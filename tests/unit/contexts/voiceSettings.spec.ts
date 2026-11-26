@@ -8,7 +8,7 @@ import {
   DEFAULT_VOICE_SETTINGS,
   normalizeVoiceSettings,
   resolveReplyLanguage,
-} from '../../../src/contexts/voice/domain/voiceSettings'
+} from '../../../src/contexts/settings/domain/voiceSettings'
 
 describe('normalizeVoiceSettings', () => {
   it('defaults to disabled, local engine, automatic language, no boss, spoken replies', () => {

@@ -1,12 +1,12 @@
 import { agentTestStubArgs } from '../../../../shared/utils/agentTestStubArgs'
 import { localCanvasResidentContext } from '../sessionSpawnIdentityContext'
 import { getCommandExecutionEnvironment } from '../../../../platform/os/CommandEnvironmentService'
-import type { AgentProviderRegistry } from '../../../../contexts/agent/application/services/AgentProviderRegistry'
-import { createManagedAgentLaunchPlan } from '../../../../contexts/agent/application/use-cases/createManagedAgentLaunchPlan'
-import type { AgentLaunchCommand } from '../../../../contexts/agent/infrastructure/cli/AgentCommandFactory'
+import type { AgentProviderRegistry } from '../../../../contexts/agent/application'
+import { createManagedAgentLaunchPlan } from '../../../../contexts/agent/application'
+import type { AgentLaunchCommand } from '../../../../contexts/agent/infrastructure'
 import type { AgentLaunchMode, AgentProviderId } from '../../../../shared/contracts/dto'
 import { resolveWorkerAgentTestStub } from './sessionAgentTestStub'
-import { resolveAgentFullAccessPolicy } from '../../../../contexts/agent/application/agentLaunchPolicy'
+import { resolveAgentFullAccessPolicy } from '../../../../contexts/agent/application'
 
 export async function prepareAgentLaunch(options: {
   environment?: NodeJS.ProcessEnv

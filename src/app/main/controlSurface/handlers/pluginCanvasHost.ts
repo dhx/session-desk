@@ -1,20 +1,15 @@
 import { randomUUID } from 'node:crypto'
-import type { PluginInstallationManager } from '../../../../contexts/plugins/application/PluginInstallationManager'
-import { PluginStateObservations } from '../../../../contexts/plugins/application/PluginStateObservations'
-import type {
-  PluginHostAuthority,
-  PluginResolvedTarget,
-} from '../../../../contexts/plugins/domain/pluginHostTypes'
-import type {
-  PluginObservationType,
-  PluginSessionState,
-} from '../../../../contexts/plugins/domain/pluginCanvasTypes'
-import { pluginAgentConversation } from '../../../../contexts/plugins/domain/pluginAgentConversation'
+import type { PluginInstallationManager } from '../../../../contexts/plugins/application'
+import { PluginStateObservations } from '../../../../contexts/plugins/application'
+import type { PluginHostAuthority, PluginResolvedTarget } from '../../../../contexts/plugins/domain'
+import type { PluginObservationType, PluginSessionState } from '../../../../contexts/plugins/domain'
 import {
-  pluginRecord,
-  pluginString,
-} from '../../../../contexts/plugins/domain/localPluginValidation'
-import { pluginJsonValue } from '../../../../contexts/plugins/domain/pluginJsonValue'
+  PLUGIN_SESSION_NODE_KINDS,
+  pluginAgentConversation,
+  type PluginSessionNodeKind,
+} from '../../../../contexts/plugins/domain'
+import { pluginRecord, pluginString } from '../../../../contexts/plugins/domain'
+import { pluginJsonValue } from '../../../../contexts/plugins/domain'
 import type { PersistenceStore } from '../../../../platform/persistence/sqlite/PersistenceStore'
 import type {
   GetNodeResult,
@@ -112,12 +107,12 @@ export function createPluginCanvasHost(
   async function session(
     authority: PluginHostAuthority,
     nodeId: string,
-    kind: 'terminal' | 'agent',
+    kind: PluginSessionNodeKind,
   ): Promise<PluginSessionState> {
     const found = await invoke<GetNodeResult>(authority, 'node.get', 'query', { nodeId })
     const item = found.node
     if (item.kind !== kind) {
-      throw new Error(`Expected ${kind === 'agent' ? 'an agent' : 'a terminal'} node.`)
+      throw new Error(`Expected ${PLUGIN_SESSION_NODE_KINDS[kind].article} node.`)
     }
     const sessions = await invoke<ListSessionsResult>(authority, 'session.list', 'query', {})
     const current = sessions.sessions.find(value => value.sessionId === item.sessionId) ?? null
@@ -125,8 +120,9 @@ export function createPluginCanvasHost(
       node: item,
       session: current,
       agentState: current ? deps.ptyStreamHub.observeAgentState(current.sessionId) : null,
-      conversation:
-        kind === 'agent' ? pluginAgentConversation(found.managedClaudeBinding, current) : null,
+      conversation: PLUGIN_SESSION_NODE_KINDS[kind].hasConversation
+        ? pluginAgentConversation(found.managedClaudeBinding, current)
+        : null,
     }
   }
   async function create(

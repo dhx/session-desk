@@ -1,5 +1,5 @@
 import type { VoiceLanguage, VoiceLanguageAvailability } from '../../../shared/contracts/dto'
-import type { VoiceEngineId } from '../domain/voiceSettings'
+import type { VoiceEngineId } from '../../settings/domain'
 
 export interface VoiceModelProgress {
   /** 0..1 across every model file being loaded. */

@@ -23,6 +23,7 @@ import {
 import { toErrorMessage } from '../helpers'
 import type { ShowWorkspaceCanvasMessage } from '../types'
 import { findContainingSpaceByAnchor } from './useInteractions.spaceAssignment'
+import { getDroppedFileResolver } from '../../../utils/fileDropApi'
 
 export interface FilesystemMaterializeOptions {
   collapsed?: boolean
@@ -132,7 +133,7 @@ export function useNativeFilesystemDrop({
       if (images.length === 0) {
         event.stopPropagation()
       }
-      const resolveDroppedFile = window.opencoveApi?.filesystem?.resolveDroppedFile
+      const resolveDroppedFile = getDroppedFileResolver()
       if (files.length === 0 || !resolveDroppedFile) {
         return
       }
@@ -183,7 +184,7 @@ export function useNativeFilesystemDrop({
       }
       event.preventDefault()
       event.stopPropagation()
-      const resolveDroppedFile = window.opencoveApi.filesystem.resolveDroppedFile!
+      const resolveDroppedFile = getDroppedFileResolver()!
       placeDroppedFiles(files, { x: event.clientX, y: event.clientY }, file =>
         resolveDroppedFile(file),
       )

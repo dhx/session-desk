@@ -1,5 +1,6 @@
 import { CANVAS_IMAGE_MIME_TYPES } from '@shared/contracts/dto'
 import type { WorkspaceSpaceState } from '../../types'
+import { isBrowserRuntime } from '../../utils/fileDropApi'
 
 /**
  * Files dropped onto the canvas in the Web UI. A browser does not tell the page where a file
@@ -8,7 +9,7 @@ import type { WorkspaceSpaceState } from '../../types'
  */
 
 export function isBrowserCanvasRuntime(): boolean {
-  return window.opencoveApi?.meta?.runtime === 'browser'
+  return isBrowserRuntime()
 }
 
 export interface BrowserDroppedFiles {

@@ -1,8 +1,5 @@
-import type { PluginHostAuthority } from '../../../../contexts/plugins/domain/pluginHostTypes'
-import {
-  pluginRecord,
-  pluginString,
-} from '../../../../contexts/plugins/domain/localPluginValidation'
+import type { PluginHostAuthority } from '../../../../contexts/plugins/domain'
+import { pluginRecord, pluginString } from '../../../../contexts/plugins/domain'
 import type { PersistenceStore } from '../../../../platform/persistence/sqlite/PersistenceStore'
 import type { GetSpaceResult, ListSpacesResult } from '../../../../shared/contracts/dto'
 import { createAppError } from '../../../../shared/errors/appError'

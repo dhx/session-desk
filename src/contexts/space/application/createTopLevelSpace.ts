@@ -1,7 +1,7 @@
 import type { LabelColor } from '../../../shared/types/labelColor'
-import type { Size } from '../../workspace/domain/workspaceNodeSizing'
-import { resolveWorkspaceNodesPlacement } from '../../workspace/domain/workspaceNodePlacement'
-import { SPACE_MIN_SIZE, SPACE_NODE_PADDING } from '../../workspace/domain/workspaceSpaceLayout'
+import type { Size } from '../../workspace/domain'
+import { resolveWorkspaceNodesPlacement } from '../../workspace/domain'
+import { SPACE_MIN_SIZE, SPACE_NODE_PADDING } from '../../workspace/domain'
 import type { ChildSpaceNodeFrame, ChildSpaceRecord } from './createChildSpace'
 
 const SPACE_NAME_MAX_LENGTH = 120

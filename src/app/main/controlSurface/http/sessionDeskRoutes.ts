@@ -1,14 +1,14 @@
 // Session Desk: the worker's own raw HTTP routes, beside upstream's /invoke and /events:
 // canvas images, files dropped from the Web UI, and speech (/voice/*).
 import type { IncomingMessage, ServerResponse } from 'node:http'
-import type { ApprovedWorkspaceStore } from '../../../../contexts/workspace/infrastructure/approval/ApprovedWorkspaceStore'
+import type { ApprovedWorkspaceStore } from '../../../../contexts/workspace/infrastructure'
 import { resolve } from 'node:path'
 import type { ControlSurface } from '../controlSurface'
 import {
   createWorkerVoiceRuntime,
   type WorkerVoiceRuntime,
 } from '../../../../contexts/voice/presentation/worker/createWorkerVoiceRuntime'
-import { resolveCanvasImageStoreDir } from '../../../../contexts/workspace/infrastructure/canvasImages/canvasImageStore'
+import { resolveCanvasImageStoreDir } from '../../../../contexts/workspace/infrastructure'
 import {
   handleVoiceRoute,
   hasVoiceCsrfHeader,

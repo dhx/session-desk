@@ -13,3 +13,4 @@ export {
   setWorkspaceMinimapVisible,
   setWorkspaceViewport,
 } from './store/workspaceDocumentCommands'
+export type { WorkspaceState } from './types'

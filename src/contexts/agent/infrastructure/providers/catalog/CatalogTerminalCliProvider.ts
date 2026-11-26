@@ -9,23 +9,31 @@ import {
   type BuiltinAgentCommandProviderId,
 } from '../../cli/AgentCommandFactory'
 import { TerminalCliAgentProviderContribution } from '../terminal-cli/TerminalCliContribution'
-import { createOpenCodeEmbeddedTuiConfig } from '../../opencode/OpenCodeTuiConfig'
 import type { AgentLaunchArtifactRoot } from '../shared/AgentLaunchArtifactFile'
+
+/** Extra environment a catalog provider adds to its launch, registered per provider id. */
+export type CatalogLaunchEnv = (
+  command: CreateAgentLaunchPlanCommand,
+  artifactRoot: AgentLaunchArtifactRoot,
+) => Promise<Record<string, string>>
 
 export class CatalogTerminalCliProvider extends TerminalCliAgentProviderContribution {
   readonly descriptor: AgentProviderDescriptor & { readonly id: BuiltinAgentCommandProviderId }
   private readonly artifactRoot: AgentLaunchArtifactRoot
+  private readonly launchEnv: CatalogLaunchEnv | undefined
 
   constructor(
     descriptor: AgentProviderDescriptor & { readonly id: BuiltinAgentCommandProviderId },
     options: {
       readonly artifactRoot: AgentLaunchArtifactRoot
       readonly detector?: AgentProviderDetector
+      readonly launchEnv?: CatalogLaunchEnv
     },
   ) {
     super(descriptor.id, descriptor.launch.executable, options)
     this.descriptor = descriptor
     this.artifactRoot = options.artifactRoot
+    this.launchEnv = options.launchEnv
   }
 
   protected override async createTerminalLaunchPlan(
@@ -40,13 +48,7 @@ export class CatalogTerminalCliProvider extends TerminalCliAgentProviderContribu
       agentFullAccess: command.agentFullAccess,
       opencodeServer: command.opencodeServer,
     })
-    if (this.descriptor.id === 'opencode' && !process.env.OPENCODE_TUI_CONFIG?.trim()) {
-      const tuiConfig = command.artifacts.track(
-        'opencode-tui-config',
-        await createOpenCodeEmbeddedTuiConfig(this.artifactRoot),
-      )
-      return { ...plan, env: { OPENCODE_TUI_CONFIG: tuiConfig.path } }
-    }
-    return { ...plan, env: {} }
+    const env = this.launchEnv ? await this.launchEnv(command, this.artifactRoot) : {}
+    return { ...plan, env }
   }
 }

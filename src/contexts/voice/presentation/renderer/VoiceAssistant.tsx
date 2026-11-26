@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react'
-import type { AgentSettings } from '@contexts/settings/domain/agentSettings'
+import type { AgentSettings } from '@contexts/settings/domain'
 import { useAppStore } from '@app/renderer/shell/store/useAppStore'
 import { listVoiceBossAgents } from './bossChannel'
 import { useVoiceAssistant } from './useVoiceAssistant'
