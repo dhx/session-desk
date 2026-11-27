@@ -4,11 +4,13 @@ import { classNames } from '@app/renderer/components/ui/classNames'
 import { useTranslation } from '@app/renderer/i18n'
 import type { UiTheme } from '@contexts/settings/domain/agentSettings'
 import { isBuiltinUiTheme, type BuiltinUiTheme } from '@contexts/settings/domain/uiSettings'
+import { APPEARANCE_THUMBNAIL_SIZE, type AppearanceThumbnailMode } from './appearanceThumbnail'
 import {
-  APPEARANCE_THUMBNAIL_SIZE,
-  appearanceThumbnailRuns,
-  type AppearanceThumbnailMode,
-} from './appearanceThumbnail'
+  PLAIN_THUMBNAIL_SIZE,
+  PLAIN_THUMBNAIL_SYSTEM_SPLIT,
+  plainAppearanceThumbnailShapes,
+  plainThumbnailShapePath,
+} from './plainAppearanceThumbnail'
 
 /** Picker order: what the app looks like by day, by night, and following the system. */
 const APPEARANCES: readonly BuiltinUiTheme[] = ['light', 'dark', 'system']
@@ -30,6 +32,24 @@ export interface AppearancePickerProps {
   className?: string
 }
 
+function ThumbnailShapes({ appearance }: { appearance: 'light' | 'dark' }): React.JSX.Element {
+  return (
+    <>
+      {plainAppearanceThumbnailShapes(appearance).map(shape => (
+        <path
+          key={shape.part}
+          d={plainThumbnailShapePath(shape)}
+          fill={shape.fill}
+          stroke={shape.stroke}
+          strokeWidth={shape.stroke ? 1 : undefined}
+          data-part={shape.part}
+        />
+      ))}
+    </>
+  )
+}
+
+/** This fork draws the miniature in its plain look (plainAppearanceThumbnail.ts), not pixel art. */
 function AppearanceThumbnail({
   mode,
   scale,
@@ -37,26 +57,34 @@ function AppearanceThumbnail({
   mode: AppearanceThumbnailMode
   scale: number
 }): React.JSX.Element {
+  const clipId = React.useId()
   const { width, height } = APPEARANCE_THUMBNAIL_SIZE
   return (
     <svg
       className="cove-appearance-picker__thumbnail"
       width={width * scale}
       height={height * scale}
-      viewBox={`0 0 ${width} ${height}`}
-      shapeRendering="crispEdges"
+      viewBox={`0 0 ${PLAIN_THUMBNAIL_SIZE.width} ${PLAIN_THUMBNAIL_SIZE.height}`}
       aria-hidden="true"
       focusable="false"
     >
-      {appearanceThumbnailRuns(mode).map(run => (
-        <path key={run.color} d={run.path} fill={run.color} />
-      ))}
+      <ThumbnailShapes appearance={mode === 'dark' ? 'dark' : 'light'} />
+      {mode === 'system' ? (
+        <>
+          <clipPath id={clipId}>
+            <path d={PLAIN_THUMBNAIL_SYSTEM_SPLIT} />
+          </clipPath>
+          <g clipPath={`url(#${clipId})`} data-part="system-dark">
+            <ThumbnailShapes appearance="dark" />
+          </g>
+        </>
+      ) : null}
     </svg>
   )
 }
 
 /**
- * Light, dark or system, each shown as the app in pixel miniature. The options are native radios
+ * Light, dark or system, each shown as the app in miniature. The options are native radios
  * under one name, so the group takes arrow keys and a single tab stop from the platform. Picking
  * one while a plugin theme is on switches back to Cove in that appearance.
  */
