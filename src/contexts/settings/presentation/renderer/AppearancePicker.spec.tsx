@@ -28,10 +28,17 @@ describe('AppearancePicker', () => {
     expect(screen.getByTestId('mode-light')).not.toBeChecked()
     expect(new Set(radios.map(radio => radio.getAttribute('name'))).size).toBe(1)
 
-    // Each thumbnail is pixel art: crisp edges at a whole pixel scale, hidden from the name.
+    // Each thumbnail is the app in this fork's plain look, not pixel art; hidden from the name.
     const thumbnails = group.querySelectorAll('svg.cove-appearance-picker__thumbnail')
     expect(thumbnails).toHaveLength(3)
-    expect(thumbnails[0]).toHaveAttribute('shape-rendering', 'crispEdges')
+    expect(thumbnails[0]).not.toHaveAttribute('shape-rendering')
+    expect(thumbnails[0]!.querySelector('[data-part="task-window"]')).not.toBeNull()
+    // Light and dark draw one appearance; system lays dark over light behind a diagonal.
+    expect(thumbnails[0]!.querySelector('[data-part="system-dark"]')).toBeNull()
+    expect(thumbnails[1]!.querySelector('[data-part="system-dark"]')).toBeNull()
+    expect(
+      thumbnails[2]!.querySelector('[data-part="system-dark"] [data-part="canvas"]'),
+    ).not.toBeNull()
     expect(thumbnails[0]).toHaveAttribute('width', '84')
     expect(thumbnails[0]!.closest('[aria-hidden="true"]')).not.toBeNull()
 
