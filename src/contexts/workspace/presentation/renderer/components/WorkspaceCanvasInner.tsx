@@ -74,7 +74,6 @@ export function WorkspaceCanvasInner(props: WorkspaceCanvasInnerProps) {
   const { handleSpaceDragHandlePointerDown } = workspaceCanvasHooks.useWorkspaceCanvasSpaceDrag({
     workspaceId,
     reactFlow,
-    setNodes: nodeStore.setNodes,
     updateCanvasDocument: nodeStore.updateCanvasDocument,
   })
   const {
@@ -92,7 +91,6 @@ export function WorkspaceCanvasInner(props: WorkspaceCanvasInnerProps) {
     reactFlow,
     nodeDragSession,
     exclusiveNodeDragAnchorIdRef,
-    setNodes: nodeStore.setNodes,
     updateCanvasDocument: nodeStore.updateCanvasDocument,
     onShowMessage,
     hideWorktreeMismatchDropWarning: agentSettings.hideWorktreeMismatchDropWarning === true,
@@ -181,7 +179,6 @@ export function WorkspaceCanvasInner(props: WorkspaceCanvasInnerProps) {
     isShiftPressedRef: canvasState.isShiftPressedRef,
     selectionDraftRef: canvasState.selectionDraftRef,
     reactFlow,
-    setNodes: nodeStore.setNodes,
     updateCanvasDocument: nodeStore.updateCanvasDocument,
     workspaceId,
     workspacePath,
@@ -224,7 +221,6 @@ export function WorkspaceCanvasInner(props: WorkspaceCanvasInnerProps) {
     canvasRef: canvasState.canvasRef,
     reactFlow,
     spaceNavigationAnchorIdRef: canvasState.spaceNavigationAnchorIdRef,
-    setNodes: nodeStore.setNodes,
     updateCanvasDocument: nodeStore.updateCanvasDocument,
     nodeCreation: nodeStore,
     createSpaceFromSelectedNodes: spacesApi.createSpaceFromSelectedNodes,
@@ -342,6 +338,7 @@ export function WorkspaceCanvasInner(props: WorkspaceCanvasInnerProps) {
         insertQuickPhrase={insertQuickPhrase}
         openQuickMenuSettings={openQuickMenuSettings}
         createSpaceFromSelectedNodes={spacesApi.createSpaceFromSelectedNodes}
+        createSpaceFromNodeDirectory={spacesApi.createSpaceFromNodeDirectory}
         createChildSpaceInParent={spacesApi.createChildSpaceInParent}
         createEmptySpaceAtPoint={spacesApi.createEmptySpaceAtPoint}
         confirmSpaceTargetMountPicker={spacesApi.confirmSpaceTargetMountPicker}
